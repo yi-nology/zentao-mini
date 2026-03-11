@@ -105,15 +105,15 @@ jobs:
             # Use the correct app name with Chinese characters
             zip -r -y zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip "zentao-mini.app"
             # Create a README file with instructions for macOS users
-            echo '# 禅道Mini macOS 安装说明
+            echo '# zentao-mini macOS 安装说明
 
 ## 安装步骤
 
-1. 下载并解压 `zentao-mini-darwin-${{ matrix.goarch }}.zip` 文件
-2. 将 "禅道Mini.app" 拖放到 Applications 文件夹
+1. 下载并解压 zentao-mini-darwin-${{ matrix.goarch }}.zip 文件
+2. 将 "zentao-mini.app" 拖放到 Applications 文件夹
 3. 第一次运行时，会出现安全警告
 4. 请按照以下步骤操作：
-   - 右键点击 "禅道Mini.app"
+   - 右键点击 "zentao-mini.app"
    - 选择 "打开"
    - 在弹出的警告窗口中，点击 "打开"
    - 应用就会正常运行了
