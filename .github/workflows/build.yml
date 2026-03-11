@@ -68,6 +68,7 @@ jobs:
             libappindicator3-dev
 
       - name: Install Wails CLI
+        shell: bash
         run: |
           # Add retry mechanism for network timeouts
           for i in {1..5}; do
