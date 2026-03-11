@@ -68,7 +68,17 @@ jobs:
             libappindicator3-dev
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: |
+          # Add retry mechanism for network timeouts
+          for i in {1..5}; do
+            echo "Attempt $i to install Wails CLI..."
+            if go install github.com/wailsapp/wails/v2/cmd/wails@latest; then
+              echo "Wails CLI installed successfully!"
+              break
+            fi
+            echo "Attempt $i failed, retrying in 5 seconds..."
+            sleep 5
+          done
 
       - name: Install frontend dependencies
         working-directory: ./frontend
