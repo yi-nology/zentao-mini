@@ -88,7 +88,8 @@ jobs:
             wails build -clean -platform ${{ matrix.goos }}/${{ matrix.goarch }}
             # Create a zip file for macOS to preserve the app bundle
             cd build/bin
-            zip -r zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip zentao-mini.app
+            # Use the correct app name with Chinese characters
+            zip -r zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip "禅道Mini.app"
           else
             wails build -clean -platform ${{ matrix.goos }}/${{ matrix.goarch }}
           fi
