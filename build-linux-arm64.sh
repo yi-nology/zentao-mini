@@ -19,8 +19,8 @@ echo "交叉编译为 Linux arm64..."
 # 创建输出目录
 mkdir -p build/linux-arm64
 
-# 使用 go build 直接交叉编译，添加 Wails 构建标签
-GOOS=linux GOARCH=arm64 go build -tags wails -o build/linux-arm64/chandao-mini .
+# 使用 go build 直接交叉编译，添加 Wails 构建标签，禁用 CGO 以避免交叉编译问题
+GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags wails -o build/linux-arm64/chandao-mini .
 if [ $? -ne 0 ]; then
     echo "错误: 交叉编译失败"
     exit 1
