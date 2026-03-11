@@ -6,10 +6,8 @@ require (
 	github.com/gin-contrib/cors v1.5.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/wailsapp/wails/v2 v2.11.0
-	github.com/yi-nology/common v0.0.0-00010101000000-000000000000
+	github.com/yi-nology/common v0.3.1
 )
-
-replace github.com/yi-nology/common => /Users/zhangyi/gitclone/common
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
