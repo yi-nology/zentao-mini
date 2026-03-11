@@ -82,7 +82,8 @@ export default {
         formData.append('configFile', this.selectedFile)
         
         // 上传文件到后端接口
-        const response = await fetch('/api/init/upload', {
+        const apiUrl = window.location.origin.includes('34115') ? 'http://localhost:12345/api/init/upload' : '/api/init/upload';
+        const response = await fetch(apiUrl, {
           method: 'POST',
           body: formData
         })
@@ -119,7 +120,8 @@ export default {
       
       try {
         // 调用当前用户接口测试禅道连接
-        const response = await fetch('/api/users/current')
+        const apiUrl = window.location.origin.includes('34115') ? 'http://localhost:12345/api/users/current' : '/api/users/current';
+        const response = await fetch(apiUrl)
         
         if (!response.ok) {
           throw new Error('测试失败')
