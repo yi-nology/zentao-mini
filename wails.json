@@ -9,5 +9,9 @@
   "author": {
     "name": "MurphyYi",
     "email": "zy84338719@hotmail.com"
+  },
+  "linux": {
+    "desktop": true,
+    "appimage": true
   }
 }
