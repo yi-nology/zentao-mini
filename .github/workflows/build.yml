@@ -105,28 +105,26 @@ jobs:
             # Use the correct app name
             zip -r -y zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip "zentao-mini.app"
             # Create a README file with instructions for macOS users
-            cat > README-macOS.md << 'EOF'
-# zentao-mini macOS 安装说明
-
-## 安装步骤
-
-1. 下载并解压 zentao-mini-darwin-${{ matrix.goarch }}.zip 文件
-2. 将 "zentao-mini.app" 拖放到 Applications 文件夹
-3. 第一次运行时，会出现安全警告
-4. 请按照以下步骤操作：
-   - 右键点击 "zentao-mini.app"
-   - 选择 "打开"
-   - 在弹出的警告窗口中，点击 "打开"
-   - 应用就会正常运行了
-
-## 常见问题
-
-### 应用被标记为损坏
-这是因为应用没有经过 Apple 签名，macOS 的 Gatekeeper 安全功能会阻止它运行。请按照上述步骤绕过 Gatekeeper 限制。
-
-### 应用无法启动
-请确保您使用的是 macOS 10.15 或更高版本，并且已经按照上述步骤正确安装。
-EOF
+            echo "# zentao-mini macOS 安装说明" > README-macOS.md
+            echo "" >> README-macOS.md
+            echo "## 安装步骤" >> README-macOS.md
+            echo "" >> README-macOS.md
+            echo "1. 下载并解压 zentao-mini-darwin-${{ matrix.goarch }}.zip 文件" >> README-macOS.md
+            echo "2. 将 \"zentao-mini.app\" 拖放到 Applications 文件夹" >> README-macOS.md
+            echo "3. 第一次运行时，会出现安全警告" >> README-macOS.md
+            echo "4. 请按照以下步骤操作：" >> README-macOS.md
+            echo "   - 右键点击 \"zentao-mini.app\"" >> README-macOS.md
+            echo "   - 选择 \"打开\"" >> README-macOS.md
+            echo "   - 在弹出的警告窗口中，点击 \"打开\"" >> README-macOS.md
+            echo "   - 应用就会正常运行了" >> README-macOS.md
+            echo "" >> README-macOS.md
+            echo "## 常见问题" >> README-macOS.md
+            echo "" >> README-macOS.md
+            echo "### 应用被标记为损坏" >> README-macOS.md
+            echo "这是因为应用没有经过 Apple 签名，macOS 的 Gatekeeper 安全功能会阻止它运行。请按照上述步骤绕过 Gatekeeper 限制。" >> README-macOS.md
+            echo "" >> README-macOS.md
+            echo "### 应用无法启动" >> README-macOS.md
+            echo "请确保您使用的是 macOS 10.15 或更高版本，并且已经按照上述步骤正确安装。" >> README-macOS.md
             # Include the README in the zip
             zip -r zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip README-macOS.md
           else
