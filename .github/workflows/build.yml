@@ -80,6 +80,12 @@ jobs:
         run: |
           if [ "${{ matrix.goos }}" = "linux" ]; then
             wails build -clean -tags webkit2_41 -platform ${{ matrix.goos }}/${{ matrix.goarch }}
+          elif [ "${{ matrix.goos }}" = "darwin" ]; then
+            # Build for macOS without signature (users will need to bypass Gatekeeper)
+            wails build -clean -platform ${{ matrix.goos }}/${{ matrix.goarch }}
+            # Create a zip file for macOS to preserve the app bundle
+            cd build/bin
+            zip -r zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip zentao-mini.app
           else
             wails build -clean -platform ${{ matrix.goos }}/${{ matrix.goarch }}
           fi
@@ -88,7 +94,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: build/bin/*
+          path: |
+            build/bin/*
+            build/bin/*.zip
 
   release:
     name: Release
