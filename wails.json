@@ -1,6 +1,6 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "禅道Mini",
+  "name": "zentao-mini",
   "outputfilename": "zentao-mini",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
