@@ -1,0 +1,91 @@
+/* 统一页面布局样式 */
+
+/* 页面容器 */
+.page-container {
+  padding: 0;
+}
+
+/* 筛选卡片 */
+.filter-card {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 筛选表单 */
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: flex-end;
+}
+
+.filter-form .el-form-item {
+  margin-bottom: 10px;
+}
+
+/* 表格卡片 */
+.table-card {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  min-height: 500px;
+}
+
+/* 表格头部 */
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+/* 头部操作按钮 */
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 分页容器 */
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #909399;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .filter-form {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .filter-form .el-form-item {
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+  
+  .table-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .pagination-wrapper {
+    justify-content: center;
+  }
+}

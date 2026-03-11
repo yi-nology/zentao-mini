@@ -1,0 +1,6 @@
+build/bin
+build/
+node_modules
+frontend/dist
+auth-config1.json
+generate-encryption.sh
