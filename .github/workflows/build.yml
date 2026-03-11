@@ -10,140 +10,82 @@ on:
 
 jobs:
   build:
+    name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
         include:
-          - os: ubuntu-latest
+          - name: linux-amd64
+            os: ubuntu-latest
             goos: linux
             goarch: amd64
-          - os: windows-latest
+
+          - name: windows-amd64
+            os: windows-latest
             goos: windows
             goarch: amd64
-          - os: macos-latest
+
+          - name: darwin-amd64
+            os: macos-latest
             goos: darwin
             goarch: amd64
 
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-
-    - name: Install system dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        # Install base dependencies
-        sudo apt-get install -y build-essential libgtk-3-dev libappindicator3-dev libglib2.0-dev
-        # Find and install available webkit2gtk package
-        WEBKIT_PACKAGE=$(apt-cache search libwebkit2gtk | grep -E 'libwebkit2gtk-.*-dev' | head -1 | awk '{print $1}')
-        if [ -n "$WEBKIT_PACKAGE" ]; then
-          sudo apt-get install -y $WEBKIT_PACKAGE
-          echo "Installed $WEBKIT_PACKAGE"
-        else
-          echo "Error: Could not find webkit2gtk package"
-          exit 1
-        fi
-        # Install cross-compilation tools for ARM64
-        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-
-    - name: Install Wails CLI
-      run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-    - name: Install frontend dependencies
-      run: npm install
-      working-directory: ./frontend
-
-    - name: Build frontend
-      run: npm run build
-      working-directory: ./frontend
-
-    - name: Build Wails app
-      run: wails build -platform ${{ matrix.goos }}/${{ matrix.goarch }}
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: build/${{ matrix.goos }}/${{ matrix.goarch }}
-
-  build-arm64:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, macos-latest ]
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-          - os: macos-latest
+          - name: darwin-arm64
+            os: macos-latest
             goos: darwin
             goarch: arm64
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-    - name: Install system dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        # Install base dependencies
-        sudo apt-get install -y build-essential libgtk-3-dev libappindicator3-dev libglib2.0-dev
-        # Find and install available webkit2gtk package
-        WEBKIT_PACKAGE=$(apt-cache search libwebkit2gtk | grep -E 'libwebkit2gtk-.*-dev' | head -1 | awk '{print $1}')
-        if [ -n "$WEBKIT_PACKAGE" ]; then
-          sudo apt-get install -y $WEBKIT_PACKAGE
-          echo "Installed $WEBKIT_PACKAGE"
-        else
-          echo "Error: Could not find webkit2gtk package"
-          exit 1
-        fi
-        # Install cross-compilation tools for ARM64
-        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - name: Install Linux dependencies
+        if: matrix.goos == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libglib2.0-dev \
+            libappindicator3-dev
 
-    - name: Install Wails CLI
-      run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-    - name: Install frontend dependencies
-      run: npm install
-      working-directory: ./frontend
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
 
-    - name: Build frontend
-      run: npm run build
-      working-directory: ./frontend
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
 
-    - name: Build Wails app (ARM64)
-      run: |
-        if [ "${{ matrix.goarch }}" = "arm64" ]; then
-          export GOARCH=arm64
-          export GOOS=${{ matrix.goos }}
-          export CGO_ENABLED=1
-          export CC=aarch64-linux-gnu-gcc
-          export CXX=aarch64-linux-gnu-g++
-        fi
-        wails build -platform ${{ matrix.goos }}/${{ matrix.goarch }}
+      - name: Build Wails app
+        shell: bash
+        run: |
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            wails build -clean -tags webkit2_41 -platform ${{ matrix.goos }}/${{ matrix.goarch }}
+          else
+            wails build -clean -platform ${{ matrix.goos }}/${{ matrix.goarch }}
+          fi
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: build/${{ matrix.goos }}/${{ matrix.goarch }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: build/bin/*
