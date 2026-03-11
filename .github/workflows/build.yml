@@ -103,7 +103,30 @@ jobs:
             # Create a zip file for macOS to preserve the app bundle
             cd build/bin
             # Use the correct app name with Chinese characters
-            zip -r zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip "禅道Mini.app"
+            zip -r -y zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip "禅道Mini.app"
+            # Create a README file with instructions for macOS users
+            echo '# 禅道Mini macOS 安装说明
+
+## 安装步骤
+
+1. 下载并解压 `zentao-mini-darwin-${{ matrix.goarch }}.zip` 文件
+2. 将 "禅道Mini.app" 拖放到 Applications 文件夹
+3. 第一次运行时，会出现安全警告
+4. 请按照以下步骤操作：
+   - 右键点击 "禅道Mini.app"
+   - 选择 "打开"
+   - 在弹出的警告窗口中，点击 "打开"
+   - 应用就会正常运行了
+
+## 常见问题
+
+### 应用被标记为损坏
+这是因为应用没有经过 Apple 签名，macOS 的 Gatekeeper 安全功能会阻止它运行。请按照上述步骤绕过 Gatekeeper 限制。
+
+### 应用无法启动
+请确保您使用的是 macOS 10.15 或更高版本，并且已经按照上述步骤正确安装。' > README-macOS.md
+            # Include the README in the zip
+            zip -r zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip README-macOS.md
           else
             wails build -clean -platform ${{ matrix.goos }}/${{ matrix.goarch }}
           fi
