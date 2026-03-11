@@ -54,7 +54,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           # 暂时禁用 npm 缓存以避免 tar 命令失败
           cache: ''
 
