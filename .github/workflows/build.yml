@@ -103,7 +103,7 @@ jobs:
             # Create a zip file for macOS to preserve the app bundle
             cd build/bin
             # Use the correct app name with Chinese characters
-            zip -r -y zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip "禅道Mini.app"
+            zip -r -y zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip "zentao-mini.app"
             # Create a README file with instructions for macOS users
             echo '# 禅道Mini macOS 安装说明
 
