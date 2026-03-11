@@ -50,13 +50,13 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          # 暂时禁用 npm 缓存以避免 tar 命令失败
-          cache: ''
+          cache: false
 
       - name: Install Linux dependencies
         if: matrix.goos == 'linux'
