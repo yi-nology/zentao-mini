@@ -46,7 +46,7 @@ func NewInitService(authConfigPath, dbPath, encryptionKey string) *InitService {
 		// 使用用户主目录作为存储位置，确保在打包应用中也能正确访问
 		homeDir, err := os.UserHomeDir()
 		if err == nil {
-			dbPath = filepath.Join(homeDir, ".chandao-mini", "auth.db")
+			dbPath = filepath.Join(homeDir, ".zentao-mini", "auth.db")
 		} else {
 			// 如果无法获取用户主目录，使用当前目录
 			dbPath = "./auth.db"
