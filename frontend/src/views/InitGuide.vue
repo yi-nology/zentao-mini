@@ -45,6 +45,11 @@
         <h3>测试结果</h3>
         <pre>{{ testResult }}</pre>
       </div>
+      
+      <div v-if="debugInfo" class="debug-info">
+        <h3>调试信息</h3>
+        <pre>{{ debugInfo }}</pre>
+      </div>
     </div>
   </div>
 </template>
@@ -59,7 +64,8 @@ export default {
       error: '',
       success: '',
       testing: false,
-      testResult: ''
+      testResult: '',
+      debugInfo: ''
     }
   },
   methods: {
@@ -75,6 +81,7 @@ export default {
       this.loading = true
       this.error = ''
       this.success = ''
+      this.debugInfo = ''
       
       try {
         // 创建FormData对象
@@ -83,16 +90,31 @@ export default {
         
         // 上传文件到后端接口
         const apiUrl = window.location.origin.includes('34115') ? 'http://localhost:12345/api/init/upload' : '/api/init/upload';
+        
+        // 收集调试信息
+        this.debugInfo += `请求URL: ${apiUrl}\n`
+        this.debugInfo += `请求方法: POST\n`
+        this.debugInfo += `请求文件: ${this.selectedFile.name} (${this.selectedFile.size} bytes)\n`
+        this.debugInfo += `请求时间: ${new Date().toISOString()}\n\n`
+        
         const response = await fetch(apiUrl, {
           method: 'POST',
           body: formData
         })
         
+        // 收集响应信息
+        this.debugInfo += `响应状态: ${response.status} ${response.statusText}\n`
+        this.debugInfo += `响应时间: ${new Date().toISOString()}\n\n`
+        
         if (!response.ok) {
+          const errorText = await response.text()
+          this.debugInfo += `错误响应: ${errorText}\n`
           throw new Error('上传失败')
         }
         
         const result = await response.json()
+        this.debugInfo += `响应数据: ${JSON.stringify(result, null, 2)}\n`
+        
         if (result.code !== 200) {
           throw new Error(result.message || '初始化失败')
         }
@@ -109,6 +131,7 @@ export default {
         }, 3000)
       } catch (err) {
         this.error = '初始化失败，请检查上传的文件并重试。'
+        this.debugInfo += `错误信息: ${err.message}\n`
         console.error('初始化错误:', err)
       } finally {
         this.loading = false
@@ -117,17 +140,32 @@ export default {
     async testZentao() {
       this.testing = true
       this.testResult = ''
+      this.debugInfo = ''
       
       try {
         // 调用当前用户接口测试禅道连接
         const apiUrl = window.location.origin.includes('34115') ? 'http://localhost:12345/api/users/current' : '/api/users/current';
+        
+        // 收集调试信息
+        this.debugInfo += `请求URL: ${apiUrl}\n`
+        this.debugInfo += `请求方法: GET\n`
+        this.debugInfo += `请求时间: ${new Date().toISOString()}\n\n`
+        
         const response = await fetch(apiUrl)
         
+        // 收集响应信息
+        this.debugInfo += `响应状态: ${response.status} ${response.statusText}\n`
+        this.debugInfo += `响应时间: ${new Date().toISOString()}\n\n`
+        
         if (!response.ok) {
+          const errorText = await response.text()
+          this.debugInfo += `错误响应: ${errorText}\n`
           throw new Error('测试失败')
         }
         
         const result = await response.json()
+        this.debugInfo += `响应数据: ${JSON.stringify(result, null, 2)}\n`
+        
         if (result.code !== 200) {
           throw new Error(result.message || '测试失败')
         }
@@ -136,6 +174,7 @@ export default {
         this.testResult = JSON.stringify(result, null, 2)
       } catch (err) {
         this.testResult = '测试失败: ' + err.message
+        this.debugInfo += `错误信息: ${err.message}\n`
         console.error('测试禅道连接错误:', err)
       } finally {
         this.testing = false
@@ -301,6 +340,32 @@ h1 {
 }
 
 .test-result pre {
+  margin: 10px 0 0 0;
+  padding: 10px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.debug-info {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.debug-info h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.debug-info pre {
   margin: 10px 0 0 0;
   padding: 10px;
   background-color: #e9ecef;
