@@ -4,3 +4,12 @@ node_modules
 frontend/dist
 auth-config1.json
 generate-encryption.sh
+
+# Docker
+Dockerfile
+docker-compose.yml
+auth.json
+
+# Docker build artifacts
+.docker/
+
