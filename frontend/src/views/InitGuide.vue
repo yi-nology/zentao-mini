@@ -55,6 +55,8 @@
 </template>
 
 <script>
+import { uploadInitConfig, testZentaoConnection } from '@/api/zentao'
+
 export default {
   name: 'InitGuide',
   data() {
@@ -88,31 +90,17 @@ export default {
         const formData = new FormData()
         formData.append('configFile', this.selectedFile)
         
-        // 上传文件到后端接口
-        const apiUrl = window.location.origin.includes('34115') ? 'http://localhost:12345/api/init/upload' : '/api/init/upload';
-        
         // 收集调试信息
-        this.debugInfo += `请求URL: ${apiUrl}\n`
+        this.debugInfo += `请求URL: /api/init/upload\n`
         this.debugInfo += `请求方法: POST\n`
         this.debugInfo += `请求文件: ${this.selectedFile.name} (${this.selectedFile.size} bytes)\n`
         this.debugInfo += `请求时间: ${new Date().toISOString()}\n\n`
         
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          body: formData
-        })
+        // 上传文件到后端接口
+        const result = await uploadInitConfig(formData)
         
         // 收集响应信息
-        this.debugInfo += `响应状态: ${response.status} ${response.statusText}\n`
         this.debugInfo += `响应时间: ${new Date().toISOString()}\n\n`
-        
-        if (!response.ok) {
-          const errorText = await response.text()
-          this.debugInfo += `错误响应: ${errorText}\n`
-          throw new Error('上传失败')
-        }
-        
-        const result = await response.json()
         this.debugInfo += `响应数据: ${JSON.stringify(result, null, 2)}\n`
         
         if (result.code !== 200) {
@@ -143,27 +131,16 @@ export default {
       this.debugInfo = ''
       
       try {
-        // 调用当前用户接口测试禅道连接
-        const apiUrl = window.location.origin.includes('34115') ? 'http://localhost:12345/api/users/current' : '/api/users/current';
-        
         // 收集调试信息
-        this.debugInfo += `请求URL: ${apiUrl}\n`
+        this.debugInfo += `请求URL: /api/users/current\n`
         this.debugInfo += `请求方法: GET\n`
         this.debugInfo += `请求时间: ${new Date().toISOString()}\n\n`
         
-        const response = await fetch(apiUrl)
+        // 调用当前用户接口测试禅道连接
+        const result = await testZentaoConnection()
         
         // 收集响应信息
-        this.debugInfo += `响应状态: ${response.status} ${response.statusText}\n`
         this.debugInfo += `响应时间: ${new Date().toISOString()}\n\n`
-        
-        if (!response.ok) {
-          const errorText = await response.text()
-          this.debugInfo += `错误响应: ${errorText}\n`
-          throw new Error('测试失败')
-        }
-        
-        const result = await response.json()
         this.debugInfo += `响应数据: ${JSON.stringify(result, null, 2)}\n`
         
         if (result.code !== 200) {
