@@ -23,20 +23,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux x86_64
           - name: linux-amd64
             os: ubuntu-latest
             goos: linux
             goarch: amd64
             artifact_suffix: linux-amd64
-
-          # Linux arm64 先只做 tar.gz，不做 AppImage
-          # 注意：GitHub Hosted runner 上这里本质是交叉编译，能否稳定通过取决于项目依赖和 CGO 场景
-          - name: linux-arm64
-            os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            artifact_suffix: linux-arm64
 
           - name: windows-amd64
             os: windows-latest
@@ -64,6 +55,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -119,7 +111,6 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
-      # Linux: Ubuntu 24.04 / newer runner 需要显式 webkit2_41
       - name: Build Wails app (Linux)
         if: matrix.goos == 'linux'
         shell: bash
@@ -164,24 +155,6 @@ jobs:
 
           tar -czf "${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}.tar.gz" "$BIN_NAME"
 
-      # 这里只给 amd64 预留 AppImage 打包占位，不在这版里硬上
-      # 原因：Wails v2 + GitHub Hosted runner + CGO/WebKitGTK 组合下，arm64 AppImage 并不稳
-      - name: Prepare Linux AppImage placeholder note
-        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
-        shell: bash
-        run: |
-          cat > build/bin/README-AppImage.txt <<'EOF'
-          AppImage 说明
-
-          当前 CI 版本优先保证 Wails Linux 编译稳定通过，并产出 tar.gz。
-          AppImage 建议后续单独接入专门打包脚本或迁移到更完整的 Linux 打包体系。
-
-          如果要继续做：
-          1. 基于原生 Linux 环境验证运行
-          2. 再引入 AppImage 打包链
-          3. ARM64 AppImage 建议在 self-hosted ARM64 runner 上原生构建
-          EOF
-
       - name: Package macOS app zip
         if: matrix.goos == 'darwin'
         shell: bash
@@ -212,8 +185,7 @@ jobs:
 
           说明：
           - 当前产物未做 Apple Developer 签名与 notarization
-          - 新版 macOS 下，未签名应用可能不会稳定出现“仍要打开”入口
-          - 面向外部正式分发，建议补齐签名与 notarization
+          - 面向正式外部分发，建议后续补齐签名与 notarization
           EOF
 
       - name: Package Windows zip
@@ -234,14 +206,118 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}
-          path: |
-            build/bin/*
+          path: build/bin/*
+          if-no-files-found: error
+
+  build-linux-arm64:
+    name: Build linux-arm64
+    runs-on: [self-hosted, Linux, ARM64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libglib2.0-dev \
+            libappindicator3-dev \
+            patchelf \
+            file \
+            fakeroot \
+            desktop-file-utils
+
+      - name: Debug Linux pkg-config
+        run: |
+          echo "== pkg-config debug =="
+          pkg-config --modversion gtk+-3.0 || true
+          pkg-config --modversion gio-unix-2.0 || true
+          pkg-config --modversion webkit2gtk-4.1 || true
+          pkg-config --modversion webkit2gtk-4.0 || true
+          uname -a
+          arch
+
+      - name: Install Wails CLI
+        shell: bash
+        run: |
+          set -e
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i to install Wails CLI..."
+            if go install github.com/wailsapp/wails/v2/cmd/wails@latest; then
+              break
+            fi
+            sleep 5
+          done
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          "$(go env GOPATH)/bin/wails" version
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Build Wails app
+        shell: bash
+        run: |
+          set -e
+          export CGO_ENABLED=1
+          wails build -clean -platform linux/arm64 -tags webkit2_41
+
+      - name: List build outputs
+        shell: bash
+        run: |
+          echo "== build/bin =="
+          ls -lah build/bin || true
+
+      - name: Package Linux tar.gz
+        shell: bash
+        run: |
+          set -e
+          cd build/bin
+
+          BIN_NAME="${{ env.APP_NAME }}"
+          if [ ! -f "$BIN_NAME" ]; then
+            echo "Binary not found: $BIN_NAME"
+            ls -lah
+            exit 1
+          fi
+
+          tar -czf "${{ env.APP_NAME }}-linux-arm64.tar.gz" "$BIN_NAME"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-linux-arm64
+          path: build/bin/*
           if-no-files-found: error
 
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: build
+    needs:
+      - build
+      - build-linux-arm64
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
