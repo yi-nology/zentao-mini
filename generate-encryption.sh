@@ -34,7 +34,8 @@ key=$(echo -n "$key" | head -c 32)
 iv=$(openssl rand -hex 16)
 # 使用更可靠的方式生成十六进制密钥
 key_hex=$(echo -n "$key" | openssl dgst -sha256 -hex | cut -d' ' -f2)
-encrypted=$(echo -n "$data" | openssl enc -aes-256-cfb -iv "$iv" -K "$key_hex" -base64)
+# 生成base64编码并去除所有空白字符（包括换行符）
+encrypted=$(echo -n "$data" | openssl enc -aes-256-cfb -iv "$iv" -K "$key_hex" -base64 | tr -d '[:space:]')
 
 # 注意：base64编码已被注释，使用AES加密确保安全性
 # encrypted=$(echo -n "$data" | base64)
