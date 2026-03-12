@@ -107,31 +107,17 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
-      - name: Build frontend
-        working-directory: ./frontend
-        run: npm run build
-
-      - name: Build Wails app (Linux)
-        if: matrix.goos == 'linux'
+      - name: Build using Makefile
         shell: bash
         run: |
           set -e
-          export CGO_ENABLED=1
-          wails build -clean -platform linux/${{ matrix.goarch }} -tags webkit2_41
-
-      - name: Build Wails app (macOS)
-        if: matrix.goos == 'darwin'
-        shell: bash
-        run: |
-          set -e
-          wails build -clean -platform darwin/${{ matrix.goarch }}
-
-      - name: Build Wails app (Windows)
-        if: matrix.goos == 'windows'
-        shell: bash
-        run: |
-          set -e
-          wails build -clean -platform windows/${{ matrix.goarch }}
+          if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "Building release version..."
+            make release
+          else
+            echo "Building regular version..."
+            make build
+          fi
 
       - name: List build outputs
         shell: bash
@@ -273,16 +259,17 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
-      - name: Build frontend
-        working-directory: ./frontend
-        run: npm run build
-
-      - name: Build Wails app
+      - name: Build using Makefile
         shell: bash
         run: |
           set -e
-          export CGO_ENABLED=1
-          wails build -clean -platform linux/arm64 -tags webkit2_41
+          if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "Building release version..."
+            make release
+          else
+            echo "Building regular version..."
+            make build
+          fi
 
       - name: List build outputs
         shell: bash
