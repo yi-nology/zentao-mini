@@ -41,6 +41,18 @@ install:
 	@make frontend-install
 	@go mod tidy
 
+# 开发模式命令 - 不进行编译
+run:
+	@echo "Running application in development mode..."
+	@make wails-run
+
+# 版本构建命令 - 只有打版本时才进行编译
+release:
+	@echo "Building release version..."
+	@make frontend-build
+	@make wails-build
+	@echo "Release build completed"
+
 build:
 	@echo "Building all components..."
 	@make frontend-build
@@ -79,7 +91,9 @@ help:
 	@echo ""
 	@echo "Combined commands:"
 	@echo "  make install            - Install all dependencies"
+	@echo "  make run                - Run application in development mode (no compilation)"
 	@echo "  make build              - Build all components"
+	@echo "  make release            - Build release version (only for versioning)"
 	@echo ""
 	@echo "Other commands:"
 	@echo "  make clean              - Clean build artifacts"
