@@ -82,7 +82,12 @@ func SetupRouter(initService *initialization.InitService, zentaoClient *zentao.C
 			fileDataReader := bufio.NewReader(f)
 			_, err = fileDataReader.Read(fileData)
 			if err != nil {
-
+				c.JSON(500, gin.H{
+					"code":    500,
+					"message": "读取上传文件失败",
+					"data":    nil,
+				})
+				return
 			}
 
 			// 重新加载配置
