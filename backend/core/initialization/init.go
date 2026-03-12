@@ -4,7 +4,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -140,7 +142,7 @@ func (s *InitService) LoadAuthConfig() (*AuthConfig, []byte, error) {
 }
 
 // decrypt 解密数据
-func (s *InitService) decrypt(encryptedData, salt string) (*AuthConfig, error) {
+func (s *InitService) decrypt(encryptedData, salt, iv string) (*AuthConfig, error) {
 	// 解码base64数据
 	decodedData, err := base64.StdEncoding.DecodeString(encryptedData)
 	if err != nil {
@@ -155,39 +157,43 @@ func (s *InitService) decrypt(encryptedData, salt string) (*AuthConfig, error) {
 	}
 
 	// 尝试AES解密（处理真正加密的情况）
-	// 创建密钥
-	key := []byte(s.encryptionKey + salt)
-	if len(key) < 32 {
-		// 填充密钥到32字节
-		for len(key) < 32 {
-			key = append(key, 0)
-		}
-	} else if len(key) > 32 {
-		// 截断密钥到32字节
-		key = key[:32]
+	// 检查IV是否提供
+	if iv == "" {
+		return nil, errors.New("IV is required for AES decryption")
 	}
 
+	// 解码IV
+	ivBytes, err := hex.DecodeString(iv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode IV: %w", err)
+	}
+
+	// 创建密钥（与shell脚本保持一致，使用SHA-256哈希）
+	key := []byte(s.encryptionKey + salt)
+	// 确保密钥长度为32字节（与shell脚本保持一致）
+	if len(key) > 32 {
+		key = key[:32]
+	}
+	keyHash := sha256.Sum256(key)
+	keyBytes := keyHash[:]
+
 	// 创建AES加密块
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(keyBytes)
 	if err != nil {
 		return nil, err
 	}
 
 	// 检查密文长度
-	if len(decodedData) < aes.BlockSize {
-		return nil, errors.New("ciphertext too short")
+	if len(decodedData) == 0 {
+		return nil, errors.New("ciphertext is empty")
 	}
 
-	// 提取IV
-	iv := decodedData[:aes.BlockSize]
-	ciphertext := decodedData[aes.BlockSize:]
-
 	// 创建解密器
-	stream := cipher.NewCFBDecrypter(block, iv)
+	stream := cipher.NewCFBDecrypter(block, ivBytes)
 
 	// 解密数据
-	plaintext := make([]byte, len(ciphertext))
-	stream.XORKeyStream(plaintext, ciphertext)
+	plaintext := make([]byte, len(decodedData))
+	stream.XORKeyStream(plaintext, decodedData)
 
 	// 解析认证配置
 	if err := json.Unmarshal(plaintext, &config); err != nil {
