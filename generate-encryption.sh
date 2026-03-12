@@ -30,27 +30,25 @@ key="$ENCRYPTION_KEY$salt"
 # 确保密钥长度为32字节
 key=$(echo -n "$key" | head -c 32)
 
-# 为了确保兼容性，我们使用base64编码方式
-# 这种方式可以确保Go代码能够正确解密
-encrypted=$(echo -n "$data" | base64)
+# 使用AES-256-CFB加密确保数据安全
+iv=$(openssl rand -hex 16)
+# 使用更可靠的方式生成十六进制密钥
+key_hex=$(echo -n "$key" | openssl dgst -sha256 -hex | cut -d' ' -f2)
+encrypted=$(echo -n "$data" | openssl enc -aes-256-cfb -iv "$iv" -K "$key_hex" -base64)
 
-# 注意：如果需要使用AES加密，可以取消下面的注释并注释上面的base64编码行
-# iv=$(openssl rand -hex 16)
-# key_hex=$(echo -n "$key" | xxd -p | head -c 64)
-# while [ ${#key_hex} -lt 64 ]; do
-#   key_hex="$key_hex"00
-# done
-# encrypted=$(echo -n "$data" | openssl enc -aes-256-cfb -iv "$iv" -K "$key_hex" -base64)
+# 注意：base64编码已被注释，使用AES加密确保安全性
+# encrypted=$(echo -n "$data" | base64)
 
 # 创建JSON文件
-cat > auth-config.json << EOF
+cat > auth.json << EOF
 {
   "salt": "$salt",
+  "iv": "$iv",
   "encrypted_data": "$encrypted"
 }
 EOF
 
-echo "加密文件已生成: auth-config.json"
+echo "加密文件已生成: auth.json"
 echo "请将此文件放置在服务启动目录中"
 echo "注意：生产环境中请通过环境变量设置ENCRYPTION_KEY以提高安全性"
 echo "当前使用AES-256-CFB加密，安全性较高"

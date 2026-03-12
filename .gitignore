@@ -13,3 +13,6 @@ auth.json
 # Docker build artifacts
 .docker/
 
+# Database files
+auth.db
+

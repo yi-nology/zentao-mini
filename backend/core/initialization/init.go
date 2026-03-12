@@ -24,6 +24,7 @@ type AuthConfig struct {
 // EncryptedAuthConfig 加密的认证配置结构
 type EncryptedAuthConfig struct {
 	Salt          string `json:"salt"`
+	Iv            string `json:"iv"`
 	EncryptedData string `json:"encrypted_data"`
 }
 
@@ -90,7 +91,7 @@ func (s *InitService) LoadEncryptedConfig(fileData []byte) (*AuthConfig, error) 
 	}
 
 	// 解密数据
-	authConfig, err := s.decrypt(encryptedConfig.EncryptedData, encryptedConfig.Salt)
+	authConfig, err := s.decrypt(encryptedConfig.EncryptedData, encryptedConfig.Salt, encryptedConfig.Iv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt auth config: %w", err)
 	}
@@ -130,7 +131,7 @@ func (s *InitService) LoadAuthConfig() (*AuthConfig, []byte, error) {
 	}
 
 	// 解密数据
-	authConfig, err := s.decrypt(encryptedConfig.EncryptedData, encryptedConfig.Salt)
+	authConfig, err := s.decrypt(encryptedConfig.EncryptedData, encryptedConfig.Salt, encryptedConfig.Iv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to decrypt auth config: %w", err)
 	}
