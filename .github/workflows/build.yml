@@ -7,6 +7,13 @@ on:
       - v*.*.*
   pull_request:
     branches: [ master ]
+  release:
+    types: [ created ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  ACTIONS_CACHE_VERBOSITY: detailed
+  APP_NAME: zentao-mini
 
 jobs:
   build:
@@ -16,25 +23,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux x86_64
           - name: linux-amd64
             os: ubuntu-latest
             goos: linux
             goarch: amd64
+            artifact_suffix: linux-amd64
+
+          # Linux arm64 先只做 tar.gz，不做 AppImage
+          # 注意：GitHub Hosted runner 上这里本质是交叉编译，能否稳定通过取决于项目依赖和 CGO 场景
+          - name: linux-arm64
+            os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact_suffix: linux-arm64
 
           - name: windows-amd64
             os: windows-latest
             goos: windows
             goarch: amd64
+            artifact_suffix: windows-amd64
 
           - name: darwin-amd64
             os: macos-latest
             goos: darwin
             goarch: amd64
+            artifact_suffix: darwin-amd64
 
           - name: darwin-arm64
             os: macos-latest
             goos: darwin
             goarch: arm64
+            artifact_suffix: darwin-arm64
 
     steps:
       - name: Checkout
@@ -49,6 +69,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install Linux dependencies
         if: matrix.goos == 'linux'
@@ -62,15 +84,32 @@ jobs:
             libglib2.0-dev \
             libappindicator3-dev \
             patchelf \
-            fakeroot \
             file \
+            fakeroot \
             desktop-file-utils
+
+      - name: Debug Linux pkg-config
+        if: matrix.goos == 'linux'
+        run: |
+          echo "== pkg-config debug =="
+          pkg-config --modversion gtk+-3.0 || true
+          pkg-config --modversion gio-unix-2.0 || true
+          pkg-config --modversion webkit2gtk-4.1 || true
+          pkg-config --modversion webkit2gtk-4.0 || true
 
       - name: Install Wails CLI
         shell: bash
         run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          set -e
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i to install Wails CLI..."
+            if go install github.com/wailsapp/wails/v2/cmd/wails@latest; then
+              break
+            fi
+            sleep 5
+          done
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          "$(go env GOPATH)/bin/wails" version
 
       - name: Install frontend dependencies
         working-directory: ./frontend
@@ -80,41 +119,150 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
-      - name: Build app
+      # Linux: Ubuntu 24.04 / newer runner 需要显式 webkit2_41
+      - name: Build Wails app (Linux)
+        if: matrix.goos == 'linux'
         shell: bash
         run: |
-          wails build -clean -platform ${{ matrix.goos }}/${{ matrix.goarch }}
+          set -e
+          export CGO_ENABLED=1
+          wails build -clean -platform linux/${{ matrix.goarch }} -tags webkit2_41
 
-      - name: Package macOS app
+      - name: Build Wails app (macOS)
         if: matrix.goos == 'darwin'
         shell: bash
         run: |
-          cd build/bin
-          ditto -c -k --sequesterRsrc --keepParent "zentao-mini.app" "zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}.zip"
+          set -e
+          wails build -clean -platform darwin/${{ matrix.goarch }}
 
-          cat > README-macOS.txt <<'EOF'
-          zentao-mini macOS 安装说明
+      - name: Build Wails app (Windows)
+        if: matrix.goos == 'windows'
+        shell: bash
+        run: |
+          set -e
+          wails build -clean -platform windows/${{ matrix.goarch }}
 
-          1. 解压 zip
-          2. 将 zentao-mini.app 拖到 Applications
-          3. 若双击打不开，先右键 -> 打开
-          4. 若仍被拦截，可执行：
-             xattr -r -d com.apple.quarantine /Applications/zentao-mini.app
-
-          注意：
-          当前构建为未签名版本，正式对外分发建议做 Apple 签名与 notarization。
-          EOF
+      - name: List build outputs
+        shell: bash
+        run: |
+          echo "== build/bin =="
+          ls -lah build/bin || true
 
       - name: Package Linux tar.gz
         if: matrix.goos == 'linux'
         shell: bash
         run: |
+          set -e
           cd build/bin
-          tar -czf zentao-mini-linux-amd64.tar.gz zentao-mini
+
+          BIN_NAME="${{ env.APP_NAME }}"
+          if [ ! -f "$BIN_NAME" ]; then
+            echo "Binary not found: $BIN_NAME"
+            ls -lah
+            exit 1
+          fi
+
+          tar -czf "${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}.tar.gz" "$BIN_NAME"
+
+      # 这里只给 amd64 预留 AppImage 打包占位，不在这版里硬上
+      # 原因：Wails v2 + GitHub Hosted runner + CGO/WebKitGTK 组合下，arm64 AppImage 并不稳
+      - name: Prepare Linux AppImage placeholder note
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        shell: bash
+        run: |
+          cat > build/bin/README-AppImage.txt <<'EOF'
+          AppImage 说明
+
+          当前 CI 版本优先保证 Wails Linux 编译稳定通过，并产出 tar.gz。
+          AppImage 建议后续单独接入专门打包脚本或迁移到更完整的 Linux 打包体系。
+
+          如果要继续做：
+          1. 基于原生 Linux 环境验证运行
+          2. 再引入 AppImage 打包链
+          3. ARM64 AppImage 建议在 self-hosted ARM64 runner 上原生构建
+          EOF
+
+      - name: Package macOS app zip
+        if: matrix.goos == 'darwin'
+        shell: bash
+        run: |
+          set -e
+          cd build/bin
+
+          APP_BUNDLE="${{ env.APP_NAME }}.app"
+          ZIP_NAME="${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}.zip"
+
+          if [ ! -d "$APP_BUNDLE" ]; then
+            echo "App bundle not found: $APP_BUNDLE"
+            ls -lah
+            exit 1
+          fi
+
+          ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_NAME"
+
+          cat > "README-macOS-${{ matrix.goarch }}.txt" <<EOF
+          ${{ env.APP_NAME }} macOS 安装说明
+
+          1. 解压 ${ZIP_NAME}
+          2. 将 "${{ env.APP_NAME }}.app" 拖到 Applications
+          3. 首次运行时若被拦截，先右键 -> 打开
+          4. 若仍无法打开，请执行：
+
+             xattr -r -d com.apple.quarantine /Applications/${{ env.APP_NAME }}.app
+
+          说明：
+          - 当前产物未做 Apple Developer 签名与 notarization
+          - 新版 macOS 下，未签名应用可能不会稳定出现“仍要打开”入口
+          - 面向外部正式分发，建议补齐签名与 notarization
+          EOF
+
+      - name: Package Windows zip
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $binDir = "build/bin"
+          $exe = Join-Path $binDir "${env:APP_NAME}.exe"
+          if (!(Test-Path $exe)) {
+            Write-Host "Binary not found: $exe"
+            Get-ChildItem $binDir -Force
+            exit 1
+          }
+          Compress-Archive -Path $exe -DestinationPath (Join-Path $binDir "${env:APP_NAME}-${{ matrix.artifact_suffix }}.zip") -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zentao-mini-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: ${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}
           path: |
             build/bin/*
+          if-no-files-found: error
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Show downloaded files
+        run: |
+          find artifacts -maxdepth 3 -type f | sort
+
+      - name: Create and upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
