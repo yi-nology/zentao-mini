@@ -32,6 +32,10 @@
           <el-icon><svg viewBox="0 0 1024 1024" width="1em" height="1em"><path fill="currentColor" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/><path fill="currentColor" d="M480 464h64v192h-64z"/><path fill="currentColor" d="M416 384h192v64H416z"/></svg></el-icon>
           <span>MCP对接指南</span>
         </el-menu-item>
+        <el-menu-item index="/init-guide" @click="resetInitialization">
+          <el-icon><svg viewBox="0 0 1024 1024" width="1em" height="1em"><path fill="currentColor" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/><path fill="currentColor" d="M480 464h64v192h-64z"/><path fill="currentColor" d="M416 384h192v64H416z"/></svg></el-icon>
+          <span>重新初始化</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -53,10 +57,11 @@
 
 <script setup>
 import { computed, provide, reactive } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
 
 const route = useRoute()
+const router = useRouter()
 const globalSelection = reactive({ product: '', project: '' })
 
 const pageTitle = computed(() => {
@@ -65,7 +70,8 @@ const pageTitle = computed(() => {
     '/stories': '需求查询',
     '/tasks': '任务查询',
     '/timelog': '工时统计',
-    '/mcp-guide': 'MCP对接指南'
+    '/mcp-guide': 'MCP对接指南',
+    '/init-guide': '重新初始化'
   }
   return titles[route.path] || '禅道 Mini'
 })
@@ -73,6 +79,13 @@ const pageTitle = computed(() => {
 const handleSelectionChange = (selection) => {
   globalSelection.product = selection.product
   globalSelection.project = selection.project
+}
+
+const resetInitialization = () => {
+  // 清除初始化标志
+  localStorage.removeItem('initialized')
+  // 跳转到初始化页面
+  router.push('/init-guide')
 }
 
 provide('globalSelection', globalSelection)
