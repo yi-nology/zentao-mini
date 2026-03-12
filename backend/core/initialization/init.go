@@ -284,6 +284,8 @@ func LoadZentaoConfig(initService *InitService) (string, string, string) {
 				log.Println("Auth config stored to db successfully")
 			}
 		}
+		// 打印账号和域名，不打印密码
+		log.Printf("Loaded config: Username=%s, Domain=%s", authConfig.Username, authConfig.Domain)
 		return authConfig.Domain, authConfig.Username, authConfig.Password
 	}
 
