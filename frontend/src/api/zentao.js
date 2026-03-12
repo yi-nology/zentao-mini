@@ -200,3 +200,22 @@ export const getTimelogEfforts = (params = {}) => {
 export const getTimelogExecutions = (params = {}) => {
   return api.get('/executions', { params })
 }
+
+// 上传初始化配置文件
+export const uploadInitConfig = (formData) => {
+  return api.post('/init/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+// 测试禅道连接
+export const testZentaoConnection = () => {
+  return api.get('/users/current')
+}
+
+// 获取初始化状态
+export const getInitStatus = () => {
+  return api.get('/init/status')
+}
