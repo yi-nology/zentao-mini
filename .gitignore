@@ -16,3 +16,6 @@ auth.json
 # Database files
 auth.db
 
+# Frontend build artifacts
+frontend/package.json.md5
+
