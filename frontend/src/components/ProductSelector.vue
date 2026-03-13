@@ -34,25 +34,31 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { getProducts, getProjects } from '@/api/zentao'
+import type { Product, Project } from '@/types/api'
 
-const props = defineProps({
-  modelValue: {
-    type: Object,
-    default: () => ({ product: '', project: '' })
-  }
-})
+interface SelectionValue {
+  product: string
+  project: string
+}
 
-const emit = defineEmits(['update:modelValue', 'change'])
+const props = defineProps<{
+  modelValue?: SelectionValue
+}>()
 
-const productOptions = ref([])
-const projectOptions = ref([])
-const selectedProduct = ref('')
-const selectedProject = ref('')
+const emit = defineEmits<{
+  'update:modelValue': [value: SelectionValue]
+  'change': [value: SelectionValue]
+}>()
 
-const fetchProducts = async () => {
+const productOptions = ref<Product[]>([])
+const projectOptions = ref<Project[]>([])
+const selectedProduct = ref<string>('')
+const selectedProject = ref<string>('')
+
+const fetchProducts = async (): Promise<void> => {
   try {
     const res = await getProducts()
     productOptions.value = res.data || []
@@ -61,7 +67,7 @@ const fetchProducts = async () => {
   }
 }
 
-const fetchProjects = async (productId) => {
+const fetchProjects = async (productId: string | number): Promise<void> => {
   try {
     const params = productId ? { productID: productId } : {}
     const res = await getProjects(params)
@@ -71,8 +77,8 @@ const fetchProjects = async (productId) => {
   }
 }
 
-const handleProductChange = async (productId) => {
-  selectedProduct.value = productId || ''
+const handleProductChange = async (productId: string | number): Promise<void> => {
+  selectedProduct.value = String(productId || '')
   selectedProject.value = ''
   projectOptions.value = []
   
@@ -83,13 +89,13 @@ const handleProductChange = async (productId) => {
   emitSelection()
 }
 
-const handleProjectChange = (projectId) => {
-  selectedProject.value = projectId || ''
+const handleProjectChange = (projectId: string | number): void => {
+  selectedProject.value = String(projectId || '')
   emitSelection()
 }
 
-const emitSelection = () => {
-  const selection = {
+const emitSelection = (): void => {
+  const selection: SelectionValue = {
     product: selectedProduct.value,
     project: selectedProject.value
   }
