@@ -165,8 +165,8 @@
         <el-descriptions :column="1" border>
           <el-descriptions-item label="ID">{{ currentBug.id }}</el-descriptions-item>
           <el-descriptions-item label="标题">{{ currentBug.title }}</el-descriptions-item>
-          <el-descriptions-item label="产品">{{ currentBug.product?.name }}</el-descriptions-item>
-          <el-descriptions-item label="项目">{{ currentBug.project?.name }}</el-descriptions-item>
+          <el-descriptions-item label="产品">{{ (currentBug.product as unknown as { name?: string })?.name }}</el-descriptions-item>
+          <el-descriptions-item label="项目">{{ (currentBug.project as unknown as { name?: string })?.name }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ getStatusLabel(currentBug.status) }}</el-descriptions-item>
           <el-descriptions-item label="严重程度">{{ currentBug.severity }}</el-descriptions-item>
           <el-descriptions-item label="指派人">{{ currentBug.assignedTo?.realname || currentBug.assignedTo?.account || '-' }}</el-descriptions-item>
@@ -180,7 +180,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -190,45 +190,57 @@ import {
   getBugStatusOptions,
   getUsers
 } from '@/api/zentao'
+import type { Bug, User, SelectOption } from '@/types/api'
 
-// 导入Wails运行时
 import * as runtime from '@wailsjs/runtime/runtime'
 
-const globalSelection = inject('globalSelection')
+interface GlobalSelection {
+  product: number | null
+  project: number | null
+  execution: number | null
+}
 
-// 筛选表单
-const filterForm = reactive({
+interface FilterForm {
+  assignedTo: string
+  status: string
+  dateRange: [string, string] | []
+  specificDate: string
+}
+
+interface Pagination {
+  page: number
+  pageSize: number
+  total: number
+}
+
+const globalSelection = inject<GlobalSelection>('globalSelection')!
+
+const filterForm = reactive<FilterForm>({
   assignedTo: '',
   status: '',
   dateRange: [],
   specificDate: ''
 })
 
-// 选项数据
-const productOptions = ref([])
-const statusOptions = ref(getBugStatusOptions())
-const userOptions = ref([])
+const statusOptions = ref<SelectOption[]>(getBugStatusOptions())
+const userOptions = ref<User[]>([])
 
-// 表格数据
-const bugList = ref([])
-const loading = ref(false)
-const selectedBugs = ref([])
+const bugList = ref<Bug[]>([])
+const loading = ref<boolean>(false)
+const selectedBugs = ref<Bug[]>([])
 
-// 详情弹窗
-const detailDialogVisible = ref(false)
-const currentBug = ref(null)
+const detailDialogVisible = ref<boolean>(false)
+const currentBug = ref<Bug | null>(null)
 
-// 分页
-const pagination = reactive({
+const pagination = reactive<Pagination>({
   page: 1,
   pageSize: 20,
   total: 0
 })
 
-// 从用户列表中获取指派人选项
 const assignedToOptions = computed(() => {
-  const assignees = new Map()
-  userOptions.value.forEach(user => {
+  const assignees = new Map<string, { value: string; label: string }>()
+  userOptions.value.forEach((user: User) => {
     if (user.account) {
       assignees.set(user.account, {
         value: user.account,
@@ -239,10 +251,8 @@ const assignedToOptions = computed(() => {
   return Array.from(assignees.values()).sort((a, b) => a.label.localeCompare(b.label))
 })
 
-// 根据筛选条件过滤后的 Bug 列表
 const filteredBugList = computed(() => {
-  return bugList.value.filter(bug => {
-    // 指派人筛选
+  return bugList.value.filter((bug: Bug) => {
     if (filterForm.assignedTo) {
       const assigned = bug.assignedTo
       if (!assigned) return false
@@ -253,7 +263,6 @@ const filteredBugList = computed(() => {
       }
     }
     
-    // 状态筛选
     if (filterForm.status) {
       if (bug.status !== filterForm.status) {
         return false
@@ -264,37 +273,33 @@ const filteredBugList = computed(() => {
   })
 })
 
-// 获取用户列表
-const fetchUsers = async () => {
+const fetchUsers = async (): Promise<void> => {
   try {
-    const res = await getUsers()
-    if (res.data?.users) {
-      userOptions.value = res.data.users
-    }
+    const users = await getUsers()
+    userOptions.value = users || []
   } catch (error) {
     console.error('获取用户列表失败:', error)
     ElMessage.error('获取用户列表失败，请刷新页面重试')
   }
 }
 
-// 获取 Bug 列表
-const fetchBugs = async () => {
+const fetchBugs = async (): Promise<void> => {
   loading.value = true
   try {
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
-      productID: globalSelection.product,
-      projectID: globalSelection.project,
+      productID: globalSelection.product ?? undefined,
+      projectID: globalSelection.project ?? undefined,
       status: filterForm.status,
       startDate: filterForm.dateRange[0] || '',
       endDate: filterForm.dateRange[1] || '',
       specificDate: filterForm.specificDate
     }
     const res = await getBugs(params)
-    const data = res.data || []
-    bugList.value = Array.isArray(data) ? data : (data.list || [])
-    pagination.total = Array.isArray(data) ? data.length : (data.total || 0)
+    const data = res.data
+    bugList.value = Array.isArray(data) ? data : []
+    pagination.total = Array.isArray(data) ? data.length : 0
   } catch (error) {
     console.error('获取 Bug 列表失败:', error)
     ElMessage.error('获取 Bug 列表失败')
@@ -303,8 +308,7 @@ const fetchBugs = async () => {
   }
 }
 
-// 查询
-const handleSearch = () => {
+const handleSearch = (): void => {
   if (!globalSelection.product) {
     ElMessage.warning('请先在顶部选择产品')
     return
@@ -313,8 +317,7 @@ const handleSearch = () => {
   fetchBugs()
 }
 
-// 重置
-const handleReset = () => {
+const handleReset = (): void => {
   filterForm.assignedTo = ''
   filterForm.status = ''
   filterForm.dateRange = []
@@ -324,8 +327,7 @@ const handleReset = () => {
   pagination.total = 0
 }
 
-// 分页大小变化
-const handleSizeChange = (size) => {
+const handleSizeChange = (size: number): void => {
   if (!globalSelection.product) {
     return
   }
@@ -334,8 +336,7 @@ const handleSizeChange = (size) => {
   fetchBugs()
 }
 
-// 页码变化
-const handlePageChange = (page) => {
+const handlePageChange = (page: number): void => {
   if (!globalSelection.product) {
     return
   }
@@ -343,33 +344,27 @@ const handlePageChange = (page) => {
   fetchBugs()
 }
 
-// 监听全局选择器变化
-watch(() => globalSelection.product, (newProduct) => {
+watch(() => globalSelection.product, (newProduct: number | null) => {
   if (newProduct) {
-    // 重置分页和数据
     pagination.page = 1
     bugList.value = []
     pagination.total = 0
-    // 自动查询
     fetchBugs()
   } else {
-    // 清空数据
     bugList.value = []
     pagination.total = 0
   }
 }, { immediate: true })
 
-// 监听项目变化
-watch(() => globalSelection.project, (newProject) => {
+watch(() => globalSelection.project, () => {
   if (globalSelection.product) {
     pagination.page = 1
     fetchBugs()
   }
 })
 
-// 获取状态标签类型
-const getStatusType = (status) => {
-  const types = {
+const getStatusType = (status: string): string => {
+  const types: Record<string, string> = {
     active: 'danger',
     resolved: 'success',
     closed: 'info'
@@ -377,9 +372,8 @@ const getStatusType = (status) => {
   return types[status] || 'info'
 }
 
-// 获取状态标签文本
-const getStatusLabel = (status) => {
-  const labels = {
+const getStatusLabel = (status: string): string => {
+  const labels: Record<string, string> = {
     active: '激活',
     resolved: '已解决',
     closed: '已关闭'
@@ -387,16 +381,14 @@ const getStatusLabel = (status) => {
   return labels[status] || status
 }
 
-// 获取严重程度标签类型
-const getSeverityType = (severity) => {
+const getSeverityType = (severity: number): string => {
   if (severity === 1) return 'danger'
   if (severity === 2) return 'warning'
   if (severity === 3) return 'primary'
   return 'info'
 }
 
-// 格式化日期
-const formatDate = (dateStr) => {
+const formatDate = (dateStr: string): string => {
   if (!dateStr) return '-' 
   const date = new Date(dateStr)
   return date.toLocaleString('zh-CN', {
@@ -408,8 +400,7 @@ const formatDate = (dateStr) => {
   })
 }
 
-// 计算停留时长（小时）
-const calculateDuration = (openedDate) => {
+const calculateDuration = (openedDate: string): string => {
   if (!openedDate) return '-' 
   const openTime = new Date(openedDate).getTime()
   const now = new Date().getTime()
@@ -417,41 +408,34 @@ const calculateDuration = (openedDate) => {
   return durationHours.toFixed(1)
 }
 
-// 选择处理
-const handleSelect = (selection, row) => {
+const handleSelect = (selection: Bug[], _row: Bug): void => {
   selectedBugs.value = selection
 }
 
-// 全选处理
-const handleSelectAll = (selection) => {
+const handleSelectAll = (selection: Bug[]): void => {
   selectedBugs.value = selection
 }
 
-// 查看详情（批量）
-const handleViewDetails = () => {
+const handleViewDetails = (): void => {
   if (selectedBugs.value.length > 0) {
-    // 显示第一个选中的Bug详情
     currentBug.value = selectedBugs.value[0]
     detailDialogVisible.value = true
   }
 }
 
-// 查看详情（单行）
-const handleViewDetail = (row) => {
+const handleViewDetail = (row: Bug): void => {
   currentBug.value = row
   detailDialogVisible.value = true
 }
 
-// 导出
-const handleExport = () => {
+const handleExport = (): void => {
   if (selectedBugs.value.length > 0) {
-    // 准备导出数据
-    const exportData = selectedBugs.value.map(bug => ({
+    const exportData = selectedBugs.value.map((bug: Bug) => ({
       ID: bug.id,
       标题: bug.title,
       链接地址: `https://pm.kylin.com/bug-view-${bug.id}.html`,
-      产品: bug.product?.name || '',
-      项目: bug.project?.name || '',
+      产品: (bug.product as unknown as { name?: string })?.name || '',
+      项目: (bug.project as unknown as { name?: string })?.name || '',
       状态: getStatusLabel(bug.status),
       严重程度: bug.severity,
       指派人: bug.assignedTo?.realname || bug.assignedTo?.account || '',
@@ -459,16 +443,13 @@ const handleExport = () => {
       描述: bug.steps || ''
     }))
 
-    // 创建工作簿
     const worksheet = XLSX.utils.json_to_sheet(exportData)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Bug列表')
 
-    // 导出文件
     try {
-      // 检查是否在Wails环境中
-      if (window.runtime && window.runtime.BrowserOpenURL) {
-        // 在Wails环境中，使用Blob和a标签下载
+      const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
+      if (w.runtime && w.runtime.BrowserOpenURL) {
         const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
         const blob = new Blob([wbout], { type: 'application/octet-stream' })
         const url = URL.createObjectURL(blob)
@@ -480,7 +461,6 @@ const handleExport = () => {
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
       } else {
-        // 在浏览器环境中使用XLSX.writeFile
         XLSX.writeFile(workbook, `Bug列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
       }
       ElMessage.success(`导出 ${selectedBugs.value.length} 个Bug成功`)
@@ -491,20 +471,16 @@ const handleExport = () => {
   }
 }
 
-// 打开禅道链接（兼容浏览器和Wails环境）
-const openZentaoLink = (url) => {
+const openZentaoLink = (url: string): void => {
   try {
-    // 检查是否在Wails环境中
-    if (window.runtime && window.runtime.BrowserOpenURL) {
-      // 在Wails环境中使用BrowserOpenURL
+    const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
+    if (w.runtime && w.runtime.BrowserOpenURL) {
       runtime.BrowserOpenURL(url)
     } else {
-      // 在浏览器环境中使用window.open
       window.open(url, '_blank', 'noopener,noreferrer')
     }
   } catch (error) {
     console.error('打开链接失败:', error)
-    // 降级到window.open
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 }

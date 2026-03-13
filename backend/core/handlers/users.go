@@ -1,23 +1,23 @@
 package handlers
 
 import (
-	"fmt"
-	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	"chandao-mini/backend/core/models"
-	"chandao-mini/backend/core/zentao"
+	"chandao-mini/backend/core/errors"
+	"chandao-mini/backend/core/service"
 )
 
 // UserHandler 用户处理器
+// 只负责HTTP请求/响应处理，业务逻辑由Service层处理
 type UserHandler struct {
-	client *zentao.Client
+	userService *service.UserService
 }
 
 // NewUserHandler 创建用户处理器
-func NewUserHandler(client *zentao.Client) *UserHandler {
-	return &UserHandler{client: client}
+func NewUserHandler(userService *service.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
 }
 
 // GetUsers 获取用户列表（支持分页）
@@ -28,57 +28,35 @@ func NewUserHandler(client *zentao.Client) *UserHandler {
 // @Produce json
 // @Param page query int false "页码，默认1"
 // @Param limit query int false "每页数量，默认20"
-// @Success 200 {object} models.Response{data=map[string]interface{}}
-// @Failure 500 {object} models.Response
-// @Router /api/users [get]
+// @Success 200 {object} errors.Response{data=vo.PaginatedVO{list=[]vo.UserVO}}
+// @Failure 500 {object} errors.Response
+// @Router /api/v1/users [get]
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	// 获取分页参数
-	page := c.DefaultQuery("page", "1")
-	limit := c.DefaultQuery("limit", "20")
+	page := 1
+	limit := 20
 
-	// 转换为整数
-	pageInt := 1
-	limitInt := 20
-	if _, err := fmt.Sscanf(page, "%d", &pageInt); err != nil {
-		pageInt = 1
-	}
-	if _, err := fmt.Sscanf(limit, "%d", &limitInt); err != nil {
-		limitInt = 20
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
 	}
 
-	// 调用客户端方法
-	userList, err := h.client.GetUsers(pageInt, limitInt)
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	// 调用Service层处理业务逻辑
+	result, err := h.userService.GetUsers(page, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.Response{
-			Code:    500,
-			Message: "获取用户列表失败: " + err.Error(),
-		})
+		errors.Error(c, errors.ExternalError("禅道", err))
 		return
 	}
 
-	// 转换为模型
-	var users []models.User
-	for _, u := range userList.Users {
-		users = append(users, models.User{
-			ID:       u.ID,
-			Account:  u.Account,
-			Realname: u.Realname,
-		})
-	}
-
-	// 构造响应数据
-	responseData := map[string]interface{}{
-		"users": users,
-		"page":  userList.Page,
-		"total": userList.Total,
-		"limit": userList.Limit,
-	}
-
-	c.JSON(http.StatusOK, models.Response{
-		Code:    200,
-		Message: "success",
-		Data:    responseData,
-	})
+	// 返回成功响应
+	errors.Success(c, result)
 }
 
 // GetUsersAll 获取所有用户列表
@@ -87,40 +65,21 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 // @Tags 用户
 // @Accept json
 // @Produce json
-// @Success 200 {object} models.Response{data=map[string]interface{}}
-// @Failure 500 {object} models.Response
-// @Router /api/users/all [get]
+// @Success 200 {object} errors.Response{data=map[string]interface{}}
+// @Failure 500 {object} errors.Response
+// @Router /api/v1/users/all [get]
 func (h *UserHandler) GetUsersAll(c *gin.Context) {
-	// 调用客户端方法，获取所有用户
-	users, err := h.client.GetUsersAll()
+	// 调用Service层处理业务逻辑
+	users, err := h.userService.GetUsersAll()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.Response{
-			Code:    500,
-			Message: "获取用户列表失败: " + err.Error(),
-		})
+		errors.Error(c, errors.ExternalError("禅道", err))
 		return
 	}
 
-	// 转换为模型
-	var userModels []models.User
-	for _, u := range users {
-		userModels = append(userModels, models.User{
-			ID:       u.ID,
-			Account:  u.Account,
-			Realname: u.Realname,
-		})
-	}
-
-	// 构造响应数据
-	responseData := map[string]interface{}{
-		"users": userModels,
-		"total": len(userModels),
-	}
-
-	c.JSON(http.StatusOK, models.Response{
-		Code:    200,
-		Message: "success",
-		Data:    responseData,
+	// 返回成功响应
+	errors.Success(c, map[string]interface{}{
+		"users": users,
+		"total": len(users),
 	})
 }
 
@@ -130,49 +89,24 @@ func (h *UserHandler) GetUsersAll(c *gin.Context) {
 // @Tags 用户
 // @Accept json
 // @Produce json
-// @Success 200 {object} models.Response{data=map[string]interface{}}
-// @Failure 500 {object} models.Response
-// @Router /api/users/current [get]
+// @Success 200 {object} errors.Response{data=map[string]interface{}}
+// @Failure 500 {object} errors.Response
+// @Router /api/v1/users/current [get]
 func (h *UserHandler) GetCurrentUser(c *gin.Context) {
-	// 调用客户端方法，获取所有用户
-	users, err := h.client.GetUsersAll()
+	// 调用Service层处理业务逻辑
+	user, err := h.userService.GetCurrentUser()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.Response{
-			Code:    500,
-			Message: "获取用户列表失败: " + err.Error(),
-		})
-		return
-	}
-
-	// 查找当前登录用户
-	var currentUser *models.User
-	for _, u := range users {
-		if u.Account == h.client.GetAccount() {
-			currentUser = &models.User{
-				ID:       u.ID,
-				Account:  u.Account,
-				Realname: u.Realname,
-			}
-			break
+		// 处理验证错误
+		if _, ok := err.(*service.ValidationError); ok {
+			errors.InternalError(c, err.Error())
+			return
 		}
-	}
-
-	if currentUser == nil {
-		c.JSON(http.StatusInternalServerError, models.Response{
-			Code:    500,
-			Message: "未找到当前登录用户",
-		})
+		errors.Error(c, errors.ExternalError("禅道", err))
 		return
 	}
 
-	// 构造响应数据
-	responseData := map[string]interface{}{
-		"user": currentUser,
-	}
-
-	c.JSON(http.StatusOK, models.Response{
-		Code:    200,
-		Message: "success",
-		Data:    responseData,
+	// 返回成功响应
+	errors.Success(c, map[string]interface{}{
+		"user": user,
 	})
 }

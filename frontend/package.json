@@ -2,13 +2,15 @@
   "name": "frontend",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://murphyyi.com",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vue-tsc && vite build",
     "build:wails": "cp .env.wails .env && vite build",
     "build:docker": "cp .env.docker .env && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
     "axios": "^1.13.6",
@@ -19,7 +21,10 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/node": "^25.5.0",
     "@vitejs/plugin-vue": "^4.5.2",
-    "vite": "^4.5.3"
+    "typescript": "^5.9.3",
+    "vite": "^4.5.3",
+    "vue-tsc": "^3.2.5"
   }
 }

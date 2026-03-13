@@ -163,7 +163,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -173,44 +173,57 @@ import {
   getTaskStatusOptions,
   getUsers
 } from '@/api/zentao'
+import type { Task, User, Execution, SelectOption } from '@/types/api'
 
-// 导入Wails运行时
 import * as runtime from '@wailsjs/runtime/runtime'
 
-const globalSelection = inject('globalSelection')
+interface GlobalSelection {
+  product: number | null
+  project: number | null
+  execution: number | null
+}
 
-// 筛选表单
-const filterForm = reactive({
-  execution: '',
+interface FilterForm {
+  execution: number | null
+  assignedTo: string
+  status: string
+  dateRange: [string, string] | []
+}
+
+interface Pagination {
+  page: number
+  pageSize: number
+  total: number
+}
+
+const globalSelection = inject<GlobalSelection>('globalSelection')!
+
+const filterForm = reactive<FilterForm>({
+  execution: null,
   assignedTo: '',
   status: '',
   dateRange: []
 })
 
-// 选项数据
-const executionOptions = ref([])
-const statusOptions = ref(getTaskStatusOptions())
-const userOptions = ref([])
+const executionOptions = ref<Execution[]>([])
+const statusOptions = ref<SelectOption[]>(getTaskStatusOptions())
+const userOptions = ref<User[]>([])
 
-// 表格数据
-const taskList = ref([])
-const loading = ref(false)
+const taskList = ref<Task[]>([])
+const loading = ref<boolean>(false)
 
-// 详情弹窗
-const detailDialogVisible = ref(false)
-const currentTask = ref(null)
+const detailDialogVisible = ref<boolean>(false)
+const currentTask = ref<Task | null>(null)
 
-// 分页
-const pagination = reactive({
+const pagination = reactive<Pagination>({
   page: 1,
   pageSize: 20,
   total: 0
 })
 
-// 从用户列表中获取指派人选项
 const assignedToOptions = computed(() => {
-  const assignees = new Map()
-  userOptions.value.forEach(user => {
+  const assignees = new Map<string, { value: string; label: string }>()
+  userOptions.value.forEach((user: User) => {
     if (user.account) {
       assignees.set(user.account, {
         value: user.account,
@@ -221,10 +234,9 @@ const assignedToOptions = computed(() => {
   return Array.from(assignees.values()).sort((a, b) => a.label.localeCompare(b.label))
 })
 
-// 获取执行/迭代列表
-const fetchExecutions = async () => {
+const fetchExecutions = async (): Promise<void> => {
   try {
-    const params = {}
+    const params: { projectID?: number; productID?: number } = {}
     if (globalSelection.project) {
       params.projectID = globalSelection.project
     } else if (globalSelection.product) {
@@ -237,41 +249,37 @@ const fetchExecutions = async () => {
   }
 }
 
-// 获取用户列表
-const fetchUsers = async () => {
+const fetchUsers = async (): Promise<void> => {
   try {
-    const res = await getUsers()
-    if (res.data?.users) {
-      userOptions.value = res.data.users
-    }
+    const users = await getUsers()
+    userOptions.value = users || []
   } catch (error) {
     console.error('获取用户列表失败:', error)
     ElMessage.error('获取用户列表失败，请刷新页面重试')
   }
 }
 
-// 监听全局选择变化
 watch(() => [globalSelection.product, globalSelection.project], () => {
-  filterForm.execution = ''
+  filterForm.execution = null
   fetchExecutions()
 }, { deep: true })
 
-// 获取任务列表
-const fetchTasks = async () => {
+const fetchTasks = async (): Promise<void> => {
   loading.value = true
   try {
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
-      executionID: filterForm.execution,
+      executionID: filterForm.execution ?? undefined,
       assignedTo: filterForm.assignedTo,
       status: filterForm.status,
       startDate: filterForm.dateRange[0] || '',
       endDate: filterForm.dateRange[1] || ''
     }
     const res = await getTasks(params)
-    taskList.value = res.data?.list || []
-    pagination.total = res.data?.total || 0
+    const data = res.data
+    taskList.value = Array.isArray(data) ? data : []
+    pagination.total = Array.isArray(data) ? data.length : 0
   } catch (error) {
     console.error('获取任务列表失败:', error)
     ElMessage.error('获取任务列表失败')
@@ -280,8 +288,7 @@ const fetchTasks = async () => {
   }
 }
 
-// 查询
-const handleSearch = () => {
+const handleSearch = (): void => {
   if (!filterForm.execution) {
     ElMessage.warning('请先选择执行/迭代')
     return
@@ -290,9 +297,8 @@ const handleSearch = () => {
   fetchTasks()
 }
 
-// 重置
-const handleReset = () => {
-  filterForm.execution = ''
+const handleReset = (): void => {
+  filterForm.execution = null
   filterForm.assignedTo = ''
   filterForm.status = ''
   filterForm.dateRange = []
@@ -301,8 +307,7 @@ const handleReset = () => {
   pagination.total = 0
 }
 
-// 分页大小变化
-const handleSizeChange = (size) => {
+const handleSizeChange = (size: number): void => {
   if (!filterForm.execution) {
     return
   }
@@ -311,8 +316,7 @@ const handleSizeChange = (size) => {
   fetchTasks()
 }
 
-// 页码变化
-const handlePageChange = (page) => {
+const handlePageChange = (page: number): void => {
   if (!filterForm.execution) {
     return
   }
@@ -320,9 +324,8 @@ const handlePageChange = (page) => {
   fetchTasks()
 }
 
-// 获取状态标签类型
-const getStatusType = (status) => {
-  const types = {
+const getStatusType = (status: string): string => {
+  const types: Record<string, string> = {
     wait: 'info',
     doing: 'primary',
     done: 'success',
@@ -333,9 +336,8 @@ const getStatusType = (status) => {
   return types[status] || 'info'
 }
 
-// 获取状态标签文本
-const getStatusLabel = (status) => {
-  const labels = {
+const getStatusLabel = (status: string): string => {
+  const labels: Record<string, string> = {
     wait: '未开始',
     doing: '进行中',
     done: '已完成',
@@ -346,15 +348,13 @@ const getStatusLabel = (status) => {
   return labels[status] || status
 }
 
-// 计算进度百分比
-const getProgress = (estimate, consumed) => {
+const getProgress = (estimate: number, consumed: number): number => {
   if (!estimate || estimate === 0) return 0
   const progress = Math.min(Math.round((consumed / estimate) * 100), 100)
   return progress
 }
 
-// 获取进度状态
-const getProgressStatus = (estimate, consumed) => {
+const getProgressStatus = (estimate: number, consumed: number): string => {
   if (!estimate || estimate === 0) return ''
   const ratio = consumed / estimate
   if (ratio > 1) return 'exception'
@@ -362,28 +362,22 @@ const getProgressStatus = (estimate, consumed) => {
   return ''
 }
 
-// 打开任务详情弹窗
-const openTaskDetail = (task) => {
+const openTaskDetail = (task: Task): void => {
   currentTask.value = task
   detailDialogVisible.value = true
 }
 
-// 打开禅道任务页面（兼容浏览器和Wails环境）
-const openZentaoTask = (taskId) => {
-  // 构造禅道任务URL
+const openZentaoTask = (taskId: number): void => {
   const zentaoUrl = `https://pm.kylin.com/task-view-${taskId}.html`
   try {
-    // 检查是否在Wails环境中
-    if (window.runtime && window.runtime.BrowserOpenURL) {
-      // 在Wails环境中使用BrowserOpenURL
+    const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
+    if (w.runtime && w.runtime.BrowserOpenURL) {
       runtime.BrowserOpenURL(zentaoUrl)
     } else {
-      // 在浏览器环境中使用window.open
       window.open(zentaoUrl, '_blank', 'noopener,noreferrer')
     }
   } catch (error) {
     console.error('打开链接失败:', error)
-    // 降级到window.open
     window.open(zentaoUrl, '_blank', 'noopener,noreferrer')
   }
 }
@@ -391,7 +385,6 @@ const openZentaoTask = (taskId) => {
 onMounted(() => {
   fetchExecutions()
   fetchUsers()
-  // 不自动查询任务，等待用户选择执行/迭代后查询
 })
 </script>
 
