@@ -6,7 +6,7 @@ echo "开始交叉编译 Wails 应用为 arm64 Linux 版本..."
 
 # 构建前端
 echo "构建前端..."
-cd frontend && npm run build
+cd frontend && npm run build:wails
 if [ $? -ne 0 ]; then
     echo "错误: 前端构建失败"
     exit 1
@@ -26,5 +26,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# 复制环境变量文件
+cp .env.wails build/linux-arm64/.env
+
 echo "交叉编译完成!"
 echo "可执行文件位置: build/linux-arm64/chandao-mini"
+echo "环境变量文件已复制: build/linux-arm64/.env"

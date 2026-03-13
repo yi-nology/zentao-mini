@@ -19,12 +19,20 @@ backend-install:
 	@cd backend && go mod tidy
 
 backend-run:
-	@echo "Running backend..."
-	@cd backend && go run main.go
+	@echo "Running backend server..."
+	@cd backend && go run cmd/server/main.go
 
 backend-build:
-	@echo "Building backend..."
-	@cd backend && go build -o server main.go
+	@echo "Building backend server..."
+	@cd backend && go build -o server cmd/server/main.go
+
+backend-app-run:
+	@echo "Running backend app (with frontend static files)..."
+	@cd backend && go run cmd/app/main.go
+
+backend-app-build:
+	@echo "Building backend app (with frontend static files)..."
+	@cd backend && go build -o app cmd/app/main.go
 
 # Wails 相关命令
 wails-build:
@@ -68,7 +76,7 @@ clean:
 status:
 	@echo "Project status:"
 	@echo "- Frontend: $(shell ls -la frontend/ | grep package.json | wc -l) package.json found"
-	@echo "- Backend: $(shell ls -la | grep main.go | wc -l) main.go found"
+	@echo "- Backend: $(shell ls -la backend/cmd/server/ | grep main.go | wc -l) main.go found"
 	@echo "- Wails: $(shell ls -la | grep wails.json | wc -l) wails.json found"
 
 # 帮助命令
@@ -82,8 +90,10 @@ help:
 	@echo ""
 	@echo "Backend commands:"
 	@echo "  make backend-install    - Install backend dependencies"
-	@echo "  make backend-run        - Run backend"
-	@echo "  make backend-build      - Build backend"
+	@echo "  make backend-run        - Run backend server"
+	@echo "  make backend-build      - Build backend server"
+	@echo "  make backend-app-run    - Run backend app (with frontend static files)"
+	@echo "  make backend-app-build  - Build backend app (with frontend static files)"
 	@echo ""
 	@echo "Wails commands:"
 	@echo "  make wails-build        - Build Wails application"
