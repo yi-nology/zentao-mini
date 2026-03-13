@@ -1,0 +1,193 @@
+# golangci-lint 配置文件
+# 详细配置参考: https://golangci-lint.run/usage/configuration/
+
+# 运行配置
+run:
+  # 超时时间
+  timeout: 5m
+  # 要检查的目录
+  directories:
+    - backend
+  # 要排除的目录
+  skip-dirs:
+    - vendor
+    - node_modules
+    - frontend
+    - .github
+    - .idea
+    - .trae
+    - docker
+    - scripts
+  # 要排除的文件
+  skip-files:
+    - ".*_gen\\.go$"
+    - "wire_gen\\.go$"
+
+# 输出配置
+output:
+  # 输出格式: colored-line-number|line-number|json|tab|checkstyle|code-climate
+  format: colored-line-number
+  # 打印检查的linter名称
+  print-issued-lines: true
+  # 打印linter名称
+  print-linter-name: true
+
+# Linter配置
+linters:
+  # 启用的linter
+  enable:
+    # 默认启用的linter
+    - errcheck      # 检查错误返回值
+    - gosimple      # 代码简化
+    - govet         # Go vet检查
+    - ineffassign   # 检查无效赋值
+    - staticcheck   # 静态分析
+    - typecheck     # 类型检查
+    - unused        # 检查未使用的代码
+    
+    # 额外启用的linter
+    - bodyclose     # 检查HTTP响应体是否关闭
+    - dogsled       # 检查过多的空白标识符
+    - dupl          # 检查重复代码
+    - exportloopref # 检查循环变量指针引用
+    - exhaustive    # 检查switch语句是否穷举
+    - gochecknoinits # 检查init函数的使用
+    - goconst       # 检查可以替换为常量的重复字符串
+    - gocritic      # 代码风格检查
+    - gocyclo       # 圈复杂度检查
+    - godot         # 检查注释格式
+    - gofmt         # 代码格式化
+    - goimports     # 导入排序
+    - goprintffuncname # 检查printf函数命名
+    - gosec         # 安全检查
+    - misspell      # 拼写检查
+    - nakedret      # 检查裸返回
+    - noctx         # 检查HTTP请求是否带context
+    - nolintlint    # 检查nolint注释
+    - prealloc      # 检查可以预分配的slice
+    - rowserrcheck  # 检查sql.Rows.Err是否检查
+    - sqlclosecheck # 检查sql.Rows是否关闭
+    - unconvert     # 检查不必要的类型转换
+    - unparam       # 检查未使用的参数
+    - whitespace    # 检查不必要的空白行
+
+  # 禁用的linter
+  disable:
+    - funlen        # 函数长度检查（暂时禁用，后续可以启用）
+    - lll           # 行长度检查（暂时禁用）
+    - wsl           # 空白行检查（暂时禁用）
+
+# Linter设置
+linters-settings:
+  errcheck:
+    # 检查类型断言
+    check-type-assertions: true
+    # 检查空白标识符赋值
+    check-blank: true
+
+  govet:
+    # 检查shadow变量
+    check-shadowing: true
+
+  gocyclo:
+    # 最小圈复杂度
+    min-complexity: 15
+
+  dupl:
+    # 重复代码阈值（token数）
+    threshold: 100
+
+  goconst:
+    # 最小重复次数
+    min-len: 3
+    min-occurrences: 3
+
+  misspell:
+    # 语言
+    locale: US
+
+  goimports:
+    # 本地包前缀
+    local-prefixes: chandao-mini
+
+  gofmt:
+    # 简化代码
+    simplify: true
+
+  gocritic:
+    # 启用的检查器
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    # 禁用的检查器
+    disabled-checks:
+      - dupImport
+      - ifElseChain
+      - octalLiteral
+      - whyNoLint
+      - wrapperFunc
+
+  gosec:
+    # 排除的规则
+    excludes:
+      - G104 # Audit errors not checked
+      - G304 # File path provided as taint input
+
+  prealloc:
+    # 简单循环预分配检查
+    simple: true
+    range-loops: true
+    for-loops: false
+
+  nakedret:
+    # 最大函数行数
+    max-func-lines: 30
+
+  unused:
+    # 检查常量
+    check-exported: false
+
+# 问题配置
+issues:
+  # 排除的规则
+  exclude-rules:
+    # 测试文件排除某些检查
+    - path: _test\.go
+      linters:
+        - dupl
+        - gosec
+        - goconst
+        - gocyclo
+    
+    # 生成的文件排除检查
+    - path: wire_gen\.go
+      linters:
+        - all
+    
+    # 排除特定的检查
+    - linters:
+        - gosec
+      text: "G104:"
+
+  # 最大问题数（0表示不限制）
+  max-issues-per-linter: 0
+  # 最大相同问题数（0表示不限制）
+  max-same-issues: 0
+  # 显示所有问题
+  new: false
+
+# 严重性配置
+severity:
+  # 默认严重性
+  default-severity: error
+  # 规则
+  rules:
+    - linters:
+        - dupl
+      severity: info
+    - linters:
+        - goconst
+      severity: info

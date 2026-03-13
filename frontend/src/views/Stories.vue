@@ -145,12 +145,12 @@
         <el-descriptions :column="1" border>
           <el-descriptions-item label="ID">{{ currentStory.id }}</el-descriptions-item>
           <el-descriptions-item label="标题">{{ currentStory.title }}</el-descriptions-item>
-          <el-descriptions-item label="产品">{{ currentStory.product?.name }}</el-descriptions-item>
-          <el-descriptions-item label="项目">{{ currentStory.project?.name }}</el-descriptions-item>
+          <el-descriptions-item label="产品">{{ (currentStory.product as unknown as { name?: string })?.name }}</el-descriptions-item>
+          <el-descriptions-item label="项目">{{ (currentStory as unknown as { project?: { name?: string } }).project?.name }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ getStatusLabel(currentStory.status) }}</el-descriptions-item>
           <el-descriptions-item label="阶段">{{ getStageLabel(currentStory.stage) }}</el-descriptions-item>
           <el-descriptions-item label="优先级">{{ currentStory.pri }}</el-descriptions-item>
-          <el-descriptions-item label="指派人">{{ currentStory.assignedTo?.realname || currentStory.assignedTo?.account || currentStory.assignedTo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="指派人">{{ (currentStory.assignedTo as unknown as { realname?: string; account?: string })?.realname || (currentStory.assignedTo as unknown as { realname?: string; account?: string })?.account || currentStory.assignedTo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ currentStory.openedDate }}</el-descriptions-item>
           <el-descriptions-item label="描述" :span="2">
             <div v-html="currentStory.spec"></div>
@@ -161,80 +161,87 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, onMounted, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
 import {
   getStories,
-  getUsers,
-  getStoryStatusOptions,
-  getStoryStageOptions
+  getUsers
 } from '@/api/zentao'
+import type { Story, User } from '@/types/api'
 
-// 导入Wails运行时
 import * as runtime from '@wailsjs/runtime/runtime'
 
-const globalSelection = inject('globalSelection')
+interface GlobalSelection {
+  product: number | null
+  project: number | null
+  execution: number | null
+}
 
-const filterForm = reactive({
+interface FilterForm {
+  assignedTo: string
+  dateRange: [string, string] | []
+  specificDate: string
+}
+
+interface Pagination {
+  page: number
+  pageSize: number
+  total: number
+}
+
+const globalSelection = inject<GlobalSelection>('globalSelection')!
+
+const filterForm = reactive<FilterForm>({
   assignedTo: '',
   dateRange: [],
   specificDate: ''
 })
 
-const userOptions = ref([])
-const statusOptions = ref(getStoryStatusOptions())
-const stageOptions = ref(getStoryStageOptions())
+const userOptions = ref<User[]>([])
 
-// 表格数据
-const storyList = ref([])
-const loading = ref(false)
-const selectedStories = ref([])
+const storyList = ref<Story[]>([])
+const loading = ref<boolean>(false)
+const selectedStories = ref<Story[]>([])
 
-// 详情弹窗
-const detailDialogVisible = ref(false)
-const currentStory = ref(null)
+const detailDialogVisible = ref<boolean>(false)
+const currentStory = ref<Story | null>(null)
 
-// 分页
-const pagination = reactive({
+const pagination = reactive<Pagination>({
   page: 1,
   pageSize: 20,
   total: 0
 })
 
-// 获取用户列表
-const fetchUsers = async () => {
+const fetchUsers = async (): Promise<void> => {
   try {
-    const res = await getUsers()
-    if (res.data?.users) {
-      userOptions.value = res.data.users
-    }
+    const users = await getUsers()
+    userOptions.value = users || []
   } catch (error) {
     console.error('获取用户列表失败:', error)
     ElMessage.error('获取用户列表失败，请刷新页面重试')
   }
 }
 
-// 获取需求列表
-const fetchStories = async () => {
+const fetchStories = async (): Promise<void> => {
   loading.value = true
   try {
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
-      product: globalSelection.product,
-      project: globalSelection.project,
+      product: globalSelection.product ?? undefined,
+      project: globalSelection.project ?? undefined,
       assignedTo: filterForm.assignedTo,
       startDate: filterForm.dateRange[0] || '',
       endDate: filterForm.dateRange[1] || '',
       specificDate: filterForm.specificDate
     }
     const res = await getStories(params)
-    const data = res.data || []
-    storyList.value = Array.isArray(data) ? data : (data.list || [])
-    pagination.total = Array.isArray(data) ? data.length : (data.total || 0)
+    const data = res.data
+    storyList.value = Array.isArray(data) ? data : []
+    pagination.total = Array.isArray(data) ? data.length : 0
   } catch (error) {
     console.error('获取需求列表失败:', error)
     ElMessage.error('获取需求列表失败')
@@ -243,32 +250,26 @@ const fetchStories = async () => {
   }
 }
 
-// 监听全局选择器变化
-watch(() => globalSelection.product, (newProduct) => {
+watch(() => globalSelection.product, (newProduct: number | null) => {
   if (newProduct) {
-    // 重置分页和数据
     pagination.page = 1
     storyList.value = []
     pagination.total = 0
-    // 自动查询
     fetchStories()
   } else {
-    // 清空数据
     storyList.value = []
     pagination.total = 0
   }
 }, { immediate: true })
 
-// 监听项目变化
-watch(() => globalSelection.project, (newProject) => {
+watch(() => globalSelection.project, () => {
   if (globalSelection.product) {
     pagination.page = 1
     fetchStories()
   }
 })
 
-// 查询
-const handleSearch = () => {
+const handleSearch = (): void => {
   if (!globalSelection.product && !globalSelection.project) {
     ElMessage.warning('请先在顶部选择产品或项目')
     return
@@ -277,8 +278,7 @@ const handleSearch = () => {
   fetchStories()
 }
 
-// 重置
-const handleReset = () => {
+const handleReset = (): void => {
   filterForm.assignedTo = ''
   filterForm.dateRange = []
   filterForm.specificDate = ''
@@ -287,8 +287,7 @@ const handleReset = () => {
   pagination.total = 0
 }
 
-// 分页大小变化
-const handleSizeChange = (size) => {
+const handleSizeChange = (size: number): void => {
   if (!globalSelection.product && !globalSelection.project) {
     return
   }
@@ -297,8 +296,7 @@ const handleSizeChange = (size) => {
   fetchStories()
 }
 
-// 页码变化
-const handlePageChange = (page) => {
+const handlePageChange = (page: number): void => {
   if (!globalSelection.product && !globalSelection.project) {
     return
   }
@@ -306,9 +304,8 @@ const handlePageChange = (page) => {
   fetchStories()
 }
 
-// 获取状态标签类型
-const getStatusType = (status) => {
-  const types = {
+const getStatusType = (status: string): string => {
+  const types: Record<string, string> = {
     draft: 'info',
     active: 'success',
     changed: 'warning',
@@ -317,9 +314,8 @@ const getStatusType = (status) => {
   return types[status] || 'info'
 }
 
-// 获取状态标签文本
-const getStatusLabel = (status) => {
-  const labels = {
+const getStatusLabel = (status: string): string => {
+  const labels: Record<string, string> = {
     draft: '草稿',
     active: '激活',
     changed: '已变更',
@@ -328,17 +324,15 @@ const getStatusLabel = (status) => {
   return labels[status] || status
 }
 
-// 获取优先级标签类型
-const getPriorityType = (pri) => {
+const getPriorityType = (pri: number): string => {
   if (pri === 1) return 'danger'
   if (pri === 2) return 'warning'
   if (pri === 3) return 'primary'
   return 'info'
 }
 
-// 获取阶段标签文本
-const getStageLabel = (stage) => {
-  const labels = {
+const getStageLabel = (stage: string): string => {
+  const labels: Record<string, string> = {
     wait: '等待',
     planned: '已计划',
     projected: '已立项',
@@ -352,58 +346,50 @@ const getStageLabel = (stage) => {
   return labels[stage] || stage
 }
 
-// 选择处理
-const handleSelect = (selection, row) => {
+const handleSelect = (selection: Story[], _row: Story): void => {
   selectedStories.value = selection
 }
 
-// 全选处理
-const handleSelectAll = (selection) => {
+const handleSelectAll = (selection: Story[]): void => {
   selectedStories.value = selection
 }
 
-// 查看详情（批量）
-const handleViewDetails = () => {
+const handleViewDetails = (): void => {
   if (selectedStories.value.length > 0) {
-    // 显示第一个选中的需求详情
     currentStory.value = selectedStories.value[0]
     detailDialogVisible.value = true
   }
 }
 
-// 查看详情（单行）
-const handleViewDetail = (row) => {
+const handleViewDetail = (row: Story): void => {
   currentStory.value = row
   detailDialogVisible.value = true
 }
 
-// 导出
-const handleExport = () => {
+const handleExport = (): void => {
   if (selectedStories.value.length > 0) {
-    // 准备导出数据
-    const exportData = selectedStories.value.map(story => ({
+    const exportData = selectedStories.value.map((story: Story) => ({
       ID: story.id,
       标题: story.title,
-      产品: story.product?.name || '',
-      项目: story.project?.name || '',
+      产品: (story.product as unknown as { name?: string })?.name || '',
+      项目: (story as unknown as { project?: { name?: string } }).project?.name || '',
       状态: getStatusLabel(story.status),
       阶段: getStageLabel(story.stage),
       优先级: story.pri,
-      指派人: story.assignedTo?.realname || story.assignedTo?.account || story.assignedTo || '',
+      指派人: (story.assignedTo as unknown as { realname?: string; account?: string })?.realname || 
+              (story.assignedTo as unknown as { realname?: string; account?: string })?.account || 
+              story.assignedTo as string || '',
       创建时间: story.openedDate || '',
       描述: story.spec || ''
     }))
 
-    // 创建工作簿
     const worksheet = XLSX.utils.json_to_sheet(exportData)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, '需求列表')
 
-    // 导出文件
     try {
-      // 检查是否在Wails环境中
-      if (window.runtime && window.runtime.BrowserOpenURL) {
-        // 在Wails环境中，使用Blob和a标签下载
+      const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
+      if (w.runtime && w.runtime.BrowserOpenURL) {
         const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
         const blob = new Blob([wbout], { type: 'application/octet-stream' })
         const url = URL.createObjectURL(blob)
@@ -415,7 +401,6 @@ const handleExport = () => {
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
       } else {
-        // 在浏览器环境中使用XLSX.writeFile
         XLSX.writeFile(workbook, `需求列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
       }
       ElMessage.success(`导出 ${selectedStories.value.length} 个需求成功`)
@@ -426,20 +411,16 @@ const handleExport = () => {
   }
 }
 
-// 打开禅道链接（兼容浏览器和Wails环境）
-const openZentaoLink = (url) => {
+const openZentaoLink = (url: string): void => {
   try {
-    // 检查是否在Wails环境中
-    if (window.runtime && window.runtime.BrowserOpenURL) {
-      // 在Wails环境中使用BrowserOpenURL
+    const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
+    if (w.runtime && w.runtime.BrowserOpenURL) {
       runtime.BrowserOpenURL(url)
     } else {
-      // 在浏览器环境中使用window.open
       window.open(url, '_blank', 'noopener,noreferrer')
     }
   } catch (error) {
     console.error('打开链接失败:', error)
-    // 降级到window.open
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 }

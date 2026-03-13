@@ -173,67 +173,103 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted, nextTick, inject, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import type { Ref, ComputedRef } from 'vue'
 import Chart from 'chart.js/auto'
+import type { Chart as ChartType } from 'chart.js/auto'
 import {
   getTimelogDashboard,
   getTimelogEfforts,
   getTimelogExecutions,
   getUsers
 } from '../api/zentao'
+import type {
+  Execution,
+  User,
+  TimelogAnalysis,
+  TimelogByDate,
+  TimelogByProject,
+  TimelogByType,
+  TimelogEffort
+} from '../types/api'
 
-const globalSelection = inject('globalSelection')
+interface QuickRange {
+  label: string
+  value: string
+}
 
-const loading = ref(false)
-const showResult = ref(false)
-const selectedRange = ref('thisMonth')
-const tableSearch = ref('')
-const filters = ref({
+interface Filters {
+  executionId: string
+  assignedTo: string
+  dateFrom: string
+  dateTo: string
+}
+
+interface ChartInstances {
+  dailyChart?: ChartType<'bar'>
+  projectChart?: ChartType<'bar'>
+  typeChart?: ChartType<'doughnut'>
+}
+
+interface GlobalSelection {
+  product: string
+  project: string
+}
+
+interface SortParams {
+  prop: string
+  order: string | null
+}
+
+const globalSelection = inject<GlobalSelection>('globalSelection') as GlobalSelection
+
+const loading: Ref<boolean> = ref(false)
+const showResult: Ref<boolean> = ref(false)
+const selectedRange: Ref<string> = ref('thisMonth')
+const tableSearch: Ref<string> = ref('')
+const filters: Ref<Filters> = ref<Filters>({
   executionId: '',
   assignedTo: '',
   dateFrom: '',
   dateTo: ''
 })
 
-const projects = ref([])
-const executions = ref([])
-const users = ref([])
-const analysisData = ref({
+const executions: Ref<Execution[]> = ref<Execution[]>([])
+const users: Ref<User[]> = ref<User[]>([])
+const analysisData: Ref<TimelogAnalysis> = ref<TimelogAnalysis>({
   totalHours: 0,
   effortCount: 0,
+  taskCount: 0,
   byDate: [],
   byProject: [],
   byType: [],
   efforts: []
 })
 
-// 图表实例
-const dailyChart = ref(null)
-const projectChart = ref(null)
-const typeChart = ref(null)
-const chartInstances = ref({})
+const dailyChart: Ref<HTMLCanvasElement | null> = ref<HTMLCanvasElement | null>(null)
+const projectChart: Ref<HTMLCanvasElement | null> = ref<HTMLCanvasElement | null>(null)
+const typeChart: Ref<HTMLCanvasElement | null> = ref<HTMLCanvasElement | null>(null)
+const chartInstances: Ref<ChartInstances> = ref<ChartInstances>({})
 
-// 快捷时间范围
-const quickRanges = [
+const quickRanges: QuickRange[] = [
   { label: '本周', value: 'thisWeek' },
   { label: '上周', value: 'lastWeek' },
   { label: '本月', value: 'thisMonth' },
   { label: '上月', value: 'lastMonth' }
 ]
 
-// 计算属性
-const avgHours = computed(() => {
-  const days = (analysisData.value.byDate || []).length
+const avgHours: ComputedRef<string> = computed(() => {
+  const days: number = (analysisData.value.byDate || []).length
   return days > 0 ? (analysisData.value.totalHours / days).toFixed(1) : '0'
 })
 
-const filteredEfforts = computed(() => {
+const filteredEfforts: ComputedRef<TimelogEffort[]> = computed(() => {
   if (!analysisData.value.efforts) return []
-  const keyword = tableSearch.value.toLowerCase()
+  const keyword: string = tableSearch.value.toLowerCase()
   if (!keyword) return analysisData.value.efforts
-  return analysisData.value.efforts.filter(effort => {
+  return analysisData.value.efforts.filter((effort: TimelogEffort): boolean => {
     return (
       (effort.taskName || '').toLowerCase().includes(keyword) ||
       (effort.work || '').toLowerCase().includes(keyword) ||
@@ -245,15 +281,14 @@ const filteredEfforts = computed(() => {
   })
 })
 
-// 方法
-const setQuickRange = (range) => {
+const setQuickRange = (range: string): void => {
   selectedRange.value = range
-  const today = new Date()
-  let from, to
+  const today: Date = new Date()
+  let from: Date, to: Date
 
   switch (range) {
     case 'thisWeek': {
-      const day = today.getDay() || 7
+      const day: number = today.getDay() || 7
       from = new Date(today)
       from.setDate(today.getDate() - day + 1)
       to = new Date(from)
@@ -261,7 +296,7 @@ const setQuickRange = (range) => {
       break
     }
     case 'lastWeek': {
-      const day = today.getDay() || 7
+      const day: number = today.getDay() || 7
       from = new Date(today)
       from.setDate(today.getDate() - day - 6)
       to = new Date(from)
@@ -278,17 +313,19 @@ const setQuickRange = (range) => {
       to = new Date(today.getFullYear(), today.getMonth(), 0)
       break
     }
+    default:
+      return
   }
 
   filters.value.dateFrom = formatDateISO(from)
   filters.value.dateTo = formatDateISO(to)
 }
 
-const formatDateISO = (date) => {
+const formatDateISO = (date: Date): string => {
   return date.toISOString().split('T')[0]
 }
 
-const onProductChange = async () => {
+const onProductChange = async (): Promise<void> => {
   filters.value.executionId = ''
   executions.value = []
   if (globalSelection.product) {
@@ -306,8 +343,7 @@ const onProductChange = async () => {
   }
 }
 
-// 监听全局选择器变化
-watch(() => globalSelection.product, (newProduct) => {
+watch(() => globalSelection.product, (newProduct: string | undefined): void => {
   if (newProduct) {
     onProductChange()
   } else {
@@ -316,7 +352,7 @@ watch(() => globalSelection.product, (newProduct) => {
   }
 }, { immediate: true })
 
-const queryTimelog = async () => {
+const queryTimelog = async (): Promise<void> => {
   if (!globalSelection.product) {
     ElMessage.warning('请先在顶部选择产品')
     return
@@ -327,15 +363,12 @@ const queryTimelog = async () => {
     return
   }
 
-  // 生成缓存键
-  const cacheKey = `timelog_${globalSelection.product}_${filters.value.executionId}_${filters.value.assignedTo}_${filters.value.dateFrom}_${filters.value.dateTo}`
+  const cacheKey: string = `timelog_${globalSelection.product}_${filters.value.executionId}_${filters.value.assignedTo}_${filters.value.dateFrom}_${filters.value.dateTo}`
   
-  // 检查缓存
-  const cachedData = localStorage.getItem(cacheKey)
+  const cachedData: string | null = localStorage.getItem(cacheKey)
   if (cachedData) {
-    const parsedData = JSON.parse(cachedData)
+    const parsedData: { data: TimelogAnalysis; expiry: number } = JSON.parse(cachedData)
     if (parsedData.expiry > Date.now()) {
-      // 缓存未过期，直接使用
       analysisData.value = parsedData.data
       showResult.value = true
       await nextTick()
@@ -347,28 +380,25 @@ const queryTimelog = async () => {
   loading.value = true
 
   try {
-    // 获取看板数据
     const dashboardResponse = await getTimelogDashboard({
-      productId: globalSelection.product,
-      projectId: '',
-      executionId: filters.value.executionId,
+      productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined,
+      projectId: undefined,
+      executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined,
       assignedTo: filters.value.assignedTo,
       dateFrom: filters.value.dateFrom,
       dateTo: filters.value.dateTo
     })
 
-    // 获取明细数据
     const effortsResponse = await getTimelogEfforts({
-      productId: globalSelection.product,
-      projectId: '',
-      executionId: filters.value.executionId,
+      productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined,
+      projectId: undefined,
+      executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined,
       assignedTo: filters.value.assignedTo,
       dateFrom: filters.value.dateFrom,
       dateTo: filters.value.dateTo
     })
 
-    // 合并数据
-    const fullData = {
+    const fullData: TimelogAnalysis = {
       ...dashboardResponse.data,
       efforts: effortsResponse.data
     }
@@ -378,39 +408,39 @@ const queryTimelog = async () => {
     await nextTick()
     renderCharts()
 
-    // 缓存数据，设置一天过期
-    const cacheData = {
+    const cacheData: { data: TimelogAnalysis; expiry: number } = {
       data: fullData,
-      expiry: Date.now() + 24 * 60 * 60 * 1000 // 24小时过期
+      expiry: Date.now() + 24 * 60 * 60 * 1000
     }
     localStorage.setItem(cacheKey, JSON.stringify(cacheData))
   } catch (error) {
     console.error('查询工时统计失败:', error)
-    ElMessage.error('查询失败: ' + (error.response?.data?.error || error.message))
+    ElMessage.error('查询失败: ' + ((error as { response?: { data?: { error?: string } }; message?: string })?.response?.data?.error || (error as Error).message))
   } finally {
     loading.value = false
   }
 }
 
-const renderCharts = () => {
+const renderCharts = (): void => {
   renderDailyChart()
   renderProjectChart()
   renderTypeChart()
 }
 
-const renderDailyChart = () => {
+const renderDailyChart = (): void => {
   if (chartInstances.value.dailyChart) {
     chartInstances.value.dailyChart.destroy()
   }
 
-  const ctx = dailyChart.value.getContext('2d')
+  if (!dailyChart.value) return
+  const ctx: CanvasRenderingContext2D = dailyChart.value.getContext('2d') as CanvasRenderingContext2D
   chartInstances.value.dailyChart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: analysisData.value.byDate.map(d => d.date),
+      labels: analysisData.value.byDate.map((d: TimelogByDate): string => d.date),
       datasets: [{
         label: '工时 (小时)',
-        data: analysisData.value.byDate.map(d => parseFloat(d.hours.toFixed(1))),
+        data: analysisData.value.byDate.map((d: TimelogByDate): number => parseFloat(d.hours.toFixed(1))),
         backgroundColor: '#4e79a7',
         borderRadius: 3
       }]
@@ -422,8 +452,8 @@ const renderDailyChart = () => {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: function(ctx) {
-              const d = analysisData.value.byDate[ctx.dataIndex]
+            label: (ctx): string => {
+              const d: TimelogByDate = analysisData.value.byDate[ctx.dataIndex]
               return `${d.hours.toFixed(1)}h (${d.count}条记录)`
             }
           }
@@ -437,21 +467,22 @@ const renderDailyChart = () => {
   })
 }
 
-const renderProjectChart = () => {
+const renderProjectChart = (): void => {
   if (chartInstances.value.projectChart) {
     chartInstances.value.projectChart.destroy()
   }
 
-  const items = [...analysisData.value.byProject].sort((a, b) => b.hours - a.hours)
-  const ctx = projectChart.value.getContext('2d')
+  if (!projectChart.value) return
+  const items: TimelogByProject[] = [...analysisData.value.byProject].sort((a: TimelogByProject, b: TimelogByProject): number => b.hours - a.hours)
+  const ctx: CanvasRenderingContext2D = projectChart.value.getContext('2d') as CanvasRenderingContext2D
   chartInstances.value.projectChart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: items.map(i => i.name),
+      labels: items.map((i: TimelogByProject): string => i.name),
       datasets: [{
         label: '工时 (小时)',
-        data: items.map(i => parseFloat(i.hours.toFixed(1))),
-        backgroundColor: items.map((_, idx) => getColor(idx)),
+        data: items.map((i: TimelogByProject): number => parseFloat(i.hours.toFixed(1))),
+        backgroundColor: items.map((_: TimelogByProject, idx: number): string => getColor(idx)),
         borderRadius: 4
       }]
     },
@@ -462,8 +493,8 @@ const renderProjectChart = () => {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: function(ctx) {
-              const item = items[ctx.dataIndex]
+            label: (ctx): string => {
+              const item: TimelogByProject = items[ctx.dataIndex]
               return `${ctx.parsed.y}h (${item.count}个任务)`
             }
           }
@@ -477,20 +508,21 @@ const renderProjectChart = () => {
   })
 }
 
-const renderTypeChart = () => {
+const renderTypeChart = (): void => {
   if (chartInstances.value.typeChart) {
     chartInstances.value.typeChart.destroy()
   }
 
-  const items = [...analysisData.value.byType].sort((a, b) => b.hours - a.hours)
-  const ctx = typeChart.value.getContext('2d')
+  if (!typeChart.value) return
+  const items: TimelogByType[] = [...analysisData.value.byType].sort((a: TimelogByType, b: TimelogByType): number => b.hours - a.hours)
+  const ctx: CanvasRenderingContext2D = typeChart.value.getContext('2d') as CanvasRenderingContext2D
   chartInstances.value.typeChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: items.map(i => i.name),
+      labels: items.map((i: TimelogByType): string => i.name),
       datasets: [{
-        data: items.map(i => parseFloat(i.hours.toFixed(1))),
-        backgroundColor: items.map((_, idx) => getColor(idx)),
+        data: items.map((i: TimelogByType): number => parseFloat(i.hours.toFixed(1))),
+        backgroundColor: items.map((_: TimelogByType, idx: number): string => getColor(idx)),
         borderWidth: 2,
         borderColor: '#fff'
       }]
@@ -505,10 +537,10 @@ const renderTypeChart = () => {
         },
         tooltip: {
           callbacks: {
-            label: function(ctx) {
-              const item = items[ctx.dataIndex]
-              const total = items.reduce((s, i) => s + i.hours, 0)
-              const pct = total > 0 ? ((item.hours / total) * 100).toFixed(1) : 0
+            label: (ctx): string => {
+              const item: TimelogByType = items[ctx.dataIndex]
+              const total: number = items.reduce((s: number, i: TimelogByType): number => s + i.hours, 0)
+              const pct: string = total > 0 ? ((item.hours / total) * 100).toFixed(1) : '0'
               return `${item.name}: ${item.hours.toFixed(1)}h (${pct}%, ${item.count}个任务)`
             }
           }
@@ -518,24 +550,24 @@ const renderTypeChart = () => {
   })
 }
 
-const getColor = (index) => {
-  const colors = [
+const getColor = (index: number): string => {
+  const colors: string[] = [
     '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
     '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac'
   ]
   return colors[index % colors.length]
 }
 
-const filterTable = () => {
-  // 过滤逻辑在 computed 属性中处理
+const filterTable = (): void => {
 }
 
-const handleSortChange = (sort) => {
+const handleSortChange = (sort: SortParams): void => {
   const { prop, order } = sort
   if (!prop) return
 
-  analysisData.value.efforts.sort((a, b) => {
-    let va = a[prop], vb = b[prop]
+  analysisData.value.efforts.sort((a: TimelogEffort, b: TimelogEffort): number => {
+    let va: string | number = a[prop as keyof TimelogEffort] as string | number
+    let vb: string | number = b[prop as keyof TimelogEffort] as string | number
     if (typeof va === 'string') va = va.toLowerCase()
     if (typeof vb === 'string') vb = vb.toLowerCase()
     if (va < vb) return order === 'ascending' ? -1 : 1
@@ -544,21 +576,19 @@ const handleSortChange = (sort) => {
   })
 }
 
-// 根据账号获取用户姓名
-const getUserName = (account) => {
-  const user = users.value.find(u => u.account === account)
+const getUserName = (account: string): string => {
+  const user: User | undefined = users.value.find((u: User): boolean => u.account === account)
   return user ? (user.realname || account) : account
 }
 
-// 生命周期
-onMounted(async () => {
+onMounted(async (): Promise<void> => {
   if (globalSelection.product) {
     onProductChange()
   }
   
   try {
-    const userResponse = await getUsers()
-    users.value = userResponse.data?.users || []
+    const userData = await getUsers()
+    users.value = userData || []
   } catch (error) {
     console.error('加载数据失败:', error)
     ElMessage.error('加载数据失败')

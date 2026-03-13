@@ -55,17 +55,27 @@
   </el-container>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, provide, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
 
+interface GlobalSelection {
+  product: string
+  project: string
+}
+
+interface SelectionChangePayload {
+  product: string
+  project: string
+}
+
 const route = useRoute()
 const router = useRouter()
-const globalSelection = reactive({ product: '', project: '' })
+const globalSelection = reactive<GlobalSelection>({ product: '', project: '' })
 
-const pageTitle = computed(() => {
-  const titles = {
+const pageTitle = computed<string>(() => {
+  const titles: Record<string, string> = {
     '/bugs': 'Bug 查询',
     '/stories': '需求查询',
     '/tasks': '任务查询',
@@ -76,19 +86,17 @@ const pageTitle = computed(() => {
   return titles[route.path] || '禅道 Mini'
 })
 
-const handleSelectionChange = (selection) => {
+const handleSelectionChange = (selection: SelectionChangePayload): void => {
   globalSelection.product = selection.product
   globalSelection.project = selection.project
 }
 
-const resetInitialization = () => {
-  // 清除初始化标志
+const resetInitialization = (): void => {
   localStorage.removeItem('initialized')
-  // 跳转到初始化页面
   router.push('/init-guide')
 }
 
-provide('globalSelection', globalSelection)
+provide<GlobalSelection>('globalSelection', globalSelection)
 </script>
 
 <style scoped>

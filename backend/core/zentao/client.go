@@ -1,6 +1,8 @@
 package zentao
 
 import (
+	"chandao-mini/backend/core/logger"
+	"chandao-mini/backend/core/metrics"
 	"fmt"
 	"strconv"
 	"strings"
@@ -8,15 +10,16 @@ import (
 	"time"
 
 	"github.com/yi-nology/common/biz/zentao"
+	"go.uber.org/zap"
 )
 
 // Client 封装禅道 SDK 客户端，支持 Token 缓存
 type Client struct {
 	sdkClient      *zentao.Client
 	account        string
-	password       string
+	password       *SecureString // 使用安全字符串存储密码
 	server         string
-	token          string
+	token          *SecureString // 使用安全字符串存储token
 	tokenExpiry    time.Time
 	usersCache     []zentao.User
 	usersExpiry    time.Time
@@ -41,8 +44,9 @@ func NewClient(server, account, password string) *Client {
 	client := &Client{
 		sdkClient: sdkClient,
 		account:   account,
-		password:  password,
+		password:  NewSecureString(password), // 使用安全字符串存储密码
 		server:    server,
+		token:     NewSecureString(""), // 初始化空的安全字符串
 	}
 	// 启动Token自动刷新机制
 	go client.startTokenRefreshTask()
@@ -75,46 +79,71 @@ func (c *Client) startTokenRefreshTask() {
 func (c *Client) IsTokenExpired() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.token == "" || time.Now().After(c.tokenExpiry)
+	return c.token.Get() == "" || time.Now().After(c.tokenExpiry)
 }
 
 // getToken 获取有效的 Token（带缓存）
 func (c *Client) getToken() (string, error) {
 	c.mu.RLock()
-	if c.token != "" && time.Now().Before(c.tokenExpiry) {
-		token := c.token
+	tokenStr := c.token.Get()
+	if tokenStr != "" && time.Now().Before(c.tokenExpiry) {
 		c.mu.RUnlock()
-		return token, nil
+		// 缓存命中
+		metrics.RecordCacheHit("token")
+		return tokenStr, nil
 	}
 	c.mu.RUnlock()
+
+	// 缓存未命中
+	metrics.RecordCacheMiss("token")
+	start := time.Now()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// 双重检查
-	if c.token != "" && time.Now().Before(c.tokenExpiry) {
-		return c.token, nil
+	tokenStr = c.token.Get()
+	if tokenStr != "" && time.Now().Before(c.tokenExpiry) {
+		return tokenStr, nil
 	}
 
 	// 尝试获取Token，最多重试3次
 	var token string
 	var err error
+	passwordStr := c.password.Get() // 临时获取密码
 	for i := 0; i < 3; i++ {
-		token, err = c.sdkClient.GetToken(c.account, c.password)
+		token, err = c.sdkClient.GetToken(c.account, passwordStr)
 		if err == nil {
 			break
 		}
 		// 重试前等待一段时间
 		time.Sleep(time.Duration(i+1) * time.Second)
+		logger.Warn("Failed to get token, retrying",
+			zap.Int("attempt", i+1),
+			zap.Error(err),
+		)
 	}
+	// 清除临时密码变量
+	passwordStr = ""
+
 	if err != nil {
+		logger.Error("Failed to get token after retries", zap.Error(err))
 		return "", err
 	}
 
-	c.token = token
+	c.token.Set(token) // 使用安全字符串存储token
 	// Token 有效期设置为 23 小时（保险起见）
 	c.tokenExpiry = time.Now().Add(23 * time.Hour)
 	c.sdkClient.SetToken(token)
+
+	duration := time.Since(start)
+	metrics.RecordCacheOperation("token", "refresh", duration)
+	metrics.RecordTokenRefresh()
+
+	logger.Info("Token refreshed successfully",
+		zap.Duration("duration", duration),
+		zap.Time("expiry", c.tokenExpiry),
+	)
 
 	return token, nil
 }
@@ -125,19 +154,23 @@ func (c *Client) RefreshToken() (string, error) {
 	// 尝试获取Token，最多重试3次
 	var token string
 	var err error
+	passwordStr := c.password.Get() // 临时获取密码
 	for i := 0; i < 3; i++ {
-		token, err = c.sdkClient.GetToken(c.account, c.password)
+		token, err = c.sdkClient.GetToken(c.account, passwordStr)
 		if err == nil {
 			break
 		}
 		// 重试前等待一段时间
 		time.Sleep(time.Duration(i+1) * time.Second)
 	}
+	// 清除临时密码变量
+	passwordStr = ""
+
 	if err != nil {
 		return "", err
 	}
 
-	c.token = token
+	c.token.Set(token) // 使用安全字符串存储token
 	// Token 有效期设置为 23 小时（保险起见）
 	c.tokenExpiry = time.Now().Add(23 * time.Hour)
 	c.sdkClient.SetToken(token)
@@ -161,14 +194,14 @@ func (c *Client) UpdateConfig(server, account, password string) error {
 	// 更新配置
 	c.server = server
 	c.account = account
-	c.password = password
+	c.password.Set(password) // 使用安全字符串存储密码
 
 	// 重新创建SDK客户端
 	c.sdkClient = zentao.NewClient(server)
 	c.sdkClient.SetTimeout(10 * time.Second)
 
 	// 清除缓存
-	c.token = ""
+	c.token.Set("") // 清除token
 	c.tokenExpiry = time.Time{}
 	c.usersCache = nil
 	c.usersExpiry = time.Time{}
@@ -195,11 +228,15 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 		// 缓存有效，直接返回
 		products := c.productsCache
 		c.mu.RUnlock()
+		metrics.RecordCacheHit("products")
 		return products, nil
 	}
 	c.mu.RUnlock()
 
 	// 缓存无效，重新获取所有产品
+	metrics.RecordCacheMiss("products")
+	start := time.Now()
+
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
@@ -207,6 +244,7 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 	// 先获取第一页，获取总数
 	firstPageResponse, err := c.sdkClient.GetProducts(1, 100)
 	if err != nil {
+		metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
 		return nil, err
 	}
 
@@ -223,6 +261,7 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 		for page := 2; page <= totalPages; page++ {
 			response, err := c.sdkClient.GetProducts(page, pageSize)
 			if err != nil {
+				metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
 				return nil, err
 			}
 			allProducts = append(allProducts, response.Products...)
@@ -234,6 +273,15 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 	c.productsCache = allProducts
 	c.productsExpiry = time.Now().Add(24 * time.Hour) // 24小时过期
 	c.mu.Unlock()
+
+	duration := time.Since(start)
+	metrics.RecordCacheOperation("products", "fetch", duration)
+	metrics.RecordZentaoAPIRequest("products", "GET", duration, nil)
+
+	logger.Info("Products fetched",
+		zap.Int("count", len(allProducts)),
+		zap.Duration("duration", duration),
+	)
 
 	return allProducts, nil
 }
@@ -418,6 +466,7 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 		// 缓存有效，直接返回
 		users := c.usersCache
 		c.mu.RUnlock()
+		metrics.RecordCacheHit("users")
 
 		// 计算分页
 		total := len(users)
@@ -445,6 +494,9 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 	c.mu.RUnlock()
 
 	// 缓存无效，重新获取所有用户
+	metrics.RecordCacheMiss("users")
+	startTime := time.Now()
+
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
@@ -457,6 +509,7 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 	for {
 		response, err := c.sdkClient.GetUsers(currentPage, pageSize)
 		if err != nil {
+			metrics.RecordZentaoAPIRequest("users", "GET", time.Since(startTime), err)
 			return nil, err
 		}
 
@@ -475,6 +528,15 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 	c.usersCache = allUsers
 	c.usersExpiry = time.Now().Add(24 * time.Hour) // 24小时过期
 	c.mu.Unlock()
+
+	duration := time.Since(startTime)
+	metrics.RecordCacheOperation("users", "fetch", duration)
+	metrics.RecordZentaoAPIRequest("users", "GET", duration, nil)
+
+	logger.Info("Users fetched",
+		zap.Int("count", len(allUsers)),
+		zap.Duration("duration", duration),
+	)
 
 	// 计算分页
 	total := len(allUsers)
@@ -587,6 +649,7 @@ func mapToSlice(m map[string]*statItem) []statItem {
 }
 
 // GetTimelogAnalysis 获取工时统计分析
+// 使用WorkerPool进行并发控制，提升性能和可维护性
 func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedTo, dateFrom, dateTo string) (map[string]interface{}, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
@@ -609,7 +672,6 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 
 	// 获取产品名称
 	productName := fmt.Sprintf("产品%d", prodID)
-	// 只获取需要的产品信息，避免获取所有产品
 	product, err := c.sdkClient.GetProduct(prodID)
 	if err == nil && product != nil {
 		productName = product.Name
@@ -634,16 +696,15 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 		projects = filtered
 	}
 
-	// 收集执行列表
+	// 定义执行上下文结构
 	type execWithContext struct {
 		Exec     zentao.Execution
 		ProjName string
 	}
+
+	// 第一步：收集执行列表（使用WorkerPool）
 	var allExecs []execWithContext
 	var mu sync.Mutex
-	var wg sync.WaitGroup
-	// 限制并发数，避免过多请求导致超时
-	execSem := make(chan struct{}, 3) // 最多3个并发请求，减少服务器压力
 
 	if filterExecutionID > 0 {
 		// 直接使用指定的执行
@@ -657,80 +718,108 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 			ProjName: projName,
 		})
 	} else {
-		for _, proj := range projects {
-			wg.Add(1)
-			go func(p zentao.Project) {
-				defer wg.Done()
-				execSem <- struct{}{}
-				defer func() { <-execSem }()
-				execsResponse, err := c.sdkClient.GetExecutions(p.ID, 1, 100)
+		// 使用WorkerPool并发获取执行列表
+		execPool := NewWorkerPool(3, len(projects)) // 3个并发worker
+		defer execPool.Shutdown()
+
+		execTasks := make([]Task, len(projects))
+		for i, proj := range projects {
+			proj := proj // 捕获变量
+			execTasks[i] = func() (interface{}, error) {
+				execsResponse, err := c.sdkClient.GetExecutions(proj.ID, 1, 100)
 				if err != nil {
-					// 记录错误但不中断整体流程
-					return
+					return nil, err
 				}
-				execs := execsResponse.Executions
+				return execsResponse.Executions, nil
+			}
+		}
+
+		// 处理结果
+		for i, result := range execPool.ProcessBatch(execTasks) {
+			if result.Error == nil && result.Value != nil {
+				execs := result.Value.([]zentao.Execution)
 				mu.Lock()
 				for _, e := range execs {
-					allExecs = append(allExecs, execWithContext{Exec: e, ProjName: p.Name})
+					allExecs = append(allExecs, execWithContext{Exec: e, ProjName: projects[i].Name})
 				}
 				mu.Unlock()
-			}(proj)
+			}
 		}
-		wg.Wait()
 	}
 
-	// 并发收集所有任务（含基本信息用于关联）
+	// 第二步：收集任务列表（使用WorkerPool）
 	type taskContext struct {
 		Task     zentao.Task
 		ProjName string
 		ExecName string
 	}
 	var allTaskCtx []taskContext
-	taskSem := make(chan struct{}, 3) // 最多3个并发请求
 
-	for _, ec := range allExecs {
-		wg.Add(1)
-		go func(e execWithContext) {
-			defer wg.Done()
-			taskSem <- struct{}{}
-			defer func() { <-taskSem }()
-			tasksResponse, err := c.sdkClient.GetTasks(e.Exec.ID, 1, 500)
+	taskPool := NewWorkerPool(3, len(allExecs)) // 3个并发worker
+	defer taskPool.Shutdown()
+
+	taskTasks := make([]Task, len(allExecs))
+	for i, ec := range allExecs {
+		ec := ec // 捕获变量
+		taskTasks[i] = func() (interface{}, error) {
+			tasksResponse, err := c.sdkClient.GetTasks(ec.Exec.ID, 1, 500)
 			if err != nil {
-				// 记录错误但不中断整体流程
-				return
+				return nil, err
 			}
-			tasks := tasksResponse.Tasks
-			mu.Lock()
-			for _, t := range tasks {
-				if t.Consumed <= 0 {
-					continue
+			// 过滤掉没有消耗工时的任务
+			var filteredTasks []zentao.Task
+			for _, t := range tasksResponse.Tasks {
+				if t.Consumed > 0 {
+					filteredTasks = append(filteredTasks, t)
 				}
-				allTaskCtx = append(allTaskCtx, taskContext{Task: t, ProjName: e.ProjName, ExecName: e.Exec.Name})
+			}
+			return struct {
+				Tasks    []zentao.Task
+				ProjName string
+				ExecName string
+			}{Tasks: filteredTasks, ProjName: ec.ProjName, ExecName: ec.Exec.Name}, nil
+		}
+	}
+
+	// 处理结果
+	for _, result := range taskPool.ProcessBatch(taskTasks) {
+		if result.Error == nil && result.Value != nil {
+			data := result.Value.(struct {
+				Tasks    []zentao.Task
+				ProjName string
+				ExecName string
+			})
+			mu.Lock()
+			for _, t := range data.Tasks {
+				allTaskCtx = append(allTaskCtx, taskContext{
+					Task:     t,
+					ProjName: data.ProjName,
+					ExecName: data.ExecName,
+				})
 			}
 			mu.Unlock()
-		}(ec)
+		}
 	}
-	wg.Wait()
 
-	// 并发获取每个任务的 effort 日志
+	// 第三步：获取工时记录（使用WorkerPool）
 	var allEfforts []effortItem
-	sem := make(chan struct{}, 5) // 限制并发数为5，避免过多请求
 
-	for _, tc := range allTaskCtx {
-		wg.Add(1)
-		go func(tc taskContext) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+	effortPool := NewWorkerPool(5, len(allTaskCtx)) // 5个并发worker
+	defer effortPool.Shutdown()
 
+	effortTasks := make([]Task, len(allTaskCtx))
+	for i, tc := range allTaskCtx {
+		tc := tc // 捕获变量
+		effortTasks[i] = func() (interface{}, error) {
 			efforts, err := c.sdkClient.GetTaskEfforts(tc.Task.ID)
 			if err != nil {
-				// 记录错误但不中断整体流程
-				return
+				return nil, err
 			}
-			mu.Lock()
+
+			// 过滤工时记录
+			var filteredEfforts []effortItem
 			for _, e := range efforts {
-				// 用户过滤（effort 记录人）
+				// 用户过滤
 				if assignedTo != "" && e.Account != assignedTo {
 					continue
 				}
@@ -742,7 +831,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 					continue
 				}
 
-				allEfforts = append(allEfforts, effortItem{
+				filteredEfforts = append(filteredEfforts, effortItem{
 					ID:        e.ID,
 					TaskID:    tc.Task.ID,
 					TaskName:  tc.Task.Name,
@@ -757,10 +846,19 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 					Work:      e.Work,
 				})
 			}
-			mu.Unlock()
-		}(tc)
+			return filteredEfforts, nil
+		}
 	}
-	wg.Wait()
+
+	// 处理结果
+	for _, result := range effortPool.ProcessBatch(effortTasks) {
+		if result.Error == nil && result.Value != nil {
+			efforts := result.Value.([]effortItem)
+			mu.Lock()
+			allEfforts = append(allEfforts, efforts...)
+			mu.Unlock()
+		}
+	}
 
 	// 聚合统计
 	var totalHours float64

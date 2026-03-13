@@ -1,18 +1,22 @@
-<script setup>
-import {reactive} from 'vue'
-import {Greet} from '../../wailsjs/go/main/App'
+<script setup lang="ts">
+import { reactive } from 'vue'
+import { Greet } from '../../wailsjs/go/main/App'
 
-const data = reactive({
+interface HelloWorldData {
+  name: string
+  resultText: string
+}
+
+const data = reactive<HelloWorldData>({
   name: "",
   resultText: "Please enter your name below 👇",
 })
 
-function greet() {
-  Greet(data.name).then(result => {
+function greet(): void {
+  Greet(data.name).then((result: string) => {
     data.resultText = result
   })
 }
-
 </script>
 
 <template>

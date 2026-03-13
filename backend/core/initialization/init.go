@@ -53,7 +53,14 @@ func NewInitService(authConfigPath, dbPath, encryptionKey string) *InitService {
 		}
 	}
 	if encryptionKey == "" {
-		encryptionKey = "Zhangyi@Kylin999-"
+		// 从环境变量读取加密密钥，如果未设置则使用默认值（仅用于开发环境）
+		encryptionKey = os.Getenv("ZENTAO_ENCRYPTION_KEY")
+		if encryptionKey == "" {
+			// 生产环境必须设置环境变量，这里给出警告
+			log.Println("WARNING: ZENTAO_ENCRYPTION_KEY environment variable is not set. Using default key for development only.")
+			log.Println("WARNING: Please set ZENTAO_ENCRYPTION_KEY environment variable in production!")
+			encryptionKey = "dev-default-key-change-in-production"
+		}
 	}
 
 	return &InitService{

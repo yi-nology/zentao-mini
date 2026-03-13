@@ -1,22 +1,21 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 
-	"chandao-mini/backend/core/models"
-	"chandao-mini/backend/core/zentao"
+	"chandao-mini/backend/core/errors"
+	"chandao-mini/backend/core/service"
 )
 
 // ProductHandler 产品处理器
+// 只负责HTTP请求/响应处理，业务逻辑由Service层处理
 type ProductHandler struct {
-	client *zentao.Client
+	productService *service.ProductService
 }
 
 // NewProductHandler 创建产品处理器
-func NewProductHandler(client *zentao.Client) *ProductHandler {
-	return &ProductHandler{client: client}
+func NewProductHandler(productService *service.ProductService) *ProductHandler {
+	return &ProductHandler{productService: productService}
 }
 
 // GetProducts 获取产品列表
@@ -25,35 +24,17 @@ func NewProductHandler(client *zentao.Client) *ProductHandler {
 // @Tags 产品
 // @Accept json
 // @Produce json
-// @Success 200 {object} models.Response{data=[]models.Product}
-// @Failure 500 {object} models.Response
-// @Router /api/products [get]
+// @Success 200 {object} errors.Response{data=[]vo.ProductVO}
+// @Failure 500 {object} errors.Response
+// @Router /api/v1/products [get]
 func (h *ProductHandler) GetProducts(c *gin.Context) {
-	products, err := h.client.GetProducts()
+	// 调用Service层处理业务逻辑
+	result, err := h.productService.GetProducts()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.Response{
-			Code:    500,
-			Message: "获取产品列表失败: " + err.Error(),
-		})
+		errors.Error(c, errors.ExternalError("禅道", err))
 		return
 	}
 
-	// 转换为模型
-	var result []models.Product
-	for _, p := range products {
-		result = append(result, models.Product{
-			ID:     p.ID,
-			Name:   p.Name,
-			Code:   p.Code,
-			Type:   p.Type,
-			Status: p.Status,
-			Desc:   p.Desc,
-		})
-	}
-
-	c.JSON(http.StatusOK, models.Response{
-		Code:    200,
-		Message: "success",
-		Data:    result,
-	})
+	// 返回成功响应
+	errors.Success(c, result)
 }
