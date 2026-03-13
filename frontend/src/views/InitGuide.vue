@@ -54,109 +54,104 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { uploadInitConfig, testZentaoConnection } from '@/api/zentao'
+import type { ApiResponse } from '@/types/api'
 
-export default {
-  name: 'InitGuide',
-  data() {
-    return {
-      selectedFile: null,
-      loading: false,
-      error: '',
-      success: '',
-      testing: false,
-      testResult: '',
-      debugInfo: ''
+const router = useRouter()
+
+const selectedFile = ref<File | null>(null)
+const loading = ref<boolean>(false)
+const error = ref<string>('')
+const success = ref<string>('')
+const testing = ref<boolean>(false)
+const testResult = ref<string>('')
+const debugInfo = ref<string>('')
+
+const handleFileChange = (event: Event): void => {
+  const target = event.target as HTMLInputElement
+  if (target.files && target.files.length > 0) {
+    selectedFile.value = target.files[0]
+  }
+}
+
+const submitForm = async (): Promise<void> => {
+  if (!selectedFile.value) {
+    error.value = '请选择加密配置文件'
+    return
+  }
+  
+  loading.value = true
+  error.value = ''
+  success.value = ''
+  debugInfo.value = ''
+  
+  try {
+    const formData = new FormData()
+    formData.append('configFile', selectedFile.value)
+    
+    debugInfo.value += `请求URL: /api/init/upload\n`
+    debugInfo.value += `请求方法: POST\n`
+    debugInfo.value += `请求文件: ${selectedFile.value.name} (${selectedFile.value.size} bytes)\n`
+    debugInfo.value += `请求时间: ${new Date().toISOString()}\n\n`
+    
+    const response = await uploadInitConfig(formData)
+    const result = response.data as ApiResponse
+    
+    debugInfo.value += `响应时间: ${new Date().toISOString()}\n\n`
+    debugInfo.value += `响应数据: ${JSON.stringify(result, null, 2)}\n`
+    
+    if (result.code !== 200) {
+      throw new Error(result.message || '初始化失败')
     }
-  },
-  methods: {
-    handleFileChange(event) {
-      this.selectedFile = event.target.files[0]
-    },
-    async submitForm() {
-      if (!this.selectedFile) {
-        this.error = '请选择加密配置文件'
-        return
-      }
-      
-      this.loading = true
-      this.error = ''
-      this.success = ''
-      this.debugInfo = ''
-      
-      try {
-        // 创建FormData对象
-        const formData = new FormData()
-        formData.append('configFile', this.selectedFile)
-        
-        // 收集调试信息
-        this.debugInfo += `请求URL: /api/init/upload\n`
-        this.debugInfo += `请求方法: POST\n`
-        this.debugInfo += `请求文件: ${this.selectedFile.name} (${this.selectedFile.size} bytes)\n`
-        this.debugInfo += `请求时间: ${new Date().toISOString()}\n\n`
-        
-        // 上传文件到后端接口
-        const result = await uploadInitConfig(formData)
-        
-        // 收集响应信息
-        this.debugInfo += `响应时间: ${new Date().toISOString()}\n\n`
-        this.debugInfo += `响应数据: ${JSON.stringify(result, null, 2)}\n`
-        
-        if (result.code !== 200) {
-          throw new Error(result.message || '初始化失败')
-        }
-        
-        // 设置初始化标志
-        localStorage.setItem('initialized', 'true')
-        
-        // 显示成功消息
-        this.success = '初始化成功！系统已准备就绪。'
-        
-        // 3秒后跳转到首页
-        setTimeout(() => {
-          this.$router.push('/')
-        }, 3000)
-      } catch (err) {
-        this.error = '初始化失败，请检查上传的文件并重试。'
-        this.debugInfo += `错误信息: ${err.message}\n`
-        console.error('初始化错误:', err)
-      } finally {
-        this.loading = false
-      }
-    },
-    async testZentao() {
-      this.testing = true
-      this.testResult = ''
-      this.debugInfo = ''
-      
-      try {
-        // 收集调试信息
-        this.debugInfo += `请求URL: /api/users/current\n`
-        this.debugInfo += `请求方法: GET\n`
-        this.debugInfo += `请求时间: ${new Date().toISOString()}\n\n`
-        
-        // 调用当前用户接口测试禅道连接
-        const result = await testZentaoConnection()
-        
-        // 收集响应信息
-        this.debugInfo += `响应时间: ${new Date().toISOString()}\n\n`
-        this.debugInfo += `响应数据: ${JSON.stringify(result, null, 2)}\n`
-        
-        if (result.code !== 200) {
-          throw new Error(result.message || '测试失败')
-        }
-        
-        // 显示测试结果
-        this.testResult = JSON.stringify(result, null, 2)
-      } catch (err) {
-        this.testResult = '测试失败: ' + err.message
-        this.debugInfo += `错误信息: ${err.message}\n`
-        console.error('测试禅道连接错误:', err)
-      } finally {
-        this.testing = false
-      }
+    
+    localStorage.setItem('initialized', 'true')
+    
+    success.value = '初始化成功！系统已准备就绪。'
+    
+    setTimeout(() => {
+      router.push('/')
+    }, 3000)
+  } catch (err) {
+    error.value = '初始化失败，请检查上传的文件并重试。'
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    debugInfo.value += `错误信息: ${errorMessage}\n`
+    console.error('初始化错误:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const testZentao = async (): Promise<void> => {
+  testing.value = true
+  testResult.value = ''
+  debugInfo.value = ''
+  
+  try {
+    debugInfo.value += `请求URL: /api/users/current\n`
+    debugInfo.value += `请求方法: GET\n`
+    debugInfo.value += `请求时间: ${new Date().toISOString()}\n\n`
+    
+    const response = await testZentaoConnection()
+    const result = response.data as ApiResponse
+    
+    debugInfo.value += `响应时间: ${new Date().toISOString()}\n\n`
+    debugInfo.value += `响应数据: ${JSON.stringify(result, null, 2)}\n`
+    
+    if (result.code !== 200) {
+      throw new Error(result.message || '测试失败')
     }
+    
+    testResult.value = JSON.stringify(result, null, 2)
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    testResult.value = '测试失败: ' + errorMessage
+    debugInfo.value += `错误信息: ${errorMessage}\n`
+    console.error('测试禅道连接错误:', err)
+  } finally {
+    testing.value = false
   }
 }
 </script>

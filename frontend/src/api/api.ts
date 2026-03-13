@@ -1,17 +1,15 @@
-import axios from 'axios'
+import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 
-const api = axios.create({
+const api: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:12345/api',
-  timeout: 150000, // 增加到150秒，确保超过后端的120秒超时设置
+  timeout: 150000,
   headers: {
     'Content-Type': 'application/json'
   }
 })
 
-// 请求拦截器
 api.interceptors.request.use(
-  (config) => {
-    // 可以在这里添加 token 等认证信息
+  (config: InternalAxiosRequestConfig) => {
     return config
   },
   (error) => {
@@ -19,9 +17,8 @@ api.interceptors.request.use(
   }
 )
 
-// 响应拦截器
 api.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse) => {
     return response.data
   },
   (error) => {

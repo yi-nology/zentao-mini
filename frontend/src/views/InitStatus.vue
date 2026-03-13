@@ -41,38 +41,36 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'InitStatus',
-  data() {
-    return {
-      loading: true,
-      initStatus: {
-        firstStart: false,
-        status: 'pending',
-        message: ''
-      }
-    }
-  },
-  mounted() {
-    this.checkInitStatus()
-  },
-  methods: {
-    checkInitStatus() {
-      // 模拟获取初始化状态
-      // 实际项目中应该调用后端API获取真实状态
-      setTimeout(() => {
-        this.loading = false
-        // 模拟首次启动成功
-        this.initStatus = {
-          firstStart: true,
-          status: 'success',
-          message: ''
-        }
-      }, 1500)
-    }
-  }
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+
+interface InitStatus {
+  firstStart: boolean
+  status: 'pending' | 'success' | 'error'
+  message: string
 }
+
+const loading = ref<boolean>(true)
+const initStatus = ref<InitStatus>({
+  firstStart: false,
+  status: 'pending',
+  message: ''
+})
+
+const checkInitStatus = (): void => {
+  setTimeout(() => {
+    loading.value = false
+    initStatus.value = {
+      firstStart: true,
+      status: 'success',
+      message: ''
+    }
+  }, 1500)
+}
+
+onMounted(() => {
+  checkInitStatus()
+})
 </script>
 
 <style scoped>

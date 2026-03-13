@@ -1,0 +1,33 @@
+- [x] TypeScript 依赖已正确安装（typescript, @types/node, vue-tsc）
+- [x] tsconfig.json 配置文件已创建且配置正确
+- [x] tsconfig.node.json 配置文件已创建且配置正确
+- [x] package.json 脚本命令已更新，包含 type-check 命令
+- [x] src/types/api.ts 文件已创建，包含完整的 API 响应类型定义
+- [x] src/types/router.ts 文件已创建，包含路由相关类型定义
+- [x] src/env.d.ts 环境变量类型声明文件已创建
+- [x] src/vite-env.d.ts Vite 类型声明文件已创建
+- [x] vite.config.ts 文件已创建，原 vite.config.js 已删除
+- [x] src/main.ts 文件已创建，原 src/main.js 已删除
+- [x] index.html 中的脚本引用已更新为 main.ts
+- [x] src/api/api.ts 文件已创建，包含完整的类型注解
+- [x] src/api/request.ts 文件已创建，包含完整的类型注解
+- [x] src/api/zentao.ts 文件已创建，包含完整的类型注解
+- [x] src/router/index.ts 文件已创建，包含路由类型定义
+- [x] 所有 Vue 组件已添加 lang="ts" 属性
+- [x] App.vue 组件已更新为 TypeScript
+- [x] Layout.vue 组件已更新为 TypeScript
+- [x] Bugs.vue 组件已更新为 TypeScript
+- [x] Stories.vue 组件已更新为 TypeScript
+- [x] Tasks.vue 组件已更新为 TypeScript
+- [x] Timelog.vue 组件已更新为 TypeScript
+- [x] Home.vue 组件已更新为 TypeScript
+- [x] About.vue 组件已更新为 TypeScript
+- [x] InitGuide.vue 组件已更新为 TypeScript
+- [x] InitStatus.vue 组件已更新为 TypeScript
+- [x] MCPGuide.vue 组件已更新为 TypeScript
+- [x] ProductSelector.vue 组件已更新为 TypeScript
+- [x] HelloWorld.vue 组件已更新为 TypeScript
+- [x] 运行 npm run type-check 无类型错误
+- [x] 运行 npm run build 构建成功
+- [x] 运行 npm run dev 开发服务器正常启动
+- [x] 所有原有功能在 TypeScript 版本中正常工作

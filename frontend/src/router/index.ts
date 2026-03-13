@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteRecordRaw, Router } from 'vue-router'
+import type { AppRoute } from '@/types/router'
 import Layout from '../views/Layout.vue'
 
-const routes = [
+const routes: AppRoute[] = [
   {
     path: '/',
     component: Layout,
@@ -53,17 +55,14 @@ const routes = [
   }
 ]
 
-const router = createRouter({
+const router: Router = createRouter({
   history: createWebHistory(),
-  routes
+  routes: routes as RouteRecordRaw[]
 })
 
-// 路由守卫，检查是否需要初始化
-router.beforeEach((to, from, next) => {
-  // 检查是否已经初始化
+router.beforeEach((to, _from, next) => {
   const isInitialized = localStorage.getItem('initialized')
   
-  // 如果未初始化且不是访问初始化相关页面，则跳转到初始化引导页面
   if (!isInitialized && to.path !== '/init-guide' && to.path !== '/init-status') {
     next('/init-guide')
   } else {

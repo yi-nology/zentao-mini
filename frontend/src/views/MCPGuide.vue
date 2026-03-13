@@ -273,6 +273,9 @@ module.exports = {
   </div>
 </template>
 
+<script setup lang="ts">
+</script>
+
 <style scoped>
 .mcp-guide-container {
   padding: 20px;
