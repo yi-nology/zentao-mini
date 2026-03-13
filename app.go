@@ -12,6 +12,7 @@ import (
 	"chandao-mini/backend/core/zentao"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 // App struct
@@ -31,6 +32,11 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// 加载环境变量
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found, using environment variables")
+	}
 
 	// 创建可取消的上下文
 	ctxWithCancel, cancel := context.WithCancel(ctx)
@@ -53,6 +59,20 @@ func (a *App) startup(ctx context.Context) {
 
 		// 设置路由
 		r := routes.SetupRouter(initService, zentaoClient)
+		// 前端路由处理 - 所有非API请求都返回index.html
+		r.NoRoute(func(c *gin.Context) {
+			// 尝试从文件系统加载index.html
+			indexPath := "./frontend/dist/index.html"
+			if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+				// 如果dist目录不存在，使用public目录作为备选
+				indexPath = "./frontend/public/index.html"
+			}
+			c.File(indexPath)
+		})
+
+		// 静态文件服务 - 提供前端资源
+		r.Static("/assets", "./frontend/dist/assets")
+
 		a.r = r
 
 		// 获取端口

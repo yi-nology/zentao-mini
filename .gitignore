@@ -7,6 +7,7 @@ generate-encryption.sh
 
 # Docker
 Dockerfile
+Dockerfile.*
 docker-compose.yml
 auth.json
 
@@ -18,4 +19,7 @@ auth.db
 
 # Frontend build artifacts
 frontend/package.json.md5
+
+# Backend app main.go (contains hardcoded config)
+backend/cmd/app/main.go
 

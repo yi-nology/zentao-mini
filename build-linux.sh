@@ -6,7 +6,7 @@ echo "开始交叉编译 Wails 应用为 x86_64 Linux 版本..."
 
 # 构建前端
 echo "构建前端..."
-cd frontend && npm run build
+cd frontend && npm run build:wails
 if [ $? -ne 0 ]; then
     echo "错误: 前端构建失败"
     exit 1
@@ -26,11 +26,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# 复制环境变量文件
+cp .env.wails build/linux-amd64/.env
+
 # 验证文件是否生成
 if [ -f "build/linux-amd64/chandao-mini" ]; then
     echo "交叉编译完成!"
     echo "可执行文件位置: build/linux-amd64/chandao-mini"
     echo "文件大小: $(ls -lh build/linux-amd64/chandao-mini | awk '{print $5}')"
+    echo "环境变量文件已复制: build/linux-amd64/.env"
 else
     echo "错误: 可执行文件未生成"
     exit 1

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:wails": "cp .env.wails .env && vite build",
+    "build:docker": "cp .env.docker .env && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

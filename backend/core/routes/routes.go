@@ -185,13 +185,5 @@ func SetupRouter(initService *initialization.InitService, zentaoClient *zentao.C
 		api.GET("/timelog/efforts", timelogHandler.GetTimelogEfforts)
 	}
 
-	// 静态文件服务 - 提供前端资源
-	r.Static("/assets", "./frontend/dist/assets")
-
-	// 前端路由处理 - 所有非API请求都返回index.html
-	r.NoRoute(func(c *gin.Context) {
-		c.File("./frontend/dist/index.html")
-	})
-
 	return r
 }
