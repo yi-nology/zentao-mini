@@ -2,6 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw, Router } from 'vue-router'
 import type { AppRoute } from '@/types/router'
 import Layout from '../views/Layout.vue'
+import { getInitStatus } from '@/api/zentao'
+
+interface InitStatusResponse {
+  isFirstStart: boolean
+}
+
+let isCheckingInit = false
 
 const routes: AppRoute[] = [
   {
@@ -60,13 +67,33 @@ const router: Router = createRouter({
   routes: routes as RouteRecordRaw[]
 })
 
-router.beforeEach((to, _from, next) => {
-  const isInitialized = localStorage.getItem('initialized')
-  
-  if (!isInitialized && to.path !== '/init-guide' && to.path !== '/init-status') {
-    next('/init-guide')
-  } else {
+router.beforeEach(async (to, _from, next) => {
+  if (to.path === '/init-guide' || to.path === '/init-status') {
     next()
+    return
+  }
+
+  if (isCheckingInit) {
+    next()
+    return
+  }
+
+  isCheckingInit = true
+
+  try {
+    const response = await getInitStatus()
+    const data = response.data as InitStatusResponse
+    
+    if (data.isFirstStart) {
+      next('/init-guide')
+    } else {
+      next()
+    }
+  } catch (error) {
+    console.error('Failed to check init status:', error)
+    next('/init-guide')
+  } finally {
+    isCheckingInit = false
   }
 })
 

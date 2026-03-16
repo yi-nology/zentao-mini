@@ -33,7 +33,7 @@ func NewBugHandler(bugService *service.BugService) *BugHandler {
 // @Param endDate query string false "结束日期(YYYY-MM-DD)"
 // @Param specificDate query string false "具体日期(YYYY-MM-DD)"
 // @Param page query int false "页码，默认1"
-// @Param limit query int false "每页数量，默认20"
+// @Param pageSize query int false "每页数量，默认20"
 // @Success 200 {object} errors.Response{data=vo.PaginatedVO{list=[]vo.BugVO}}
 // @Failure 400 {object} errors.Response
 // @Failure 500 {object} errors.Response

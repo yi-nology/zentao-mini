@@ -36,9 +36,8 @@ type AppConfig struct {
 	ZentaoPassword string
 
 	// 认证配置
-	AuthConfigPath string
-	AuthDBPath     string
-	EncryptionKey  string
+	AuthDBPath    string
+	EncryptionKey string
 
 	// 静态资源路径（仅用于HTTP模式）
 	StaticPath string
@@ -60,6 +59,6 @@ func NewDependencies(initService *initialization.InitService, zentaoClient *zent
 	return &Dependencies{
 		InitService:  initService,
 		ZentaoClient: zentaoClient,
-		Handlers:     handlers.NewHandlerRegistry(zentaoClient),
+		Handlers:     handlers.NewHandlerRegistry(zentaoClient, initService),
 	}
 }

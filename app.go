@@ -29,11 +29,10 @@ func (a *App) startup(ctx context.Context) {
 
 	// 创建应用配置
 	config := &app.AppConfig{
-		Type:           "wails",
-		Port:           "", // 将从环境变量读取
-		AuthConfigPath: "", // 将从环境变量读取
-		AuthDBPath:     "", // 将从环境变量读取
-		EncryptionKey:  "", // 将从环境变量读取
+		Type:          "wails",
+		Port:          "", // 将从环境变量读取
+		AuthDBPath:    "", // 将从环境变量读取
+		EncryptionKey: "", // 将从环境变量读取
 	}
 
 	// 使用依赖注入初始化Wails应用

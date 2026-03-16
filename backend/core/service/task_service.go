@@ -1,12 +1,19 @@
 package service
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/yi-nology/common/biz/zentao"
 
 	"chandao-mini/backend/core/dto"
 	"chandao-mini/backend/core/utils"
 	"chandao-mini/backend/core/vo"
 	myzentao "chandao-mini/backend/core/zentao"
+)
+
+const (
+	tasksCacheDuration = 60 * time.Minute
 )
 
 // TaskService 任务业务逻辑服务
@@ -22,18 +29,34 @@ func NewTaskService(client *myzentao.Client) *TaskService {
 
 // GetTasks 获取任务列表
 // 业务逻辑：
-// 1. 根据执行ID查询任务
-// 2. 应用筛选条件（指派人、状态、时间范围）
-// 3. 分页处理
+// 1. 如果指定执行ID，则查询该执行的任务
+// 2. 如果未指定执行ID，则查询所有执行的任务
+// 3. 应用筛选条件（指派人、状态、时间范围）
+// 4. 分页处理
 func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error) {
-	// 获取任务列表
-	tasks, err := s.client.GetTasks(query.ExecutionID, 500)
-	if err != nil {
-		return nil, err
+	var allTasks []zentao.Task
+	var err error
+
+	if query.ExecutionID != 0 {
+		cacheKey := fmt.Sprintf("tasks:execution:%d", query.ExecutionID)
+		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentao.Task, error) {
+			return s.client.GetTasks(query.ExecutionID, 1, 10000)
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		cacheKey := "tasks:all:product:" + fmt.Sprint(query.ProductID)
+		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentao.Task, error) {
+			return s.fetchAllTasks(query.ProductID)
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// 使用链式过滤器进行筛选
-	chainFilter := utils.NewChainFilter(tasks)
+	chainFilter := utils.NewChainFilter(allTasks)
 
 	// 按指派人筛选
 	if query.AssignedTo != "" {
@@ -60,17 +83,15 @@ func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 	total := chainFilter.Count()
 
 	// 执行分页
-	pagedTasks := chainFilter.Paginate(query.Page, query.Limit).Result()
+	pagedTasks := chainFilter.Paginate(query.Page, query.PageSize).Result()
 
-	// 转换为VO
 	list := s.convertToVO(pagedTasks)
 
-	// 返回分页结果
 	return &vo.PaginatedVO{
-		List:  list,
-		Total: total,
-		Page:  query.Page,
-		Limit: query.Limit,
+		List:     list,
+		Total:    total,
+		Page:     query.Page,
+		PageSize: query.PageSize,
 	}, nil
 }
 
@@ -107,4 +128,48 @@ func (s *TaskService) convertToVO(tasks []zentao.Task) []vo.TaskVO {
 		})
 	}
 	return result
+}
+
+// getTasksWithCache 带缓存获取任务
+func (s *TaskService) getTasksWithCache(cacheKey string, loadFunc func() ([]zentao.Task, error)) ([]zentao.Task, error) {
+	if cached, ok := myzentao.GlobalCache.Get(cacheKey); ok {
+		if tasks, ok := cached.([]zentao.Task); ok {
+			return tasks, nil
+		}
+	}
+
+	tasks, err := loadFunc()
+	if err != nil {
+		return nil, err
+	}
+
+	myzentao.GlobalCache.Set(cacheKey, tasks, tasksCacheDuration)
+	return tasks, nil
+}
+
+// fetchAllTasks 获取所有执行的任务
+func (s *TaskService) fetchAllTasks(productId int) ([]zentao.Task, error) {
+	var allTasks []zentao.Task
+
+	projects, err := s.client.GetProjectsByProduct(productId, 1, 2000)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, project := range projects {
+		executions, err := s.client.GetExecutions(project.ID, 1, 1000)
+		if err != nil {
+			continue
+		}
+
+		for _, execution := range executions {
+			tasks, err := s.client.GetTasks(execution.ID, 1, 10000)
+			if err != nil {
+				continue
+			}
+			allTasks = append(allTasks, tasks...)
+		}
+	}
+
+	return allTasks, nil
 }

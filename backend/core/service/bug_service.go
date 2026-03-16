@@ -43,10 +43,10 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 			bugs, err = s.client.SearchBugs(params)
 		} else if query.ProjectID != 0 {
 			// 如果只有项目ID，使用GetBugsByProject
-			bugs, err = s.client.GetBugsByProject(query.ProductID, query.ProjectID, 1000)
+			bugs, err = s.client.GetBugsByProject(query.ProductID, query.ProjectID, 1, 1000)
 		} else {
 			// 获取产品的所有Bug
-			bugs, err = s.client.GetBugs(query.ProductID, 1000)
+			bugs, err = s.client.GetBugs(query.ProductID, 1, 1000)
 		}
 
 		if err != nil {
@@ -75,17 +75,15 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	total := chainFilter.Count()
 
 	// 执行分页
-	pagedBugs := chainFilter.Paginate(query.Page, query.Limit).Result()
+	pagedBugs := chainFilter.Paginate(query.Page, query.PageSize).Result()
 
-	// 转换为VO
 	list := s.convertToVO(pagedBugs)
 
-	// 返回分页结果
 	return &vo.PaginatedVO{
-		List:  list,
-		Total: total,
-		Page:  query.Page,
-		Limit: query.Limit,
+		List:     list,
+		Total:    total,
+		Page:     query.Page,
+		PageSize: query.PageSize,
 	}, nil
 }
 
