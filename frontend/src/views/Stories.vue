@@ -231,17 +231,17 @@ const fetchStories = async (): Promise<void> => {
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
-      product: globalSelection.product ?? undefined,
-      project: globalSelection.project ?? undefined,
+      productId: globalSelection.product ?? undefined,
+      projectId: globalSelection.project ?? undefined,
       assignedTo: filterForm.assignedTo,
       startDate: filterForm.dateRange[0] || '',
       endDate: filterForm.dateRange[1] || '',
       specificDate: filterForm.specificDate
     }
     const res = await getStories(params)
-    const data = res.data
-    storyList.value = Array.isArray(data) ? data : []
-    pagination.total = Array.isArray(data) ? data.length : 0
+    const paginatedData = res.data
+    storyList.value = paginatedData.list || []
+    pagination.total = paginatedData.total || 0
   } catch (error) {
     console.error('获取需求列表失败:', error)
     ElMessage.error('获取需求列表失败')

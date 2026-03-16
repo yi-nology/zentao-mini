@@ -236,11 +236,11 @@ const assignedToOptions = computed(() => {
 
 const fetchExecutions = async (): Promise<void> => {
   try {
-    const params: { projectID?: number; productID?: number } = {}
+    const params: { projectId?: number; productId?: number } = {}
     if (globalSelection.project) {
-      params.projectID = globalSelection.project
+      params.projectId = globalSelection.project
     } else if (globalSelection.product) {
-      params.productID = globalSelection.product
+      params.productId = globalSelection.product
     }
     const res = await getExecutions(params)
     executionOptions.value = res.data || []
@@ -268,18 +268,19 @@ const fetchTasks = async (): Promise<void> => {
   loading.value = true
   try {
     const params = {
+      productId: globalSelection.product ?? undefined,
       page: pagination.page,
       pageSize: pagination.pageSize,
-      executionID: filterForm.execution ?? undefined,
+      executionId: filterForm.execution ?? undefined,
       assignedTo: filterForm.assignedTo,
       status: filterForm.status,
       startDate: filterForm.dateRange[0] || '',
       endDate: filterForm.dateRange[1] || ''
     }
     const res = await getTasks(params)
-    const data = res.data
-    taskList.value = Array.isArray(data) ? data : []
-    pagination.total = Array.isArray(data) ? data.length : 0
+    const paginatedData = res.data
+    taskList.value = paginatedData.list || []
+    pagination.total = paginatedData.total || 0
   } catch (error) {
     console.error('获取任务列表失败:', error)
     ElMessage.error('获取任务列表失败')
@@ -289,10 +290,6 @@ const fetchTasks = async (): Promise<void> => {
 }
 
 const handleSearch = (): void => {
-  if (!filterForm.execution) {
-    ElMessage.warning('请先选择执行/迭代')
-    return
-  }
   pagination.page = 1
   fetchTasks()
 }
@@ -303,23 +300,16 @@ const handleReset = (): void => {
   filterForm.status = ''
   filterForm.dateRange = []
   pagination.page = 1
-  taskList.value = []
-  pagination.total = 0
+  fetchTasks()
 }
 
 const handleSizeChange = (size: number): void => {
-  if (!filterForm.execution) {
-    return
-  }
   pagination.pageSize = size
   pagination.page = 1
   fetchTasks()
 }
 
 const handlePageChange = (page: number): void => {
-  if (!filterForm.execution) {
-    return
-  }
   pagination.page = page
   fetchTasks()
 }
@@ -385,6 +375,7 @@ const openZentaoTask = (taskId: number): void => {
 onMounted(() => {
   fetchExecutions()
   fetchUsers()
+  fetchTasks()
 })
 </script>
 

@@ -20,6 +20,7 @@
         
         <div v-if="selectedFile" class="file-info">
           <p>已选择文件: {{ selectedFile.name }}</p>
+          <p>文件大小: {{ formatFileSize(selectedFile.size) }}</p>
         </div>
         
         <div class="form-actions">
@@ -73,8 +74,26 @@ const debugInfo = ref<string>('')
 const handleFileChange = (event: Event): void => {
   const target = event.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
-    selectedFile.value = target.files[0]
+    const file = target.files[0]
+    
+    if (!file.name.endsWith('.json')) {
+      error.value = '请上传 .json 格式的配置文件'
+      selectedFile.value = null
+      target.value = ''
+      return
+    }
+    
+    selectedFile.value = file
+    error.value = ''
   }
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
 }
 
 const submitForm = async (): Promise<void> => {
@@ -98,7 +117,7 @@ const submitForm = async (): Promise<void> => {
     debugInfo.value += `请求时间: ${new Date().toISOString()}\n\n`
     
     const response = await uploadInitConfig(formData)
-    const result = response.data as ApiResponse
+    const result = response as unknown as ApiResponse
     
     debugInfo.value += `响应时间: ${new Date().toISOString()}\n\n`
     debugInfo.value += `响应数据: ${JSON.stringify(result, null, 2)}\n`
@@ -107,16 +126,26 @@ const submitForm = async (): Promise<void> => {
       throw new Error(result.message || '初始化失败')
     }
     
-    localStorage.setItem('initialized', 'true')
-    
-    success.value = '初始化成功！系统已准备就绪。'
+    success.value = '初始化成功！系统已准备就绪，即将跳转到主页...'
     
     setTimeout(() => {
       router.push('/')
-    }, 3000)
+    }, 2000)
   } catch (err) {
-    error.value = '初始化失败，请检查上传的文件并重试。'
     const errorMessage = err instanceof Error ? err.message : String(err)
+    
+    if (errorMessage.includes('Network Error') || errorMessage.includes('network')) {
+      error.value = '网络错误，请检查网络连接后重试。'
+    } else if (errorMessage.includes('timeout')) {
+      error.value = '请求超时，请稍后重试。'
+    } else if (errorMessage.includes('格式') || errorMessage.includes('format')) {
+      error.value = '文件格式错误：' + errorMessage
+    } else if (errorMessage.includes('验证') || errorMessage.includes('validation')) {
+      error.value = '配置验证失败：' + errorMessage
+    } else {
+      error.value = '初始化失败：' + errorMessage
+    }
+    
     debugInfo.value += `错误信息: ${errorMessage}\n`
     console.error('初始化错误:', err)
   } finally {
@@ -135,7 +164,7 @@ const testZentao = async (): Promise<void> => {
     debugInfo.value += `请求时间: ${new Date().toISOString()}\n\n`
     
     const response = await testZentaoConnection()
-    const result = response.data as ApiResponse
+    const result = response as unknown as ApiResponse
     
     debugInfo.value += `响应时间: ${new Date().toISOString()}\n\n`
     debugInfo.value += `响应数据: ${JSON.stringify(result, null, 2)}\n`

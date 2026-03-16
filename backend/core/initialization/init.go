@@ -32,16 +32,12 @@ type EncryptedAuthConfig struct {
 
 // InitService 初始化服务
 type InitService struct {
-	authConfigPath string
-	dbPath         string
-	encryptionKey  string
+	dbPath        string
+	encryptionKey string
 }
 
 // NewInitService 创建初始化服务实例
-func NewInitService(authConfigPath, dbPath, encryptionKey string) *InitService {
-	if authConfigPath == "" {
-		authConfigPath = "./auth-config.json"
-	}
+func NewInitService(dbPath, encryptionKey string) *InitService {
 	if dbPath == "" {
 		// 使用用户主目录作为存储位置，确保在打包应用中也能正确访问
 		homeDir, err := os.UserHomeDir()
@@ -59,15 +55,21 @@ func NewInitService(authConfigPath, dbPath, encryptionKey string) *InitService {
 			// 生产环境必须设置环境变量，这里给出警告
 			log.Println("WARNING: ZENTAO_ENCRYPTION_KEY environment variable is not set. Using default key for development only.")
 			log.Println("WARNING: Please set ZENTAO_ENCRYPTION_KEY environment variable in production!")
-			encryptionKey = "dev-default-key-change-in-production"
+			encryptionKey = "Zhangyi@Kylin999-"
 		}
 	}
 
 	return &InitService{
-		authConfigPath: authConfigPath,
-		dbPath:         dbPath,
-		encryptionKey:  encryptionKey,
+		dbPath:        dbPath,
+		encryptionKey: encryptionKey,
 	}
+}
+
+// InitStatus 初始化状态结构
+type InitStatus struct {
+	IsFirstStart bool   `json:"isFirstStart"`
+	HasConfig    bool   `json:"hasConfig"`
+	Message      string `json:"message"`
 }
 
 // IsFirstStart 检测是否为首次启动
@@ -95,6 +97,58 @@ func (s *InitService) IsFirstStart() (bool, error) {
 
 	// 数据库文件存在且不为空，判定为非首次启动
 	return false, nil
+}
+
+// GetInitStatus 获取详细的初始化状态
+func (s *InitService) GetInitStatus() *InitStatus {
+	status := &InitStatus{
+		IsFirstStart: true,
+		HasConfig:    false,
+		Message:      "首次启动，请上传配置文件",
+	}
+
+	_, err := os.Stat(s.dbPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return status
+		}
+		status.Message = fmt.Sprintf("检查配置文件状态失败: %v", err)
+		return status
+	}
+
+	fileInfo, err := os.Stat(s.dbPath)
+	if err != nil {
+		status.Message = fmt.Sprintf("获取配置文件信息失败: %v", err)
+		return status
+	}
+
+	if fileInfo.Size() == 0 {
+		return status
+	}
+
+	status.HasConfig = true
+	status.IsFirstStart = false
+
+	fileData, err := os.ReadFile(s.dbPath)
+	if err != nil {
+		status.Message = fmt.Sprintf("读取配置文件失败: %v", err)
+		return status
+	}
+
+	var encryptedConfig EncryptedAuthConfig
+	if err := json.Unmarshal(fileData, &encryptedConfig); err != nil {
+		status.Message = fmt.Sprintf("配置文件格式无效: %v", err)
+		return status
+	}
+
+	_, err = s.decrypt(encryptedConfig.EncryptedData, encryptedConfig.Salt, encryptedConfig.Iv)
+	if err != nil {
+		status.Message = fmt.Sprintf("配置文件验证失败: %v", err)
+		return status
+	}
+
+	status.Message = "系统已初始化，配置有效"
+	return status
 }
 
 // LoadEncryptedConfig 加载加密配置文件
@@ -265,49 +319,22 @@ func (s *InitService) Encrypt(config *AuthConfig, salt string) (string, error) {
 
 // LoadZentaoConfig 加载禅道配置
 func LoadZentaoConfig(initService *InitService) (string, string, string) {
-	// 检测是否为首次启动
-	isFirstStart, err := initService.IsFirstStart()
-	if err != nil {
-		log.Printf("Warning: Failed to check first start status: %v", err)
-		// 继续执行，使用环境变量
-	}
+	log.Println("Loading zentao config...")
 
-	// 尝试从配置源加载配置
-	var authConfig *AuthConfig
-	var loadErr error
-	var fileData []byte
-
-	if isFirstStart {
-		log.Println("First start detected, loading encrypted config...")
-	} else {
-		log.Println("Non-first start, loading config from db...")
-		// 非首次启动，尝试从数据库加载配置
-		authConfig, fileData, loadErr = initService.LoadAuthConfig()
-		if loadErr != nil {
-			log.Printf("Error loading auth config from db: %v", loadErr)
-		}
-	}
-
-	// 如果配置加载成功，使用配置中的值
-	if authConfig != nil {
-		// 如果是首次启动，存储配置到数据库
-		if isFirstStart {
-			if err := initService.StoreAuthConfig(fileData); err != nil {
-				log.Printf("Error storing auth config to db: %v", err)
-			} else {
-				log.Println("Auth config stored to db successfully")
-			}
-		}
-		// 打印账号和域名，不打印密码
-		log.Printf("Loaded config: Username=%s, Domain=%s", authConfig.Username, authConfig.Domain)
+	authConfig, _, err := initService.LoadAuthConfig()
+	if err == nil && authConfig != nil {
+		log.Println("Config loaded from database successfully")
+		log.Printf("Using database config: Domain=%s, Username=%s", authConfig.Domain, authConfig.Username)
 		return authConfig.Domain, authConfig.Username, authConfig.Password
 	}
 
-	// 配置加载失败，使用环境变量
-	log.Println("Using environment variables for zentao config")
+	log.Printf("Failed to load config from database: %v", err)
+	log.Println("Falling back to environment variables")
+
 	zentaoServer := os.Getenv("ZENTAO_SERVER")
 	zentaoAccount := os.Getenv("ZENTAO_ACCOUNT")
 	zentaoPassword := os.Getenv("ZENTAO_PASSWORD")
 
+	log.Printf("Using environment variables: Domain=%s, Username=%s", zentaoServer, zentaoAccount)
 	return zentaoServer, zentaoAccount, zentaoPassword
 }
