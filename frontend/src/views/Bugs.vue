@@ -289,17 +289,17 @@ const fetchBugs = async (): Promise<void> => {
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
-      productID: globalSelection.product ?? undefined,
-      projectID: globalSelection.project ?? undefined,
+      productId: globalSelection.product ?? undefined,
+      projectId: globalSelection.project ?? undefined,
       status: filterForm.status,
       startDate: filterForm.dateRange[0] || '',
       endDate: filterForm.dateRange[1] || '',
       specificDate: filterForm.specificDate
     }
     const res = await getBugs(params)
-    const data = res.data
-    bugList.value = Array.isArray(data) ? data : []
-    pagination.total = Array.isArray(data) ? data.length : 0
+    const paginatedData = res.data
+    bugList.value = paginatedData.list || []
+    pagination.total = paginatedData.total || 0
   } catch (error) {
     console.error('获取 Bug 列表失败:', error)
     ElMessage.error('获取 Bug 列表失败')

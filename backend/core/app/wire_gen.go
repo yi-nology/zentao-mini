@@ -39,7 +39,6 @@ func InitializeWailsApp(config *AppConfig) (Application, error) {
 // provideInitService 提供InitService实例
 func provideInitService(config *AppConfig) *initialization.InitService {
 	return initialization.NewInitService(
-		config.AuthConfigPath,
 		config.AuthDBPath,
 		config.EncryptionKey,
 	)

@@ -197,8 +197,8 @@ func (cf *ChainFilter[T]) SortByDate(getDateFunc func(T) string) *ChainFilter[T]
 }
 
 // Paginate 执行分页
-func (cf *ChainFilter[T]) Paginate(page, limit int) *ChainFilter[T] {
-	cf.data = PaginateSlice(cf.data, page, limit)
+func (cf *ChainFilter[T]) Paginate(page, pageSize int) *ChainFilter[T] {
+	cf.data = PaginateSlice(cf.data, page, pageSize)
 	return cf
 }
 

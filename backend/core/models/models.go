@@ -157,8 +157,8 @@ type User struct {
 
 // PaginatedResult 分页结果
 type PaginatedResult struct {
-	List  interface{} `json:"list"`
-	Total int         `json:"total"`
-	Page  int         `json:"page"`
-	Limit int         `json:"limit"`
+	List     interface{} `json:"list"`
+	Total    int         `json:"total"`
+	Page     int         `json:"page"`
+	PageSize int         `json:"pageSize"`
 }

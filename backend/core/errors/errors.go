@@ -11,7 +11,7 @@ type ErrorCode int
 
 const (
 	// 成功
-	CodeSuccess ErrorCode = 20000
+	CodeSuccess ErrorCode = 200
 
 	// 客户端错误 4xxxx
 	CodeBadRequest       ErrorCode = 40000 // 通用请求错误
@@ -25,13 +25,13 @@ const (
 	CodeMethodNotAllowed ErrorCode = 40500 // 方法不允许
 
 	// 服务端错误 5xxxx
-	CodeInternalError  ErrorCode = 50000 // 通用服务器错误
-	CodeDatabaseError  ErrorCode = 50001 // 数据库错误
-	CodeExternalError  ErrorCode = 50002 // 外部服务错误
-	CodeTimeout        ErrorCode = 50003 // 超时错误
-	CodeConfigError    ErrorCode = 50004 // 配置错误
-	CodeNetworkError   ErrorCode = 50005 // 网络错误
-	CodeUnknownError   ErrorCode = 50006 // 未知错误
+	CodeInternalError ErrorCode = 50000 // 通用服务器错误
+	CodeDatabaseError ErrorCode = 50001 // 数据库错误
+	CodeExternalError ErrorCode = 50002 // 外部服务错误
+	CodeTimeout       ErrorCode = 50003 // 超时错误
+	CodeConfigError   ErrorCode = 50004 // 配置错误
+	CodeNetworkError  ErrorCode = 50005 // 网络错误
+	CodeUnknownError  ErrorCode = 50006 // 未知错误
 )
 
 // AppError 应用错误结构

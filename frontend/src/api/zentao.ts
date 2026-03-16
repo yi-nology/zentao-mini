@@ -10,15 +10,15 @@ import type {
   TimelogAnalysis,
   TimelogDashboard,
   TimelogEffort,
-  SelectOption
+  SelectOption,
+  PaginatedResponse,
+  ApiResponse
 } from '@/types/api'
 import api from './api'
 
 interface BugParams {
-  product?: number
-  productID?: number
-  project?: number
-  projectID?: number
+  productId?: number
+  projectId?: number
   assignedTo?: string
   status?: string
   page?: number
@@ -26,9 +26,9 @@ interface BugParams {
 }
 
 interface StoryParams {
-  product?: number
-  project?: number
-  execution?: number
+  productId?: number
+  projectId?: number
+  executionId?: number
   assignedTo?: string
   status?: string
   page?: number
@@ -36,8 +36,8 @@ interface StoryParams {
 }
 
 interface TaskParams {
-  execution?: number
-  executionID?: number
+    productId?: number
+  executionId?: number
   assignedTo?: string
   status?: string
   startDate?: string
@@ -48,11 +48,8 @@ interface TaskParams {
 
 interface TimelogParams {
   productId?: number
-  productID?: number
   projectId?: number
-  projectID?: number
   executionId?: number
-  executionID?: number
   assignedTo?: string
   dateFrom?: string
   dateTo?: string
@@ -81,10 +78,10 @@ export const getExecutions = (params: Record<string, unknown> = {}): AxiosPromis
   return api.get('/executions', { params })
 }
 
-export const getBugs = (params: BugParams = {}): AxiosPromise<Bug[]> => {
+export const getBugs = (params: BugParams = {}): AxiosPromise<PaginatedResponse<Bug>> => {
   const apiParams: Record<string, unknown> = {}
-  if (params.product || params.productID) apiParams.productID = params.product || params.productID
-  if (params.project || params.projectID) apiParams.projectID = params.project || params.projectID
+  if (params.productId) apiParams.productId = params.productId
+  if (params.projectId) apiParams.projectId = params.projectId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.status) apiParams.status = params.status
   if (params.page) apiParams.page = params.page
@@ -92,11 +89,11 @@ export const getBugs = (params: BugParams = {}): AxiosPromise<Bug[]> => {
   return api.get('/bugs', { params: apiParams })
 }
 
-export const getStories = (params: StoryParams = {}): AxiosPromise<Story[]> => {
+export const getStories = (params: StoryParams = {}): AxiosPromise<PaginatedResponse<Story>> => {
   const apiParams: Record<string, unknown> = {}
-  if (params.product) apiParams.productID = params.product
-  if (params.project) apiParams.projectID = params.project
-  if (params.execution) apiParams.executionID = params.execution
+  if (params.productId) apiParams.productId = params.productId
+  if (params.projectId) apiParams.projectId = params.projectId
+  if (params.executionId) apiParams.executionId = params.executionId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.status) apiParams.status = params.status
   if (params.page) apiParams.page = params.page
@@ -104,9 +101,10 @@ export const getStories = (params: StoryParams = {}): AxiosPromise<Story[]> => {
   return api.get('/stories', { params: apiParams })
 }
 
-export const getTasks = (params: TaskParams = {}): AxiosPromise<Task[]> => {
+export const getTasks = (params: TaskParams = {}): AxiosPromise<PaginatedResponse<Task>> => {
   const apiParams: Record<string, unknown> = {}
-  if (params.execution || params.executionID) apiParams.executionID = params.execution || params.executionID
+    if (params.productId) apiParams.productId = params.productId
+  if (params.executionId) apiParams.executionId = params.executionId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.status) apiParams.status = params.status
   if (params.startDate) apiParams.startDate = params.startDate
@@ -196,17 +194,19 @@ export const getUsers = (_params: Record<string, unknown> = {}): Promise<User[]>
     return Promise.resolve(cachedData)
   }
   
-  return api.get('/users/all').then((data: unknown) => {
-    userCache.set(cacheKey, data)
-    return data as User[]
+  return api.get<ApiResponse<{ users: User[]; total: number }>>('/users/all').then((response) => {
+    const apiResponse = response as unknown as ApiResponse<{ users: User[]; total: number }>
+    const users = apiResponse.data.users || []
+    userCache.set(cacheKey, users)
+    return users
   })
 }
 
 export const getTimelogAnalysis = (params: TimelogParams = {}): AxiosPromise<TimelogAnalysis> => {
   const apiParams: Record<string, unknown> = {}
-  if (params.productId || params.productID) apiParams.productId = params.productId || params.productID
-  if (params.projectId || params.projectID) apiParams.projectId = params.projectId || params.projectID
-  if (params.executionId || params.executionID) apiParams.executionId = params.executionId || params.executionID
+  if (params.productId) apiParams.productId = params.productId
+  if (params.projectId) apiParams.projectId = params.projectId
+  if (params.executionId) apiParams.executionId = params.executionId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.dateFrom) apiParams.dateFrom = params.dateFrom
   if (params.dateTo) apiParams.dateTo = params.dateTo
@@ -215,9 +215,9 @@ export const getTimelogAnalysis = (params: TimelogParams = {}): AxiosPromise<Tim
 
 export const getTimelogDashboard = (params: TimelogParams = {}): AxiosPromise<TimelogDashboard> => {
   const apiParams: Record<string, unknown> = {}
-  if (params.productId || params.productID) apiParams.productId = params.productId || params.productID
-  if (params.projectId || params.projectID) apiParams.projectId = params.projectId || params.projectID
-  if (params.executionId || params.executionID) apiParams.executionId = params.executionId || params.executionID
+  if (params.productId) apiParams.productId = params.productId
+  if (params.projectId) apiParams.projectId = params.projectId
+  if (params.executionId) apiParams.executionId = params.executionId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.dateFrom) apiParams.dateFrom = params.dateFrom
   if (params.dateTo) apiParams.dateTo = params.dateTo
@@ -226,9 +226,9 @@ export const getTimelogDashboard = (params: TimelogParams = {}): AxiosPromise<Ti
 
 export const getTimelogEfforts = (params: TimelogParams = {}): AxiosPromise<TimelogEffort[]> => {
   const apiParams: Record<string, unknown> = {}
-  if (params.productId || params.productID) apiParams.productId = params.productId || params.productID
-  if (params.projectId || params.projectID) apiParams.projectId = params.projectId || params.projectID
-  if (params.executionId || params.executionID) apiParams.executionId = params.executionId || params.executionID
+  if (params.productId) apiParams.productId = params.productId
+  if (params.projectId) apiParams.projectId = params.projectId
+  if (params.executionId) apiParams.executionId = params.executionId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.dateFrom) apiParams.dateFrom = params.dateFrom
   if (params.dateTo) apiParams.dateTo = params.dateTo

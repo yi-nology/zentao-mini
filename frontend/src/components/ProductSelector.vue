@@ -69,7 +69,7 @@ const fetchProducts = async (): Promise<void> => {
 
 const fetchProjects = async (productId: string | number): Promise<void> => {
   try {
-    const params = productId ? { productID: productId } : {}
+    const params = productId ? { productId: productId } : {}
     const res = await getProjects(params)
     projectOptions.value = res.data || []
   } catch (error) {

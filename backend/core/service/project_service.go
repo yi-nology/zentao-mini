@@ -29,10 +29,10 @@ func (s *ProjectService) GetProjects(query *dto.ProjectQueryDTO) ([]vo.ProjectVO
 
 	if query.ProductID != 0 {
 		// 按产品筛选
-		projects, err = s.client.GetProjectsByProduct(query.ProductID)
+		projects, err = s.client.GetProjectsByProduct(query.ProductID, query.Page, query.PageSize)
 	} else {
 		// 获取所有项目
-		projects, err = s.client.GetAllProjects(500)
+		projects, err = s.client.GetAllProjects(2000)
 	}
 
 	if err != nil {
@@ -88,20 +88,20 @@ func (s *ExecutionService) GetExecutions(query *dto.ExecutionQueryDTO) ([]vo.Exe
 	if query.ProjectID != 0 {
 		// 按项目筛选
 		var err error
-		executions, err = s.client.GetExecutions(query.ProjectID)
+		executions, err = s.client.GetExecutions(query.ProjectID, query.Page, query.PageSize)
 		if err != nil {
 			return nil, err
 		}
 	} else if query.ProductID != 0 {
 		// 按产品筛选（获取产品下所有项目的执行/迭代）
-		projects, err := s.client.GetProjectsByProduct(query.ProductID)
+		projects, err := s.client.GetProjectsByProduct(query.ProductID, query.Page, query.PageSize)
 		if err != nil {
 			return nil, err
 		}
 
 		// 获取所有项目的执行/迭代
 		for _, project := range projects {
-			projectExecutions, err := s.client.GetExecutions(project.ID)
+			projectExecutions, err := s.client.GetExecutions(project.ID, query.Page, query.PageSize)
 			if err != nil {
 				continue // 跳过获取失败的项目
 			}
