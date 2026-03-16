@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"bufio"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -14,14 +13,14 @@ import (
 	"chandao-mini/backend/core/middleware"
 	"chandao-mini/backend/core/utils"
 	"chandao-mini/backend/core/zentao"
+
 	"go.uber.org/zap"
 )
 
 // SetupRouter configures the router with all routes
 // 已废弃：请使用 SetupRouterWithHandlers 以避免重复创建handler
 func SetupRouter(initService *initialization.InitService, zentaoClient *zentao.Client) *gin.Engine {
-	// 为了向后兼容，创建临时的HandlerRegistry
-	registry := handlers.NewHandlerRegistry(zentaoClient)
+	registry := handlers.NewHandlerRegistry(zentaoClient, initService)
 	return SetupRouterWithHandlers(initService, zentaoClient, registry)
 }
 
@@ -39,15 +38,16 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	r := gin.New() // 使用 gin.New() 而不是 gin.Default() 以便自定义中间件
 
 	// 添加全局中间件（按顺序执行）
-	r.Use(middleware.RecoveryMiddleware())         // Panic恢复中间件（必须放在最前面）
-	r.Use(middleware.TraceIDMiddleware())          // 请求追踪ID中间件
-	r.Use(middleware.LoggerMiddleware())           // 日志中间件
-	r.Use(middleware.MetricsMiddleware())          // 性能监控中间件
-	r.Use(errors.RateLimitMiddleware())            // 请求限流中间件
-	r.Use(utils.PaginationMiddleware())            // 分页中间件
-	r.Use(errors.CORSMiddleware())                 // CORS中间件（从环境变量读取配置）
+	r.Use(middleware.RecoveryMiddleware()) // Panic恢复中间件（必须放在最前面）
+	r.Use(middleware.TraceIDMiddleware())  // 请求追踪ID中间件
+	r.Use(middleware.LoggerMiddleware())   // 日志中间件
+	r.Use(middleware.MetricsMiddleware())  // 性能监控中间件
+	r.Use(errors.RateLimitMiddleware())    // 请求限流中间件
+	r.Use(utils.PaginationMiddleware())    // 分页中间件
+	r.Use(errors.CORSMiddleware())         // CORS中间件（从环境变量读取配置）
 
 	// 从注册表获取处理器（单例模式）
+	initHandler := registry.GetInitHandler()
 	productHandler := registry.GetProductHandler()
 	projectHandler := registry.GetProjectHandler()
 	executionHandler := registry.GetExecutionHandler()
@@ -69,7 +69,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	r.GET("/metrics", metrics.Handler())
 
 	// 注册API路由（支持版本控制和向后兼容）
-	registerAPIRoutes(r, initService, zentaoClient, productHandler, projectHandler, executionHandler, bugHandler, storyHandler, taskHandler, userHandler, timelogHandler)
+	registerAPIRoutes(r, initHandler, productHandler, projectHandler, executionHandler, bugHandler, storyHandler, taskHandler, userHandler, timelogHandler)
 
 	logger.Info("Router setup completed", zap.String("gin_mode", ginMode))
 
@@ -80,8 +80,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 // 同时支持 /api/v1 和 /api 路由，保持向后兼容
 func registerAPIRoutes(
 	r *gin.Engine,
-	initService *initialization.InitService,
-	zentaoClient *zentao.Client,
+	initHandler *handlers.InitHandler,
 	productHandler *handlers.ProductHandler,
 	projectHandler *handlers.ProjectHandler,
 	executionHandler *handlers.ExecutionHandler,
@@ -91,70 +90,10 @@ func registerAPIRoutes(
 	userHandler *handlers.UserHandler,
 	timelogHandler *handlers.TimelogHandler,
 ) {
-	// 定义路由注册函数
 	registerRoutes := func(apiGroup *gin.RouterGroup) {
 		// 初始化相关接口
-		apiGroup.POST("/init/upload", func(c *gin.Context) {
-			// 接收上传的文件
-			file, err := c.FormFile("configFile")
-			if err != nil {
-				errors.BadRequest(c, "请选择要上传的文件")
-				return
-			}
-
-			// 直接读取上传文件流，无需落盘
-			fileData := make([]byte, file.Size)
-			f, err := file.Open()
-			if err != nil {
-				errors.InternalError(c, "打开上传文件失败")
-				return
-			}
-			defer f.Close()
-			fileDataReader := bufio.NewReader(f)
-			_, err = fileDataReader.Read(fileData)
-			if err != nil {
-				errors.InternalError(c, "读取上传文件失败")
-				return
-			}
-
-			// 重新加载配置
-			authConfig, err := initService.LoadEncryptedConfig(fileData)
-			if err != nil {
-				errors.InternalError(c, "加载认证配置失败")
-				return
-			}
-
-			// 存储到数据库
-			err = initService.StoreAuthConfig(fileData)
-			if err != nil {
-				errors.InternalError(c, "存储认证配置失败")
-				return
-			}
-
-			// 更新禅道客户端配置并刷新Token
-			err = zentaoClient.UpdateConfig(authConfig.Domain, authConfig.Username, authConfig.Password)
-			if err != nil {
-				errors.InternalError(c, "更新禅道配置失败")
-				return
-			}
-
-			// 返回成功响应
-			errors.SuccessWithMessage(c, "初始化成功", nil)
-		})
-
-		// 初始化状态接口
-		apiGroup.GET("/init/status", func(c *gin.Context) {
-			// 检查是否已初始化
-			isFirstStart, err := initService.IsFirstStart()
-			if err != nil {
-				errors.InternalError(c, "检查初始化状态失败")
-				return
-			}
-
-			errors.Success(c, gin.H{
-				"isFirstStart": isFirstStart,
-			})
-		})
+		apiGroup.POST("/init/upload", initHandler.UploadConfig)
+		apiGroup.GET("/init/status", initHandler.GetInitStatus)
 
 		// 产品相关接口
 		apiGroup.GET("/products", productHandler.GetProducts)

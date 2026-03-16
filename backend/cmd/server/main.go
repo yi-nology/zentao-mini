@@ -59,17 +59,16 @@ func main() {
 		zap.String("log_format", cfg.Log.Format),
 	)
 
-	// 创建应用配置（兼容旧版本）
+	// 创建应用配置
 	appConfig := &app.AppConfig{
-		Type:            cfg.Server.Type,
-		Port:            cfg.Server.Port,
-		AuthConfigPath:  cfg.Auth.ConfigPath,
-		AuthDBPath:      cfg.Auth.DBPath,
-		EncryptionKey:   cfg.Security.EncryptionKey,
-		ZentaoServer:    cfg.Zentao.Server,
-		ZentaoAccount:   cfg.Zentao.Account,
-		ZentaoPassword:  cfg.Zentao.Password,
-		StaticPath:      cfg.Server.StaticPath,
+		Type:           cfg.Server.Type,
+		Port:           cfg.Server.Port,
+		AuthDBPath:     cfg.Auth.DBPath,
+		EncryptionKey:  cfg.Security.EncryptionKey,
+		ZentaoServer:   cfg.Zentao.Server,
+		ZentaoAccount:  cfg.Zentao.Account,
+		ZentaoPassword: cfg.Zentao.Password,
+		StaticPath:     cfg.Server.StaticPath,
 	}
 
 	// 使用依赖注入初始化应用

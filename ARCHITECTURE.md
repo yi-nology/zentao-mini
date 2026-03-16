@@ -101,7 +101,6 @@ type AppConfig struct {
     ZentaoServer    string
     ZentaoAccount   string
     ZentaoPassword  string
-    AuthConfigPath  string
     AuthDBPath      string
     EncryptionKey   string
     StaticPath      string
@@ -204,7 +203,6 @@ func (a *HTTPApp) Stop(ctx context.Context) error {
 config := &app.AppConfig{
     Type:           "http",
     Port:           "12345",
-    AuthConfigPath: os.Getenv("AUTH_CONFIG_PATH"),
     // ...
 }
 

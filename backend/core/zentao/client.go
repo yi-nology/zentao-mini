@@ -307,11 +307,11 @@ func (c *Client) GetAllProjects(limit int) ([]zentao.Project, error) {
 }
 
 // GetProjectsByProduct 获取产品关联的项目列表
-func (c *Client) GetProjectsByProduct(productID int) ([]zentao.Project, error) {
+func (c *Client) GetProjectsByProduct(productID int, page, pageSize int) ([]zentao.Project, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetProjectsByProduct(productID, 1, 100)
+	response, err := c.sdkClient.GetProjectsByProduct(productID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -327,11 +327,11 @@ func (c *Client) GetProject(projectID int) (*zentao.Project, error) {
 }
 
 // GetBugs 获取产品的 Bug 列表
-func (c *Client) GetBugs(productID int, limit int) ([]zentao.Bug, error) {
+func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetBugs(productID, 1, limit)
+	response, err := c.sdkClient.GetBugs(productID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -339,11 +339,11 @@ func (c *Client) GetBugs(productID int, limit int) ([]zentao.Bug, error) {
 }
 
 // GetBugsByProject 根据项目 ID 过滤 Bug 列表
-func (c *Client) GetBugsByProject(productID, projectID int, limit int) ([]zentao.Bug, error) {
+func (c *Client) GetBugsByProject(productID, projectID int, page, pageSize int) ([]zentao.Bug, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetBugsByProject(productID, projectID, 1, limit)
+	response, err := c.sdkClient.GetBugsByProject(productID, projectID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -351,11 +351,11 @@ func (c *Client) GetBugsByProject(productID, projectID int, limit int) ([]zentao
 }
 
 // GetBugsByStatus 根据状态过滤 Bug 列表
-func (c *Client) GetBugsByStatus(productID int, status string, limit int) ([]zentao.Bug, error) {
+func (c *Client) GetBugsByStatus(productID int, status string, page, pageSize int) ([]zentao.Bug, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetBugsByStatus(productID, status, 1, limit)
+	response, err := c.sdkClient.GetBugsByStatus(productID, status, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -383,11 +383,11 @@ func (c *Client) GetBug(bugID int) (*zentao.Bug, error) {
 }
 
 // GetStoriesByProduct 获取产品的需求列表
-func (c *Client) GetStoriesByProduct(productID int, limit int) ([]zentao.Story, error) {
+func (c *Client) GetStoriesByProduct(productID int, page, pageSize int) ([]zentao.Story, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetStoriesByProduct(productID, 1, limit)
+	response, err := c.sdkClient.GetStoriesByProduct(productID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -395,11 +395,11 @@ func (c *Client) GetStoriesByProduct(productID int, limit int) ([]zentao.Story, 
 }
 
 // GetStoriesByProject 获取项目的需求列表
-func (c *Client) GetStoriesByProject(projectID int, limit int) ([]zentao.Story, error) {
+func (c *Client) GetStoriesByProject(projectID int, page, pageSize int) ([]zentao.Story, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetStoriesByProject(projectID, 1, limit)
+	response, err := c.sdkClient.GetStoriesByProject(projectID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -407,11 +407,11 @@ func (c *Client) GetStoriesByProject(projectID int, limit int) ([]zentao.Story, 
 }
 
 // GetStoriesByExecution 获取执行的需求列表
-func (c *Client) GetStoriesByExecution(executionID int, limit int) ([]zentao.Story, error) {
+func (c *Client) GetStoriesByExecution(executionID int, page, pageSize int) ([]zentao.Story, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetStoriesByExecution(executionID, 1, limit)
+	response, err := c.sdkClient.GetStoriesByExecution(executionID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -427,11 +427,11 @@ func (c *Client) GetStory(storyID int) (*zentao.Story, error) {
 }
 
 // GetTasks 获取执行的任务列表
-func (c *Client) GetTasks(executionID int, limit int) ([]zentao.Task, error) {
+func (c *Client) GetTasks(executionID int, page, pageSize int) ([]zentao.Task, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetTasks(executionID, 1, limit)
+	response, err := c.sdkClient.GetTasks(executionID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -447,11 +447,11 @@ func (c *Client) GetTask(taskID int) (*zentao.Task, error) {
 }
 
 // GetExecutions 获取执行列表
-func (c *Client) GetExecutions(projectID int) ([]zentao.Execution, error) {
+func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Execution, error) {
 	if _, err := c.getToken(); err != nil {
 		return nil, err
 	}
-	response, err := c.sdkClient.GetExecutions(projectID, 1, 100)
+	response, err := c.sdkClient.GetExecutions(projectID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +459,7 @@ func (c *Client) GetExecutions(projectID int) ([]zentao.Execution, error) {
 }
 
 // GetUsers 获取用户列表（支持分页）
-func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
+func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) {
 	// 检查缓存
 	c.mu.RLock()
 	if len(c.usersCache) > 0 && time.Now().Before(c.usersExpiry) {
@@ -470,14 +470,14 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 
 		// 计算分页
 		total := len(users)
-		start := (page - 1) * limit
-		end := start + limit
+		start := (page - 1) * pageSize
+		end := start + pageSize
 		if start >= total {
 			return &zentao.UserListResponse{
 				Users: []zentao.User{},
 				Page:  page,
 				Total: total,
-				Limit: limit,
+				Limit: pageSize,
 			}, nil
 		}
 		if end > total {
@@ -488,7 +488,7 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 			Users: users[start:end],
 			Page:  page,
 			Total: total,
-			Limit: limit,
+			Limit: pageSize,
 		}, nil
 	}
 	c.mu.RUnlock()
@@ -501,10 +501,8 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 		return nil, err
 	}
 
-	// 分页获取所有用户，每次100人
 	var allUsers []zentao.User
 	currentPage := 1
-	pageSize := 100
 
 	for {
 		response, err := c.sdkClient.GetUsers(currentPage, pageSize)
@@ -540,14 +538,14 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 
 	// 计算分页
 	total := len(allUsers)
-	start := (page - 1) * limit
-	end := start + limit
+	start := (page - 1) * pageSize
+	end := start + pageSize
 	if start >= total {
 		return &zentao.UserListResponse{
 			Users: []zentao.User{},
 			Page:  page,
 			Total: total,
-			Limit: limit,
+			Limit: pageSize,
 		}, nil
 	}
 	if end > total {
@@ -558,7 +556,7 @@ func (c *Client) GetUsers(page, limit int) (*zentao.UserListResponse, error) {
 		Users: allUsers[start:end],
 		Page:  page,
 		Total: total,
-		Limit: limit,
+		Limit: pageSize,
 	}, nil
 }
 

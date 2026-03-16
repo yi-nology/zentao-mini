@@ -33,11 +33,11 @@ func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, er
 
 	// 优先级: executionID > projectID > productID
 	if query.ExecutionID != 0 {
-		stories, err = s.client.GetStoriesByExecution(query.ExecutionID, 500)
+		stories, err = s.client.GetStoriesByExecution(query.ExecutionID, query.Page, query.PageSize)
 	} else if query.ProjectID != 0 {
-		stories, err = s.client.GetStoriesByProject(query.ProjectID, 500)
+		stories, err = s.client.GetStoriesByProject(query.ProjectID, query.Page, query.PageSize)
 	} else if query.ProductID != 0 {
-		stories, err = s.client.GetStoriesByProduct(query.ProductID, 500)
+		stories, err = s.client.GetStoriesByProduct(query.ProductID, query.Page, query.PageSize)
 	} else {
 		return nil, &ValidationError{Message: "请提供产品ID、项目ID或执行ID"}
 	}
@@ -85,17 +85,15 @@ func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, er
 	total := chainFilter.Count()
 
 	// 执行分页
-	pagedStories := chainFilter.Paginate(query.Page, query.Limit).Result()
+	pagedStories := chainFilter.Paginate(query.Page, query.PageSize).Result()
 
-	// 转换为VO
 	list := s.convertToVO(pagedStories)
 
-	// 返回分页结果
 	return &vo.PaginatedVO{
-		List:  list,
-		Total: total,
-		Page:  query.Page,
-		Limit: query.Limit,
+		List:     list,
+		Total:    total,
+		Page:     query.Page,
+		PageSize: query.PageSize,
 	}, nil
 }
 

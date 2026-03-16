@@ -20,20 +20,19 @@ func NewUserService(client *myzentao.Client) *UserService {
 
 // GetUsers 获取用户列表（支持分页）
 // 业务逻辑：调用禅道客户端获取分页用户数据
-func (s *UserService) GetUsers(page, limit int) (*vo.PaginatedVO, error) {
-	userList, err := s.client.GetUsers(page, limit)
+func (s *UserService) GetUsers(page, pageSize int) (*vo.PaginatedVO, error) {
+	userList, err := s.client.GetUsers(page, pageSize)
 	if err != nil {
 		return nil, err
 	}
 
-	// 转换为VO
 	users := s.convertToVO(userList.Users)
 
 	return &vo.PaginatedVO{
-		List:  users,
-		Total: userList.Total,
-		Page:  userList.Page,
-		Limit: userList.Limit,
+		List:     users,
+		Total:    userList.Total,
+		Page:     userList.Page,
+		PageSize: userList.Limit,
 	}, nil
 }
 

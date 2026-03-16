@@ -186,7 +186,7 @@ export interface PaginatedResponse<T> {
   list: T[]
   total: number
   page: number
-  limit: number
+  pageSize: number
 }
 
 export interface SelectOption {

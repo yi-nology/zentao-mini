@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"chandao-mini/backend/core/initialization"
 	"chandao-mini/backend/core/service"
 	myzentao "chandao-mini/backend/core/zentao"
 )
@@ -32,12 +33,13 @@ type HandlerRegistry struct {
 	userHandler      *UserHandler
 	timelogHandler   *TimelogHandler
 	mcpHandler       *MCPHandler
+	initHandler      *InitHandler
 }
 
 // NewHandlerRegistry 创建Handler注册表
 // 所有service和handler在此处统一初始化，确保整个应用生命周期内只创建一次
 // 采用分层架构：Client -> Service -> Handler
-func NewHandlerRegistry(client *myzentao.Client) *HandlerRegistry {
+func NewHandlerRegistry(client *myzentao.Client, initService *initialization.InitService) *HandlerRegistry {
 	registry := &HandlerRegistry{
 		client: client,
 	}
@@ -73,6 +75,9 @@ func NewHandlerRegistry(client *myzentao.Client) *HandlerRegistry {
 		registry.userHandler,
 		registry.timelogHandler,
 	)
+
+	// Init handler依赖initService和zentaoClient
+	registry.initHandler = NewInitHandler(initService, client)
 
 	return registry
 }
@@ -120,4 +125,9 @@ func (r *HandlerRegistry) GetTimelogHandler() *TimelogHandler {
 // GetMCPHandler 获取MCP Handler
 func (r *HandlerRegistry) GetMCPHandler() *MCPHandler {
 	return r.mcpHandler
+}
+
+// GetInitHandler 获取初始化Handler
+func (r *HandlerRegistry) GetInitHandler() *InitHandler {
+	return r.initHandler
 }
