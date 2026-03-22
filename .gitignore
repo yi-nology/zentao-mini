@@ -20,8 +20,8 @@ auth.db
 # Frontend build artifacts
 frontend/package.json.md5
 
-# Backend app main.go (contains hardcoded config)
-backend/cmd/app/main.go
+# Build scripts with hardcoded config
+build-app.sh
 
 # IDE and test files
 .idea/golinter.xml
