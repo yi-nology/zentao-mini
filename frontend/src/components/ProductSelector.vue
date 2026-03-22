@@ -5,6 +5,7 @@
       placeholder="请选择产品"
       clearable
       filterable
+      value-key="id"
       style="width: 200px"
       @update:model-value="handleProductChange"
     >
@@ -12,7 +13,7 @@
         v-for="item in productOptions"
         :key="item.id"
         :label="item.name"
-        :value="item.id"
+        :value="item"
       />
     </el-select>
     <el-select
@@ -35,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { getProducts, getProjects } from '@/api/zentao'
 import type { Product, Project } from '@/types/api'
 
@@ -55,8 +56,10 @@ const emit = defineEmits<{
 
 const productOptions = ref<Product[]>([])
 const projectOptions = ref<Project[]>([])
-const selectedProduct = ref<string>('')
+const selectedProduct = ref<Product | null>(null)
 const selectedProject = ref<string>('')
+
+const selectedProductId = computed(() => selectedProduct.value?.id?.toString() ?? '')
 
 const fetchProducts = async (): Promise<void> => {
   try {
@@ -77,15 +80,15 @@ const fetchProjects = async (productId: string | number): Promise<void> => {
   }
 }
 
-const handleProductChange = async (productId: string | number): Promise<void> => {
-  selectedProduct.value = String(productId || '')
+const handleProductChange = async (product: Product | null): Promise<void> => {
+  selectedProduct.value = product
   selectedProject.value = ''
   projectOptions.value = []
-  
-  if (productId) {
-    await fetchProjects(productId)
+
+  if (product) {
+    await fetchProjects(product.id)
   }
-  
+
   emitSelection()
 }
 
@@ -96,7 +99,7 @@ const handleProjectChange = (projectId: string | number): void => {
 
 const emitSelection = (): void => {
   const selection: SelectionValue = {
-    product: selectedProduct.value,
+    product: selectedProductId.value,
     project: selectedProject.value
   }
   emit('update:modelValue', selection)
@@ -104,11 +107,15 @@ const emitSelection = (): void => {
 }
 
 watch(() => props.modelValue, (newVal) => {
-  if (newVal && newVal.product !== selectedProduct.value) {
-    selectedProduct.value = newVal.product || ''
+  if (newVal && newVal.product !== selectedProductId.value) {
     selectedProject.value = newVal.project || ''
     if (newVal.product) {
+      const productId = Number(newVal.product)
+      const found = productOptions.value.find(p => p.id === productId)
+      selectedProduct.value = found || null
       fetchProjects(newVal.product)
+    } else {
+      selectedProduct.value = null
     }
   }
 }, { immediate: true, deep: true })
@@ -116,11 +123,11 @@ watch(() => props.modelValue, (newVal) => {
 onMounted(() => {
   fetchProducts()
   if (props.modelValue && props.modelValue.product) {
-    selectedProduct.value = props.modelValue.product
+    const productId = Number(props.modelValue.product)
+    const found = productOptions.value.find(p => p.id === productId)
+    selectedProduct.value = found || null
     selectedProject.value = props.modelValue.project || ''
-    if (props.modelValue.product) {
-      fetchProjects(props.modelValue.product)
-    }
+    fetchProjects(props.modelValue.product)
   }
 })
 </script>
