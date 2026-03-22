@@ -23,3 +23,7 @@ frontend/package.json.md5
 # Backend app main.go (contains hardcoded config)
 backend/cmd/app/main.go
 
+# IDE and test files
+.idea/golinter.xml
+.trae/specs/first-start-config-load/
+
