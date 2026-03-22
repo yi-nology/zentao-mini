@@ -46,6 +46,9 @@ func (a *HTTPApp) Start(ctx context.Context) error {
 		a.deps.Handlers,
 	)
 
+	// 配置静态文件服务
+	a.setupStaticFiles()
+
 	// 获取端口
 	port := a.config.Port
 	if port == "" {
@@ -119,4 +122,38 @@ func (a *HTTPApp) Name() string {
 // GetRouter 获取路由器（用于外部访问）
 func (a *HTTPApp) GetRouter() *gin.Engine {
 	return a.router
+}
+
+// setupStaticFiles 配置静态文件服务
+func (a *HTTPApp) setupStaticFiles() {
+	// 静态文件目录
+	staticRoot := "./frontend/dist"
+	assetsDir := staticRoot + "/assets"
+
+	// 检查 dist 目录是否存在
+	if _, err := os.Stat(staticRoot); os.IsNotExist(err) {
+		logger.Warn("Frontend dist directory not found, static files disabled")
+		return
+	}
+
+	// 提供静态文件服务
+	a.router.Static("/assets", assetsDir)
+	a.router.StaticFile("/", staticRoot+"/index.html")
+
+	// 前端路由处理 - 所有非API请求都返回index.html (SPA支持)
+	a.router.NoRoute(func(c *gin.Context) {
+		// 跳过 API 路径
+		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+			c.Next()
+			return
+		}
+		// 跳过 metrics 路径
+		if c.Request.URL.Path == "/metrics" || c.Request.URL.Path == "/health" {
+			c.Next()
+			return
+		}
+		c.File(staticRoot + "/index.html")
+	})
+
+	logger.Info("Static files configured", zap.String("root", staticRoot))
 }
