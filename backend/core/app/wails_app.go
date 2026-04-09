@@ -10,6 +10,7 @@ import (
 
 	"chandao-mini/backend/core/config"
 	"chandao-mini/backend/core/logger"
+	"chandao-mini/backend/core/metrics"
 	"chandao-mini/backend/core/routes"
 
 	"github.com/gin-gonic/gin"
@@ -59,6 +60,11 @@ func (a *WailsApp) Start(ctx context.Context) error {
 	// 初始化日志
 	if err := logger.Init(&cfg.Log); err != nil {
 		log.Printf("Warning: failed to initialize logger: %v", err)
+	}
+
+	// 初始化性能监控
+	if err := metrics.Init(); err != nil {
+		logger.Error("Failed to initialize metrics", zap.Error(err))
 	}
 
 	// 在goroutine中启动后端服务
