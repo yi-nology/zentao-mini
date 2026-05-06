@@ -28,6 +28,8 @@ type Client struct {
 	mu             sync.RWMutex
 }
 
+const tokenTTL = 23 * time.Hour
+
 // NewClient 创建新的禅道客户端
 func NewClient(server, account, password string) *Client {
 	// 确保server URL格式正确
@@ -55,7 +57,7 @@ func NewClient(server, account, password string) *Client {
 
 // startTokenRefreshTask 启动Token自动刷新任务
 func (c *Client) startTokenRefreshTask() {
-	ticker := time.NewTicker(2 * time.Hour) // 每12小时检查一次
+	ticker := time.NewTicker(2 * time.Hour) // 每2小时检查一次
 	defer ticker.Stop()
 
 	for {
@@ -107,50 +109,26 @@ func (c *Client) getToken() (string, error) {
 		return tokenStr, nil
 	}
 
-	// 尝试获取Token，最多重试3次
-	var token string
-	var err error
-	passwordStr := c.password.Get() // 临时获取密码
-	for i := 0; i < 3; i++ {
-		token, err = c.sdkClient.GetToken(c.account, passwordStr)
-		if err == nil {
-			break
-		}
-		// 重试前等待一段时间
-		time.Sleep(time.Duration(i+1) * time.Second)
-		logger.Warn("Failed to get token, retrying",
-			zap.Int("attempt", i+1),
-			zap.Error(err),
-		)
-	}
-	// 清除临时密码变量
-	passwordStr = ""
-
+	tokenStr, err := c.refreshTokenLocked()
 	if err != nil {
 		logger.Error("Failed to get token after retries", zap.Error(err))
 		return "", err
 	}
 
-	c.token.Set(token) // 使用安全字符串存储token
-	// Token 有效期设置为 23 小时（保险起见）
-	c.tokenExpiry = time.Now().Add(23 * time.Hour)
-	c.sdkClient.SetToken(token)
-
-	duration := time.Since(start)
-	metrics.RecordCacheOperation("token", "refresh", duration)
-	metrics.RecordTokenRefresh()
-
-	logger.Info("Token refreshed successfully",
-		zap.Duration("duration", duration),
-		zap.Time("expiry", c.tokenExpiry),
-	)
-
-	return token, nil
+	metrics.RecordCacheOperation("token", "refresh", time.Since(start))
+	return tokenStr, nil
 }
 
 // RefreshToken 强制刷新 Token
 func (c *Client) RefreshToken() (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
+	return c.refreshTokenLocked()
+}
+
+func (c *Client) refreshTokenLocked() (string, error) {
+	start := time.Now()
 	// 尝试获取Token，最多重试3次
 	var token string
 	var err error
@@ -171,9 +149,14 @@ func (c *Client) RefreshToken() (string, error) {
 	}
 
 	c.token.Set(token) // 使用安全字符串存储token
-	// Token 有效期设置为 23 小时（保险起见）
-	c.tokenExpiry = time.Now().Add(23 * time.Hour)
+	c.tokenExpiry = time.Now().Add(tokenTTL)
 	c.sdkClient.SetToken(token)
+
+	metrics.RecordTokenRefresh()
+	logger.Info("Token refreshed successfully",
+		zap.Duration("duration", time.Since(start)),
+		zap.Time("expiry", c.tokenExpiry),
+	)
 
 	return token, nil
 }
@@ -209,8 +192,69 @@ func (c *Client) UpdateConfig(server, account, password string) error {
 	c.productsExpiry = time.Time{}
 
 	// 立即刷新Token
-	_, err := c.RefreshToken()
+	_, err := c.refreshTokenLocked()
 	return err
+}
+
+func (c *Client) withTokenRetry(operation string, call func(*zentao.Client) error) error {
+	if _, err := c.getToken(); err != nil {
+		return err
+	}
+
+	c.mu.RLock()
+	err := call(c.sdkClient)
+	c.mu.RUnlock()
+	if err == nil || !isAuthError(err) {
+		return err
+	}
+
+	logger.Warn("Zentao token rejected, refreshing and retrying",
+		zap.String("operation", operation),
+		zap.Error(err),
+	)
+
+	if _, refreshErr := c.RefreshToken(); refreshErr != nil {
+		return fmt.Errorf("%s失败，刷新Token失败: %w，原始错误: %v", operation, refreshErr, err)
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return call(c.sdkClient)
+}
+
+func isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	authMarkers := []string{
+		"状态码: 401",
+		"status code: 401",
+		"status: 401",
+		"unauthorized",
+		"状态码: 403",
+		"status code: 403",
+		"status: 403",
+		"forbidden",
+		"token为空",
+		"invalid token",
+		"expired token",
+		"token expired",
+		"token invalid",
+		"token无效",
+		"token失效",
+		"token过期",
+		"令牌无效",
+		"令牌失效",
+		"令牌过期",
+	}
+	for _, marker := range authMarkers {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetAccount 获取当前登录用户的账号
