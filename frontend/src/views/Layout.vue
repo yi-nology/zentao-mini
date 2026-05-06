@@ -1,63 +1,45 @@
 <template>
-  <el-container class="layout-container">
-    <el-aside width="200px" class="aside">
+  <div class="layout-container">
+    <aside class="aside">
       <div class="logo">
-        <span>禅道 Mini</span>
+        <div class="logo-icon">Z</div>
+        <span class="logo-text">禅道 Mini</span>
       </div>
-      <el-menu
-        :default-active="$route.path"
-        router
-        class="menu"
-        background-color="#304156"
-        text-color="#bfcbd9"
-        active-text-color="#409EFF"
-      >
-        <el-menu-item index="/bugs">
-          <el-icon><svg viewBox="0 0 1024 1024" width="1em" height="1em"><path fill="currentColor" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/><path fill="currentColor" d="M464 336a48 48 0 1096 0 48 48 0 10-96 0zm72 112h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V456c0-4.4-3.6-8-8-8z"/></svg></el-icon>
-          <span>Bug 查询</span>
-        </el-menu-item>
-        <el-menu-item index="/stories">
-          <el-icon><svg viewBox="0 0 1024 1024" width="1em" height="1em"><path fill="currentColor" d="M832 64H192c-17.7 0-32 14.3-32 32v832c0 17.7 14.3 32 32 32h640c17.7 0 32-14.3 32-32V96c0-17.7-14.3-32-32-32zm-600 72h560v80H232v-80zm560 640H232V320h560v456z"/></svg></el-icon>
-          <span>需求查询</span>
-        </el-menu-item>
-        <el-menu-item index="/tasks">
-          <el-icon><svg viewBox="0 0 1024 1024" width="1em" height="1em"><path fill="currentColor" d="M880 112H144c-17.7 0-32 14.3-32 32v736c0 17.7 14.3 32 32 32h736c17.7 0 32-14.3 32-32V144c0-17.7-14.3-32-32-32zM368 744H232V608h136v136zm0-192H232V416h136v136zm0-192H232V224h136v136zm192 384H416V608h136v136zm0-192H416V416h136v136zm0-192H416V224h136v136zm192 384H608V608h136v136zm0-192H608V416h136v136zm0-192H608V224h136v136z"/></svg></el-icon>
-          <span>任务查询</span>
-        </el-menu-item>
-        <el-menu-item index="/timelog">
-          <el-icon><svg viewBox="0 0 1024 1024" width="1em" height="1em"><path fill="currentColor" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/><path fill="currentColor" d="M512 192a320 320 0 100 640 320 320 0 000-640zm0 680a360 360 0 110-720 360 360 0 010 720z"/><path fill="currentColor" d="M480 464h64v192h-64z"/></svg></el-icon>
-          <span>工时统计</span>
-        </el-menu-item>
-        <el-menu-item index="/mcp-guide">
-          <el-icon><svg viewBox="0 0 1024 1024" width="1em" height="1em"><path fill="currentColor" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/><path fill="currentColor" d="M480 464h64v192h-64z"/><path fill="currentColor" d="M416 384h192v64H416z"/></svg></el-icon>
-          <span>MCP对接指南</span>
-        </el-menu-item>
-        <el-menu-item index="/init-guide" @click="resetInitialization">
-          <el-icon><svg viewBox="0 0 1024 1024" width="1em" height="1em"><path fill="currentColor" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/><path fill="currentColor" d="M480 464h64v192h-64z"/><path fill="currentColor" d="M416 384h192v64H416z"/></svg></el-icon>
-          <span>重新初始化</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
-    <el-container>
-      <el-header class="header">
-        <div class="header-title">{{ pageTitle }}</div>
-        <div class="header-selector">
+      <nav class="nav-menu">
+        <router-link
+          v-for="item in menuItems"
+          :key="item.path"
+          :to="item.path"
+          class="nav-item"
+          :class="{ active: $route.path === item.path }"
+        >
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path :d="item.icon" />
+          </svg>
+          <span>{{ item.label }}</span>
+        </router-link>
+      </nav>
+    </aside>
+    <div class="main-area">
+      <header class="header">
+        <h1 class="header-title">{{ pageTitle }}</h1>
+        <div class="header-actions">
           <ProductSelector
             :model-value="globalSelection"
             @update:model-value="handleSelectionChange"
           />
         </div>
-      </el-header>
-      <el-main class="main">
+      </header>
+      <main class="main">
         <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
+      </main>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, provide, reactive } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
 
 interface GlobalSelection {
@@ -70,30 +52,32 @@ interface SelectionChangePayload {
   project: string
 }
 
+interface MenuItem {
+  path: string
+  label: string
+  icon: string
+}
+
 const route = useRoute()
-const router = useRouter()
 const globalSelection = reactive<GlobalSelection>({ product: '', project: '' })
 
+const menuItems: MenuItem[] = [
+  { path: '/bugs', label: 'Bug 查询', icon: 'M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z' },
+  { path: '/stories', label: '需求查询', icon: 'M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm4 0v4h8V5H8zm0 6v4h8v-4H8zm0 6v2h5v-2H8z' },
+  { path: '/tasks', label: '任务查询', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+  { path: '/timelog', label: '工时统计', icon: 'M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16zm1-13h-2v6l5.25 3.15.75-1.23-4-2.42V7z' },
+  { path: '/mcp-guide', label: 'MCP 对接', icon: 'M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { path: '/init-guide', label: '重新初始化', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' }
+]
+
 const pageTitle = computed<string>(() => {
-  const titles: Record<string, string> = {
-    '/bugs': 'Bug 查询',
-    '/stories': '需求查询',
-    '/tasks': '任务查询',
-    '/timelog': '工时统计',
-    '/mcp-guide': 'MCP对接指南',
-    '/init-guide': '重新初始化'
-  }
-  return titles[route.path] || '禅道 Mini'
+  const current = menuItems.find(item => item.path === route.path)
+  return current?.label || '禅道 Mini'
 })
 
 const handleSelectionChange = (selection: SelectionChangePayload): void => {
   globalSelection.product = selection.product
   globalSelection.project = selection.project
-}
-
-const resetInitialization = (): void => {
-  localStorage.removeItem('initialized')
-  router.push('/init-guide')
 }
 
 provide<GlobalSelection>('globalSelection', globalSelection)
@@ -103,117 +87,153 @@ provide<GlobalSelection>('globalSelection', globalSelection)
 .layout-container {
   height: 100vh;
   display: flex;
-  flex-direction: row;
   overflow: hidden;
+  background-color: var(--color-bg);
 }
 
+/* Sidebar */
 .aside {
-  background-color: #2c3e50;
-  width: 200px;
+  width: 220px;
   flex-shrink: 0;
-  transition: all 0.3s ease;
-}
-
-.aside:hover {
-  background-color: #243342;
+  background-color: var(--color-sidebar);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
 }
 
 .logo {
   height: 60px;
   display: flex;
   align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-bottom: 1px solid #334155;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-text-on-primary);
+  display: flex;
+  align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 18px;
-  font-weight: bold;
-  border-bottom: 1px solid #1f2d3d;
-  background-color: #243342;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-heading);
 }
 
-.menu {
-  border-right: none;
-  height: calc(100vh - 60px);
+.logo-text {
+  color: var(--color-text-on-dark);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font-heading);
 }
 
-.menu :deep(.el-menu-item) {
-  height: 50px;
-  line-height: 50px;
-  margin: 0 10px;
-  border-radius: 4px;
-  margin-bottom: 5px;
-  transition: all 0.3s ease;
+/* Navigation */
+.nav-menu {
+  flex: 1;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
 }
 
-.menu :deep(.el-menu-item:hover) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-on-dark);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 400;
+  transition: all var(--transition-fast);
+  opacity: 0.7;
 }
 
-.menu :deep(.el-menu-item.is-active) {
-  background-color: #409EFF !important;
-  color: #fff !important;
+.nav-item:hover {
+  background-color: var(--color-sidebar-hover);
+  opacity: 1;
 }
 
+.nav-item.active {
+  background-color: var(--color-sidebar-active);
+  color: var(--color-text-on-primary);
+  opacity: 1;
+}
+
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Main Area */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header */
 .header {
-  background-color: #fff;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.1);
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  height: 60px;
+  padding: 0 28px;
+  background-color: var(--color-bg-card);
+  border-bottom: 1px solid var(--color-border-light);
   flex-shrink: 0;
 }
 
 .header-title {
   font-size: 18px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--color-text-primary);
+  font-family: var(--font-heading);
 }
 
-.header-selector {
+.header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
+/* Content */
 .main {
-  background-color: #f5f7fa;
-  padding: 24px;
   flex: 1;
   overflow-y: auto;
-  transition: all 0.3s ease;
+  padding: var(--space-lg);
+  background-color: var(--color-bg);
 }
 
-/* 响应式调整 */
+/* Responsive */
 @media screen and (max-width: 768px) {
-  .layout-container {
-    flex-direction: column;
-  }
-  
   .aside {
-    width: 100% !important;
-    height: auto;
+    width: 60px;
   }
-  
-  .logo {
-    height: 50px;
+
+  .logo-text {
+    display: none;
   }
-  
-  .menu {
-    display: flex;
-    overflow-x: auto;
-    height: auto;
+
+  .nav-item span {
+    display: none;
   }
-  
-  .menu :deep(.el-menu-item) {
-    flex: 1;
-    min-width: 100px;
-    margin: 5px;
+
+  .nav-item {
+    justify-content: center;
+    padding: 12px;
   }
-  
-  .main {
-    padding: 16px;
+
+  .header {
+    padding: 0 16px;
   }
 }
 </style>
