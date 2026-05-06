@@ -19,6 +19,9 @@
           <span>{{ item.label }}</span>
         </router-link>
       </nav>
+      <div class="sidebar-footer">
+        <span>©2014-2026 <a href="https://murphyyi.com" target="_blank" rel="noopener noreferrer">murphyyi.com</a></span>
+      </div>
     </aside>
     <div class="main-area">
       <header class="header">
@@ -170,6 +173,27 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #334155;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-on-dark);
+  opacity: 0.5;
+}
+
+.sidebar-footer a {
+  color: var(--color-text-on-dark);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.sidebar-footer a:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 /* Main Area */
