@@ -1,90 +1,113 @@
-/* 统一页面布局样式 */
+/* ============================================
+   Common Layout Styles - Design System
+   ============================================ */
 
-/* 页面容器 */
+/* Page Container */
 .page-container {
-  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg, 20px);
+  height: 100%;
+  overflow: hidden;
 }
 
-/* 筛选卡片 */
+/* Filter Card */
 .filter-card {
-  margin-bottom: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-normal);
 }
 
-/* 筛选表单 */
+.filter-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Filter Form */
 .filter-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 15px;
+  gap: 16px;
   align-items: flex-end;
 }
 
 .filter-form .el-form-item {
-  margin-bottom: 10px;
+  margin-bottom: 0;
 }
 
-/* 表格卡片 */
+/* Table Card */
 .table-card {
-  margin-bottom: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  min-height: 500px;
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: box-shadow var(--transition-normal);
 }
 
-/* 表格头部 */
+.table-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Table Header */
 .table-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+  background-color: #FAFBFC;
 }
 
-/* 头部操作按钮 */
+/* Header Actions */
 .header-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
-/* 分页容器 */
+/* Pagination Wrapper */
 .pagination-wrapper {
-  margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border-light);
+  background-color: #FAFBFC;
 }
 
-/* 空状态 */
+/* Empty State */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
-  color: #909399;
+  color: var(--color-text-tertiary);
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
+/* Responsive */
+@media screen and (max-width: 768px) {
   .filter-form {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
-  
+
   .filter-form .el-form-item {
     margin-right: 0;
-    margin-bottom: 10px;
   }
-  
+
   .table-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 12px;
   }
-  
+
   .header-actions {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: space-between;
   }
-  
+
   .pagination-wrapper {
     justify-content: center;
   }

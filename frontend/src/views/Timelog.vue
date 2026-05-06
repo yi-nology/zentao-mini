@@ -1,174 +1,102 @@
 <template>
   <div class="timelog-container">
-    <!-- 筛选区域 -->
-    <div class="filters">
+    <div class="filter-card">
       <div class="quick-btns">
-        <span>快捷选择:</span>
-        <el-button 
-          v-for="range in quickRanges" 
-          :key="range.value"
-          :class="{ 'active': selectedRange === range.value }"
-          @click="setQuickRange(range.value)"
-        >
+        <span class="quick-label">快捷选择:</span>
+        <button v-for="range in quickRanges" :key="range.value" class="quick-btn" :class="{ active: selectedRange === range.value }" @click="setQuickRange(range.value)">
           {{ range.label }}
-        </el-button>
+        </button>
       </div>
       <el-form :inline="true" class="filter-form">
         <el-form-item label="执行/迭代">
-          <el-select v-model="filters.executionId" placeholder="全部执行" style="width: 180px;">
-            <el-option value="" label="全部执行"></el-option>
-            <el-option 
-              v-for="execution in executions" 
-              :key="execution.id" 
-              :value="execution.id" 
-              :label="execution.name"
-            ></el-option>
+          <el-select v-model="filters.executionId" placeholder="全部执行" style="width: 160px">
+            <el-option value="" label="全部执行" />
+            <el-option v-for="execution in executions" :key="execution.id" :value="execution.id" :label="execution.name" />
           </el-select>
         </el-form-item>
         <el-form-item label="用户">
-          <el-select v-model="filters.assignedTo" placeholder="全部用户" filterable style="width: 160px;">
-            <el-option value="" label="全部用户"></el-option>
-            <el-option 
-              v-for="user in users" 
-              :key="user.account" 
-              :value="user.account" 
-              :label="user.realname || user.account"
-            ></el-option>
+          <el-select v-model="filters.assignedTo" placeholder="全部用户" filterable style="width: 140px">
+            <el-option value="" label="全部用户" />
+            <el-option v-for="user in users" :key="user.account" :value="user.account" :label="user.realname || user.account" />
           </el-select>
         </el-form-item>
         <el-form-item label="开始日期">
-          <el-date-picker
-            v-model="filters.dateFrom"
-            type="date"
-            placeholder="选择开始日期"
-            value-format="YYYY-MM-DD"
-            style="width: 150px;"
-          ></el-date-picker>
+          <el-date-picker v-model="filters.dateFrom" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 140px" />
         </el-form-item>
         <el-form-item label="结束日期">
-          <el-date-picker
-            v-model="filters.dateTo"
-            type="date"
-            placeholder="选择结束日期"
-            value-format="YYYY-MM-DD"
-            style="width: 150px;"
-          ></el-date-picker>
+          <el-date-picker v-model="filters.dateTo" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 140px" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="queryTimelog" :loading="loading" style="width: 120px;">查询统计</el-button>
+          <el-button type="primary" @click="queryTimelog" :loading="loading">查询统计</el-button>
         </el-form-item>
       </el-form>
     </div>
 
-    <!-- 统计结果 -->
-    <div v-if="showResult" class="result-section">
-      <!-- 概览卡片 -->
+    <template v-if="showResult">
       <div class="summary-cards">
-        <el-card class="summary-card">
-          <div class="card-value">{{ analysisData.totalHours.toFixed(1) }}</div>
-          <div class="card-label">总工时 (小时)</div>
-        </el-card>
-        <el-card class="summary-card">
-          <div class="card-value">{{ analysisData.effortCount || 0 }}</div>
-          <div class="card-label">工时记录数</div>
-        </el-card>
-        <el-card class="summary-card">
-          <div class="card-value">{{ (analysisData.byProject || []).length }}</div>
-          <div class="card-label">涉及项目</div>
-        </el-card>
-        <el-card class="summary-card">
-          <div class="card-value">{{ avgHours }}</div>
-          <div class="card-label">日均工时</div>
-        </el-card>
+        <div class="stat-card">
+          <div class="stat-value primary">{{ analysisData.totalHours.toFixed(1) }}</div>
+          <div class="stat-label">总工时 (小时)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value success">{{ analysisData.effortCount || 0 }}</div>
+          <div class="stat-label">工时记录数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value warning">{{ (analysisData.byProject || []).length }}</div>
+          <div class="stat-label">涉及项目</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value danger">{{ avgHours }}</div>
+          <div class="stat-label">日均工时</div>
+        </div>
       </div>
 
-      <!-- 图表区域 -->
       <div class="charts-container">
-        <el-card class="chart-card full-width">
-          <template #header>
-            <div class="card-header">
-              <span>每日工时</span>
-            </div>
-          </template>
-          <div class="chart-wrapper">
-            <canvas ref="dailyChart"></canvas>
-          </div>
-        </el-card>
-        <el-card class="chart-card">
-          <template #header>
-            <div class="card-header">
-              <span>按项目分布</span>
-            </div>
-          </template>
-          <div class="chart-wrapper">
-            <canvas ref="projectChart"></canvas>
-          </div>
-        </el-card>
-        <el-card class="chart-card">
-          <template #header>
-            <div class="card-header">
-              <span>按任务类型分布</span>
-            </div>
-          </template>
-          <div class="chart-wrapper">
-            <canvas ref="typeChart"></canvas>
-          </div>
-        </el-card>
+        <div class="chart-card full-width">
+          <h3 class="chart-title">每日工时</h3>
+          <div class="chart-wrapper"><canvas ref="dailyChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">按项目分布</h3>
+          <div class="chart-wrapper"><canvas ref="projectChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">按任务类型分布</h3>
+          <div class="chart-wrapper"><canvas ref="typeChart"></canvas></div>
+        </div>
       </div>
 
-      <!-- 工时流水明细表 -->
-      <el-card class="data-table">
-        <template #header>
-          <div class="table-header">
-            <el-input
-              v-model="tableSearch"
-              placeholder="搜索任务名称/工作内容..."
-              prefix-icon="el-icon-search"
-              @input="filterTable"
-              style="width: 300px"
-            ></el-input>
-            <span class="table-count">{{ filteredEfforts.length }} 条</span>
-          </div>
-        </template>
-        <el-table
-          :data="filteredEfforts"
-          style="width: 100%"
-          @sort-change="handleSortChange"
-        >
-          <el-table-column prop="date" label="日期" sortable width="120"></el-table-column>
+      <div class="table-card">
+        <div class="table-header">
+          <el-input v-model="tableSearch" placeholder="搜索任务名称/工作内容..." :prefix-icon="Search" @input="filterTable" style="width: 300px" />
+          <span class="table-count">{{ filteredEfforts.length }} 条</span>
+        </div>
+        <el-table :data="filteredEfforts" style="width: 100%" @sort-change="handleSortChange">
+          <el-table-column prop="date" label="日期" sortable width="120" />
           <el-table-column prop="taskName" label="任务名称" min-width="200">
-            <template #default="scope">
-              {{ scope.row.taskName.length > 40 ? scope.row.taskName.substring(0, 40) + '...' : scope.row.taskName }}
-            </template>
+            <template #default="scope">{{ scope.row.taskName.length > 40 ? scope.row.taskName.substring(0, 40) + '...' : scope.row.taskName }}</template>
           </el-table-column>
-          <el-table-column prop="taskType" label="类型" width="100"></el-table-column>
-          <el-table-column prop="project" label="项目" width="150"></el-table-column>
-          <el-table-column prop="execution" label="执行" width="150"></el-table-column>
-          <el-table-column prop="account" label="人员" width="120">
-            <template #default="scope">
-              {{ getUserName(scope.row.account) }}
-            </template>
+          <el-table-column prop="taskType" label="类型" width="100" />
+          <el-table-column prop="project" label="项目" width="150" />
+          <el-table-column prop="execution" label="执行" width="150" />
+          <el-table-column prop="account" label="人员" width="100">
+            <template #default="scope">{{ getUserName(scope.row.account) }}</template>
           </el-table-column>
           <el-table-column prop="consumed" label="消耗(h)" sortable width="100">
-            <template #default="scope">
-              <strong>{{ scope.row.consumed.toFixed(1) }}</strong>
-            </template>
+            <template #default="scope"><strong>{{ scope.row.consumed.toFixed(1) }}</strong></template>
           </el-table-column>
           <el-table-column prop="work" label="工作内容" min-width="250">
-            <template #default="scope">
-              {{ (scope.row.work || '').length > 60 ? (scope.row.work || '').substring(0, 60) + '...' : (scope.row.work || '-') }}
-            </template>
+            <template #default="scope">{{ (scope.row.work || '').length > 60 ? (scope.row.work || '').substring(0, 60) + '...' : (scope.row.work || '-') }}</template>
           </el-table-column>
         </el-table>
-      </el-card>
-    </div>
+      </div>
+    </template>
 
-    <!-- 加载遮罩 -->
-    <el-loading v-if="loading" fullscreen text="正在获取数据..."></el-loading>
+    <el-loading v-if="loading" fullscreen text="正在获取数据..." />
 
-    <!-- 空状态 -->
     <div v-if="!showResult && !loading" class="empty-state">
-      <el-empty description="请选择筛选条件并点击查询统计"></el-empty>
+      <el-empty description="请选择筛选条件并点击查询统计" />
     </div>
   </div>
 </template>
@@ -176,174 +104,111 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, inject, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import type { Ref, ComputedRef } from 'vue'
 import Chart from 'chart.js/auto'
 import type { Chart as ChartType } from 'chart.js/auto'
-import {
-  getTimelogDashboard,
-  getTimelogEfforts,
-  getTimelogExecutions,
-  getUsers
-} from '../api/zentao'
-import type {
-  Execution,
-  User,
-  TimelogAnalysis,
-  TimelogByDate,
-  TimelogByProject,
-  TimelogByType,
-  TimelogEffort
-} from '../types/api'
+import { getTimelogDashboard, getTimelogEfforts, getTimelogExecutions, getUsers } from '../api/zentao'
+import type { Execution, User, TimelogAnalysis, TimelogEffort } from '../types/api'
 
-interface QuickRange {
-  label: string
-  value: string
-}
-
-interface Filters {
-  executionId: string
-  assignedTo: string
-  dateFrom: string
-  dateTo: string
-}
-
-interface ChartInstances {
-  dailyChart?: ChartType<'bar'>
-  projectChart?: ChartType<'bar'>
-  typeChart?: ChartType<'doughnut'>
-}
-
-interface GlobalSelection {
-  product: string
-  project: string
-}
-
-interface SortParams {
-  prop: string
-  order: string | null
-}
+interface QuickRange { label: string; value: string }
+interface Filters { executionId: string; assignedTo: string; dateFrom: string; dateTo: string }
+interface ChartInstances { dailyChart?: ChartType<'bar'>; projectChart?: ChartType<'bar'>; typeChart?: ChartType<'doughnut'> }
+interface GlobalSelection { product: string; project: string }
+interface SortParams { prop: string; order: string | null }
 
 const globalSelection = inject<GlobalSelection>('globalSelection') as GlobalSelection
-
 const loading: Ref<boolean> = ref(false)
 const showResult: Ref<boolean> = ref(false)
 const selectedRange: Ref<string> = ref('thisMonth')
 const tableSearch: Ref<string> = ref('')
-const filters: Ref<Filters> = ref<Filters>({
-  executionId: '',
-  assignedTo: '',
-  dateFrom: '',
-  dateTo: ''
-})
+const filters: Ref<Filters> = ref({ executionId: '', assignedTo: '', dateFrom: '', dateTo: '' })
+const executions: Ref<Execution[]> = ref([])
+const users: Ref<User[]> = ref([])
+const analysisData: Ref<TimelogAnalysis> = ref({ totalHours: 0, effortCount: 0, taskCount: 0, byDate: [], byProject: [], byType: [], efforts: [] })
+const dailyChart: Ref<HTMLCanvasElement | null> = ref(null)
+const projectChart: Ref<HTMLCanvasElement | null> = ref(null)
+const typeChart: Ref<HTMLCanvasElement | null> = ref(null)
+const chartInstances: Ref<ChartInstances> = ref({})
+const quickRanges: QuickRange[] = [{ label: '本周', value: 'thisWeek' }, { label: '上周', value: 'lastWeek' }, { label: '本月', value: 'thisMonth' }, { label: '上月', value: 'lastMonth' }]
 
-const executions: Ref<Execution[]> = ref<Execution[]>([])
-const users: Ref<User[]> = ref<User[]>([])
-const analysisData: Ref<TimelogAnalysis> = ref<TimelogAnalysis>({
-  totalHours: 0,
-  effortCount: 0,
-  taskCount: 0,
-  byDate: [],
-  byProject: [],
-  byType: [],
-  efforts: []
-})
-
-const dailyChart: Ref<HTMLCanvasElement | null> = ref<HTMLCanvasElement | null>(null)
-const projectChart: Ref<HTMLCanvasElement | null> = ref<HTMLCanvasElement | null>(null)
-const typeChart: Ref<HTMLCanvasElement | null> = ref<HTMLCanvasElement | null>(null)
-const chartInstances: Ref<ChartInstances> = ref<ChartInstances>({})
-
-const quickRanges: QuickRange[] = [
-  { label: '本周', value: 'thisWeek' },
-  { label: '上周', value: 'lastWeek' },
-  { label: '本月', value: 'thisMonth' },
-  { label: '上月', value: 'lastMonth' }
-]
-
-const avgHours: ComputedRef<string> = computed(() => {
-  const days: number = (analysisData.value.byDate || []).length
-  return days > 0 ? (analysisData.value.totalHours / days).toFixed(1) : '0'
-})
-
+const avgHours: ComputedRef<string> = computed(() => { const days = (analysisData.value.byDate || []).length; return days > 0 ? (analysisData.value.totalHours / days).toFixed(1) : '0' })
 const filteredEfforts: ComputedRef<TimelogEffort[]> = computed(() => {
   if (!analysisData.value.efforts) return []
-  const keyword: string = tableSearch.value.toLowerCase()
+  const keyword = tableSearch.value.toLowerCase()
   if (!keyword) return analysisData.value.efforts
-  return analysisData.value.efforts.filter((effort: TimelogEffort): boolean => {
-    return (
-      (effort.taskName || '').toLowerCase().includes(keyword) ||
-      (effort.work || '').toLowerCase().includes(keyword) ||
-      (effort.project || '').toLowerCase().includes(keyword) ||
-      (effort.execution || '').toLowerCase().includes(keyword) ||
-      (effort.date || '').includes(keyword) ||
-      String(effort.taskId).includes(keyword)
-    )
-  })
+  return analysisData.value.efforts.filter((effort: TimelogEffort) => (effort.taskName || '').toLowerCase().includes(keyword) || (effort.work || '').toLowerCase().includes(keyword) || (effort.project || '').toLowerCase().includes(keyword))
 })
 
 const setQuickRange = (range: string): void => {
-  selectedRange.value = range
-  const today: Date = new Date()
-  let from: Date, to: Date
-
+  selectedRange.value = range; const today = new Date(); let from: Date, to: Date
   switch (range) {
-    case 'thisWeek': {
-      const day: number = today.getDay() || 7
-      from = new Date(today)
-      from.setDate(today.getDate() - day + 1)
-      to = new Date(from)
-      to.setDate(from.getDate() + 6)
-      break
-    }
-    case 'lastWeek': {
-      const day: number = today.getDay() || 7
-      from = new Date(today)
-      from.setDate(today.getDate() - day - 6)
-      to = new Date(from)
-      to.setDate(from.getDate() + 6)
-      break
-    }
-    case 'thisMonth': {
-      from = new Date(today.getFullYear(), today.getMonth(), 1)
-      to = today
-      break
-    }
-    case 'lastMonth': {
-      from = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-      to = new Date(today.getFullYear(), today.getMonth(), 0)
-      break
-    }
-    default:
-      return
+    case 'thisWeek': { const d = today.getDay() || 7; from = new Date(today); from.setDate(today.getDate() - d + 1); to = new Date(from); to.setDate(from.getDate() + 6); break }
+    case 'lastWeek': { const d = today.getDay() || 7; from = new Date(today); from.setDate(today.getDate() - d - 6); to = new Date(from); to.setDate(from.getDate() + 6); break }
+    case 'thisMonth': { from = new Date(today.getFullYear(), today.getMonth(), 1); to = today; break }
+    case 'lastMonth': { from = new Date(today.getFullYear(), today.getMonth() - 1, 1); to = new Date(today.getFullYear(), today.getMonth(), 0); break }
+    default: return
   }
-
-  filters.value.dateFrom = formatDateISO(from)
-  filters.value.dateTo = formatDateISO(to)
+  filters.value.dateFrom = from.toISOString().split('T')[0]; filters.value.dateTo = to.toISOString().split('T')[0]
 }
 
-const formatDateISO = (date: Date): string => {
-  return date.toISOString().split('T')[0]
+const queryTimelog = async (): Promise<void> => {
+  if (!globalSelection.product) { ElMessage.warning('请先在顶部选择产品'); return }
+  if (!filters.value.dateFrom || !filters.value.dateTo) { ElMessage.warning('请选择时间范围'); return }
+  loading.value = true
+  try {
+    const dashRes = await getTimelogDashboard({ productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
+    const effortRes = await getTimelogEfforts({ productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
+    analysisData.value = { ...dashRes.data, efforts: effortRes.data }; showResult.value = true
+    await nextTick(); renderCharts()
+  } catch (error) { console.error('查询工时统计失败:', error); ElMessage.error('查询失败') } finally { loading.value = false }
 }
+
+const renderCharts = (): void => { renderDailyChart(); renderProjectChart(); renderTypeChart() }
+const getColor = (i: number): string => ['#4F6BF6', '#22C55E', '#F59E0B', '#EF4444', '#6B7280', '#8B5CF6', '#EC4899', '#14B8A6'][i % 8]
+
+const renderDailyChart = (): void => {
+  if (chartInstances.value.dailyChart) chartInstances.value.dailyChart.destroy()
+  if (!dailyChart.value) return
+  chartInstances.value.dailyChart = new Chart(dailyChart.value.getContext('2d') as CanvasRenderingContext2D, {
+    type: 'bar', data: { labels: analysisData.value.byDate.map(d => d.date), datasets: [{ label: '工时', data: analysisData.value.byDate.map(d => parseFloat(d.hours.toFixed(1))), backgroundColor: '#4F6BF6', borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: '小时' } }, x: { ticks: { maxRotation: 45 } } } }
+  })
+}
+
+const renderProjectChart = (): void => {
+  if (chartInstances.value.projectChart) chartInstances.value.projectChart.destroy()
+  if (!projectChart.value) return
+  const items = [...analysisData.value.byProject].sort((a, b) => b.hours - a.hours)
+  chartInstances.value.projectChart = new Chart(projectChart.value.getContext('2d') as CanvasRenderingContext2D, {
+    type: 'bar', data: { labels: items.map(i => i.name), datasets: [{ label: '工时', data: items.map(i => parseFloat(i.hours.toFixed(1))), backgroundColor: items.map((_, idx) => getColor(idx)), borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  })
+}
+
+const renderTypeChart = (): void => {
+  if (chartInstances.value.typeChart) chartInstances.value.typeChart.destroy()
+  if (!typeChart.value) return
+  const items = [...analysisData.value.byType].sort((a, b) => b.hours - a.hours)
+  chartInstances.value.typeChart = new Chart(typeChart.value.getContext('2d') as CanvasRenderingContext2D, {
+    type: 'doughnut', data: { labels: items.map(i => i.name), datasets: [{ data: items.map(i => parseFloat(i.hours.toFixed(1))), backgroundColor: items.map((_, idx) => getColor(idx)), borderWidth: 2, borderColor: '#fff' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { padding: 12, font: { size: 13 } } } } }
+  })
+}
+
+const filterTable = (): void => {}
+const handleSortChange = (sort: SortParams): void => {
+  const { prop, order } = sort; if (!prop) return
+  analysisData.value.efforts.sort((a, b) => { let va = a[prop as keyof TimelogEffort] as string | number; let vb = b[prop as keyof TimelogEffort] as string | number; if (typeof va === 'string') va = va.toLowerCase(); if (typeof vb === 'string') vb = vb.toLowerCase(); return va < vb ? (order === 'ascending' ? -1 : 1) : va > vb ? (order === 'ascending' ? 1 : -1) : 0 })
+}
+const getUserName = (account: string): string => { const user = users.value.find(u => u.account === account); return user ? (user.realname || account) : account }
 
 const onProductChange = async (): Promise<void> => {
-  filters.value.executionId = ''
-  executions.value = []
-  if (globalSelection.product) {
-    try {
-      const response = await getTimelogExecutions({
-        projectId: ''
-      })
-      executions.value = response.data || []
-    } catch (error) {
-      console.error('获取执行列表失败:', error)
-      ElMessage.error('获取执行列表失败')
-    }
-  } else {
-    executions.value = []
-  }
+  filters.value.executionId = ''; executions.value = []
+  if (globalSelection.product) { try { const res = await getTimelogExecutions({ projectId: '' }); executions.value = res.data || [] } catch { console.error('获取执行列表失败') } }
 }
 
-watch(() => globalSelection.product, (newProduct: string | undefined): void => {
+watch(() => globalSelection.product, (newProduct) => {
   if (newProduct) {
     onProductChange()
   } else {
@@ -352,352 +217,133 @@ watch(() => globalSelection.product, (newProduct: string | undefined): void => {
   }
 }, { immediate: true })
 
-const queryTimelog = async (): Promise<void> => {
-  if (!globalSelection.product) {
-    ElMessage.warning('请先在顶部选择产品')
-    return
-  }
-
-  if (!filters.value.dateFrom || !filters.value.dateTo) {
-    ElMessage.warning('请选择时间范围')
-    return
-  }
-
-  const cacheKey: string = `timelog_${globalSelection.product}_${filters.value.executionId}_${filters.value.assignedTo}_${filters.value.dateFrom}_${filters.value.dateTo}`
-  
-  const cachedData: string | null = localStorage.getItem(cacheKey)
-  if (cachedData) {
-    const parsedData: { data: TimelogAnalysis; expiry: number } = JSON.parse(cachedData)
-    if (parsedData.expiry > Date.now()) {
-      analysisData.value = parsedData.data
-      showResult.value = true
-      await nextTick()
-      renderCharts()
-      return
-    }
-  }
-
-  loading.value = true
-
-  try {
-    const dashboardResponse = await getTimelogDashboard({
-      productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined,
-      projectId: undefined,
-      executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined,
-      assignedTo: filters.value.assignedTo,
-      dateFrom: filters.value.dateFrom,
-      dateTo: filters.value.dateTo
-    })
-
-    const effortsResponse = await getTimelogEfforts({
-      productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined,
-      projectId: undefined,
-      executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined,
-      assignedTo: filters.value.assignedTo,
-      dateFrom: filters.value.dateFrom,
-      dateTo: filters.value.dateTo
-    })
-
-    const fullData: TimelogAnalysis = {
-      ...dashboardResponse.data,
-      efforts: effortsResponse.data
-    }
-
-    analysisData.value = fullData
-    showResult.value = true
-    await nextTick()
-    renderCharts()
-
-    const cacheData: { data: TimelogAnalysis; expiry: number } = {
-      data: fullData,
-      expiry: Date.now() + 24 * 60 * 60 * 1000
-    }
-    localStorage.setItem(cacheKey, JSON.stringify(cacheData))
-  } catch (error) {
-    console.error('查询工时统计失败:', error)
-    ElMessage.error('查询失败: ' + ((error as { response?: { data?: { error?: string } }; message?: string })?.response?.data?.error || (error as Error).message))
-  } finally {
-    loading.value = false
-  }
-}
-
-const renderCharts = (): void => {
-  renderDailyChart()
-  renderProjectChart()
-  renderTypeChart()
-}
-
-const renderDailyChart = (): void => {
-  if (chartInstances.value.dailyChart) {
-    chartInstances.value.dailyChart.destroy()
-  }
-
-  if (!dailyChart.value) return
-  const ctx: CanvasRenderingContext2D = dailyChart.value.getContext('2d') as CanvasRenderingContext2D
-  chartInstances.value.dailyChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: analysisData.value.byDate.map((d: TimelogByDate): string => d.date),
-      datasets: [{
-        label: '工时 (小时)',
-        data: analysisData.value.byDate.map((d: TimelogByDate): number => parseFloat(d.hours.toFixed(1))),
-        backgroundColor: '#4e79a7',
-        borderRadius: 3
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx): string => {
-              const d: TimelogByDate = analysisData.value.byDate[ctx.dataIndex]
-              return `${d.hours.toFixed(1)}h (${d.count}条记录)`
-            }
-          }
-        }
-      },
-      scales: {
-        y: { beginAtZero: true, title: { display: true, text: '小时' } },
-        x: { ticks: { maxRotation: 45, minRotation: 0 } }
-      }
-    }
-  })
-}
-
-const renderProjectChart = (): void => {
-  if (chartInstances.value.projectChart) {
-    chartInstances.value.projectChart.destroy()
-  }
-
-  if (!projectChart.value) return
-  const items: TimelogByProject[] = [...analysisData.value.byProject].sort((a: TimelogByProject, b: TimelogByProject): number => b.hours - a.hours)
-  const ctx: CanvasRenderingContext2D = projectChart.value.getContext('2d') as CanvasRenderingContext2D
-  chartInstances.value.projectChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: items.map((i: TimelogByProject): string => i.name),
-      datasets: [{
-        label: '工时 (小时)',
-        data: items.map((i: TimelogByProject): number => parseFloat(i.hours.toFixed(1))),
-        backgroundColor: items.map((_: TimelogByProject, idx: number): string => getColor(idx)),
-        borderRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx): string => {
-              const item: TimelogByProject = items[ctx.dataIndex]
-              return `${ctx.parsed.y}h (${item.count}个任务)`
-            }
-          }
-        }
-      },
-      scales: {
-        y: { beginAtZero: true, title: { display: true, text: '小时' } },
-        x: { ticks: { maxRotation: 45, minRotation: 0 } }
-      }
-    }
-  })
-}
-
-const renderTypeChart = (): void => {
-  if (chartInstances.value.typeChart) {
-    chartInstances.value.typeChart.destroy()
-  }
-
-  if (!typeChart.value) return
-  const items: TimelogByType[] = [...analysisData.value.byType].sort((a: TimelogByType, b: TimelogByType): number => b.hours - a.hours)
-  const ctx: CanvasRenderingContext2D = typeChart.value.getContext('2d') as CanvasRenderingContext2D
-  chartInstances.value.typeChart = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: items.map((i: TimelogByType): string => i.name),
-      datasets: [{
-        data: items.map((i: TimelogByType): number => parseFloat(i.hours.toFixed(1))),
-        backgroundColor: items.map((_: TimelogByType, idx: number): string => getColor(idx)),
-        borderWidth: 2,
-        borderColor: '#fff'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'right',
-          labels: { padding: 12, font: { size: 13 } }
-        },
-        tooltip: {
-          callbacks: {
-            label: (ctx): string => {
-              const item: TimelogByType = items[ctx.dataIndex]
-              const total: number = items.reduce((s: number, i: TimelogByType): number => s + i.hours, 0)
-              const pct: string = total > 0 ? ((item.hours / total) * 100).toFixed(1) : '0'
-              return `${item.name}: ${item.hours.toFixed(1)}h (${pct}%, ${item.count}个任务)`
-            }
-          }
-        }
-      }
-    }
-  })
-}
-
-const getColor = (index: number): string => {
-  const colors: string[] = [
-    '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
-    '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac'
-  ]
-  return colors[index % colors.length]
-}
-
-const filterTable = (): void => {
-}
-
-const handleSortChange = (sort: SortParams): void => {
-  const { prop, order } = sort
-  if (!prop) return
-
-  analysisData.value.efforts.sort((a: TimelogEffort, b: TimelogEffort): number => {
-    let va: string | number = a[prop as keyof TimelogEffort] as string | number
-    let vb: string | number = b[prop as keyof TimelogEffort] as string | number
-    if (typeof va === 'string') va = va.toLowerCase()
-    if (typeof vb === 'string') vb = vb.toLowerCase()
-    if (va < vb) return order === 'ascending' ? -1 : 1
-    if (va > vb) return order === 'ascending' ? 1 : -1
-    return 0
-  })
-}
-
-const getUserName = (account: string): string => {
-  const user: User | undefined = users.value.find((u: User): boolean => u.account === account)
-  return user ? (user.realname || account) : account
-}
-
-onMounted(async (): Promise<void> => {
-  if (globalSelection.product) {
-    onProductChange()
-  }
-  
-  try {
-    const userData = await getUsers()
-    users.value = userData || []
-  } catch (error) {
-    console.error('加载数据失败:', error)
-    ElMessage.error('加载数据失败')
-  }
-  
+onMounted(async () => {
+  if (globalSelection.product) onProductChange()
+  try { users.value = (await getUsers()) || [] } catch { console.error('加载数据失败') }
   setQuickRange('thisMonth')
 })
 </script>
 
 <style scoped>
 .timelog-container {
-  max-width: 1400px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.filters {
-  background: #fff;
+.filter-card {
+  background: var(--color-bg-card);
   padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
 }
 
 .quick-btns {
   display: flex;
   align-items: center;
-  margin-bottom: 15px;
-  gap: 10px;
+  margin-bottom: 16px;
+  gap: 8px;
 }
 
-.quick-btns span {
+.quick-label {
   font-weight: 500;
-  color: #303133;
+  color: var(--color-text-primary);
+  font-size: 13px;
 }
 
-.quick-btns .el-button.active {
-  background-color: #409EFF;
-  color: #fff;
-  border-color: #409EFF;
+.quick-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.quick-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.quick-btn.active {
+  background-color: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border-color: var(--color-primary);
 }
 
 .filter-form {
-  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
-  gap: 15px;
+  gap: 12px;
   align-items: flex-end;
 }
 
 .filter-form .el-form-item {
-  margin-bottom: 10px;
+  margin-bottom: 0;
 }
 
 .summary-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 15px;
-  margin-bottom: 20px;
+  gap: 16px;
 }
 
-.summary-card {
+.stat-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  padding: 20px 24px;
   text-align: center;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.card-value {
-  font-size: 28px;
+.stat-value {
+  font-size: 32px;
   font-weight: 700;
-  color: #409EFF;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  font-family: var(--font-heading);
 }
 
-.card-label {
+.stat-value.primary { color: var(--color-primary); }
+.stat-value.success { color: var(--color-success); }
+.stat-value.warning { color: var(--color-warning); }
+.stat-value.danger { color: var(--color-danger); }
+
+.stat-label {
   font-size: 13px;
-  color: #606266;
+  color: var(--color-text-secondary);
 }
 
 .charts-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 16px;
 }
 
 .chart-card {
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
 }
 
 .chart-card.full-width {
   grid-column: 1 / -1;
 }
 
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 12px;
 }
 
 .chart-wrapper {
-  height: 300px;
+  height: 260px;
   position: relative;
-}
-
-.data-table {
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
 }
 
 .table-header {
@@ -708,42 +354,23 @@ onMounted(async (): Promise<void> => {
 }
 
 .table-count {
-  color: #909399;
-  font-size: 14px;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
 }
 
 .empty-state {
   text-align: center;
   padding: 60px 20px;
-  color: #909399;
+  color: var(--color-text-tertiary);
 }
 
-
-
-/* 响应式设计 */
 @media (max-width: 1200px) {
-  .summary-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .charts-container {
-    grid-template-columns: 1fr;
-  }
+  .summary-cards { grid-template-columns: repeat(2, 1fr); }
+  .charts-container { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
-  .summary-cards {
-    grid-template-columns: 1fr;
-  }
-  
-  .filter-form {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .filter-form .el-form-item {
-    margin-right: 0;
-    margin-bottom: 10px;
-  }
+  .summary-cards { grid-template-columns: 1fr; }
+  .filter-form { flex-direction: column; align-items: flex-start; }
 }
 </style>
