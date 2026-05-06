@@ -1,7 +1,6 @@
 <template>
   <div class="page-container">
-    <!-- 筛选器 -->
-    <el-card class="filter-card">
+    <div class="filter-card">
       <el-form :inline="true" :model="filterForm" class="filter-form">
         <el-form-item label="指派人">
           <el-select
@@ -9,7 +8,7 @@
             placeholder="请选择或输入指派人"
             clearable
             filterable
-            style="width: 180px"
+            style="width: 160px"
           >
             <el-option
               v-for="item in assignedToOptions"
@@ -41,15 +40,7 @@
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
-            style="width: 300px"
-          />
-        </el-form-item>
-        <el-form-item label="具体日期">
-          <el-date-picker
-            v-model="filterForm.specificDate"
-            type="date"
-            placeholder="选择日期"
-            style="width: 180px"
+            style="width: 240px"
           />
         </el-form-item>
         <el-form-item>
@@ -59,27 +50,16 @@
           <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
-    <!-- 数据表格 -->
-    <el-card class="table-card">
+    <div class="table-card">
       <div class="table-header">
         <span v-if="selectedBugs.length > 0">已选择 {{ selectedBugs.length }} 个Bug</span>
         <div class="header-actions">
-          <el-button 
-            type="primary" 
-            size="small" 
-            @click="handleViewDetails" 
-            :disabled="selectedBugs.length === 0"
-          >
+          <el-button type="primary" size="small" @click="handleViewDetails" :disabled="selectedBugs.length === 0">
             查看详情
           </el-button>
-          <el-button 
-            type="success" 
-            size="small" 
-            @click="handleExport" 
-            :disabled="selectedBugs.length === 0"
-          >
+          <el-button type="success" size="small" @click="handleExport" :disabled="selectedBugs.length === 0">
             导出
           </el-button>
         </div>
@@ -97,7 +77,7 @@
         <el-table-column prop="id" label="ID" width="80" align="center" />
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <a href="javascript:void(0)" @click="openZentaoLink(`https://zentao.example.com/bug-view-${row.id}.html`)" class="bug-title" show-overflow-tooltip>
+            <a href="javascript:void(0)" @click="openZentaoLink(`https://zentao.example.com/bug-view-${row.id}.html`)" class="bug-title">
               {{ row.title }}
             </a>
           </template>
@@ -111,12 +91,12 @@
         </el-table-column>
         <el-table-column prop="severity" label="严重程度" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="getSeverityType(row.severity)" effect="dark">
+            <el-tag :type="getSeverityType(row.severity)">
               {{ row.severity }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="assignedTo" label="指派人" width="120" align="center">
+        <el-table-column prop="assignedTo" label="指派人" width="100" align="center">
           <template #default="{ row }">
             {{ row.assignedTo?.realname || row.assignedTo?.account || row.assignedTo || '-' }}
           </template>
@@ -126,21 +106,15 @@
             {{ formatDate(row.openedDate) }}
           </template>
         </el-table-column>
-        <el-table-column label="停留时长" width="120" align="center">
+        <el-table-column label="操作" width="80" align="center">
           <template #default="{ row }">
-            {{ calculateDuration(row.openedDate) }} 小时
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" align="center">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleViewDetail(row)">
-              查看详情
+            <el-button type="primary" link size="small" @click="handleViewDetail(row)">
+              查看
             </el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
       <div class="pagination-wrapper">
         <el-pagination
           v-model:current-page="pagination.page"
@@ -152,15 +126,9 @@
           @current-change="handlePageChange"
         />
       </div>
-    </el-card>
+    </div>
 
-    <!-- 详情弹窗 -->
-    <el-dialog
-      v-model="detailDialogVisible"
-      title="Bug详情"
-      width="80%"
-      destroy-on-close
-    >
+    <el-dialog v-model="detailDialogVisible" title="Bug详情" width="80%" destroy-on-close>
       <div v-if="currentBug" class="bug-detail">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="ID">{{ currentBug.id }}</el-descriptions-item>
@@ -185,13 +153,8 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
-import {
-  getBugs,
-  getBugStatusOptions,
-  getUsers
-} from '@/api/zentao'
+import { getBugs, getBugStatusOptions, getUsers } from '@/api/zentao'
 import type { Bug, User, SelectOption } from '@/types/api'
-
 import * as runtime from '@wailsjs/runtime/runtime'
 
 interface GlobalSelection {
@@ -224,11 +187,9 @@ const filterForm = reactive<FilterForm>({
 
 const statusOptions = ref<SelectOption[]>(getBugStatusOptions())
 const userOptions = ref<User[]>([])
-
 const bugList = ref<Bug[]>([])
 const loading = ref<boolean>(false)
 const selectedBugs = ref<Bug[]>([])
-
 const detailDialogVisible = ref<boolean>(false)
 const currentBug = ref<Bug | null>(null)
 
@@ -258,17 +219,9 @@ const filteredBugList = computed(() => {
       if (!assigned) return false
       const account = typeof assigned === 'object' ? assigned.account : assigned
       const realname = typeof assigned === 'object' ? assigned.realname : assigned
-      if (account !== filterForm.assignedTo && realname !== filterForm.assignedTo) {
-        return false
-      }
+      if (account !== filterForm.assignedTo && realname !== filterForm.assignedTo) return false
     }
-    
-    if (filterForm.status) {
-      if (bug.status !== filterForm.status) {
-        return false
-      }
-    }
-    
+    if (filterForm.status && bug.status !== filterForm.status) return false
     return true
   })
 })
@@ -328,18 +281,14 @@ const handleReset = (): void => {
 }
 
 const handleSizeChange = (size: number): void => {
-  if (!globalSelection.product) {
-    return
-  }
+  if (!globalSelection.product) return
   pagination.pageSize = size
   pagination.page = 1
   fetchBugs()
 }
 
 const handlePageChange = (page: number): void => {
-  if (!globalSelection.product) {
-    return
-  }
+  if (!globalSelection.product) return
   pagination.page = page
   fetchBugs()
 }
@@ -389,7 +338,7 @@ const getSeverityType = (severity: number): string => {
 }
 
 const formatDate = (dateStr: string): string => {
-  if (!dateStr) return '-' 
+  if (!dateStr) return '-'
   const date = new Date(dateStr)
   return date.toLocaleString('zh-CN', {
     year: 'numeric',
@@ -398,14 +347,6 @@ const formatDate = (dateStr: string): string => {
     hour: '2-digit',
     minute: '2-digit'
   })
-}
-
-const calculateDuration = (openedDate: string): string => {
-  if (!openedDate) return '-' 
-  const openTime = new Date(openedDate).getTime()
-  const now = new Date().getTime()
-  const durationHours = (now - openTime) / (1000 * 60 * 60)
-  return durationHours.toFixed(1)
 }
 
 const handleSelect = (selection: Bug[], _row: Bug): void => {
@@ -491,141 +432,30 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 页面特定样式 */
-.page-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  height: 100%;
-  overflow: hidden;
-}
-
-.filter-card {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-}
-
-.filter-card:hover {
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.12);
-}
-
-.filter-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: end;
-  padding: 16px 0;
-}
-
-.table-card {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.table-card:hover {
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.12);
-}
-
-.table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f2f5;
-  background-color: #fafafa;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-:deep(.el-table) {
-  border-radius: 0;
-  flex: 1;
-  overflow: auto;
-}
-
-:deep(.el-table th) {
-  background-color: #fafafa !important;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-:deep(.el-table tr:hover) {
-  background-color: #f5f7fa !important;
-}
-
-:deep(.el-table__row) {
-  transition: all 0.2s ease;
-}
-
-.pagination-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 16px 20px;
-  border-top: 1px solid #f0f2f5;
-  background-color: #fafafa;
-}
-
-.bug-detail {
-  line-height: 1.6;
-  padding: 16px;
-}
-
-.bug-detail .el-descriptions__content {
-  word-break: break-word;
-  line-height: 1.8;
-}
-
-.bug-detail .el-descriptions__label {
-  font-weight: 600;
-  color: #2c3e50;
-}
-
 .bug-title {
-  color: #409eff;
+  color: var(--color-primary);
   text-decoration: none;
   cursor: pointer;
+  transition: color var(--transition-fast);
 }
 
 .bug-title:hover {
   text-decoration: underline;
+  color: var(--color-primary-hover);
 }
 
-/* 响应式调整 */
-@media screen and (max-width: 768px) {
-  .filter-form {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .filter-form .el-form-item {
-    margin-right: 0 !important;
-  }
-  
-  .table-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  
-  .header-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  .pagination-wrapper {
-    justify-content: center;
-  }
+.bug-detail {
+  line-height: 1.6;
+  padding: 8px;
+}
+
+.bug-detail :deep(.el-descriptions__content) {
+  word-break: break-word;
+  line-height: 1.8;
+}
+
+.bug-detail :deep(.el-descriptions__label) {
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
 </style>

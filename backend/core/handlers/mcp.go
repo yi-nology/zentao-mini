@@ -4,11 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"sync"
+
+	"github.com/gin-gonic/gin"
 )
 
 // MCPHandler 处理MCP协议相关请求
+// 支持两种模式：stdio（标准输入输出）和 HTTP
 type MCPHandler struct {
 	productHandler  *ProductHandler
 	projectHandler  *ProjectHandler
@@ -48,13 +52,13 @@ func NewMCPHandler(
 	}
 }
 
-// Start 启动MCP服务
+// Start 启动MCP服务（stdio模式）
 func (h *MCPHandler) Start() {
-	go h.handleRequests()
+	go h.handleStdioRequests()
 }
 
-// handleRequests 处理MCP请求
-func (h *MCPHandler) handleRequests() {
+// handleStdioRequests 处理MCP stdio请求
+func (h *MCPHandler) handleStdioRequests() {
 	decoder := json.NewDecoder(h.stdin)
 	encoder := json.NewEncoder(h.stdout)
 
@@ -72,7 +76,7 @@ func (h *MCPHandler) handleRequests() {
 	}
 }
 
-// handleRequest 处理单个MCP请求
+// handleRequest 处理单个MCP请求（stdio模式）
 func (h *MCPHandler) handleRequest(encoder *json.Encoder, request map[string]interface{}) {
 	action, ok := request["action"].(string)
 	if !ok {
@@ -106,85 +110,362 @@ func (h *MCPHandler) handleRequest(encoder *json.Encoder, request map[string]int
 	}
 }
 
-// handleGetProducts 处理获取产品列表请求
+// ============================================
+// HTTP 模式处理方法
+// ============================================
+
+// MCPRequest HTTP MCP 请求结构
+type MCPRequest struct {
+	Action string                 `json:"action" binding:"required"`
+	Params map[string]interface{} `json:"params"`
+}
+
+// MCPResponse HTTP MCP 响应结构
+type MCPResponse struct {
+	Status  string      `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+	Version string      `json:"version,omitempty"`
+}
+
+// HandleMCPAction 处理MCP HTTP请求（统一入口）
+func (h *MCPHandler) HandleMCPAction(c *gin.Context) {
+	var req MCPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, MCPResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Invalid request: %v", err),
+		})
+		return
+	}
+
+	resp := h.processAction(req.Action, req.Params)
+	c.JSON(http.StatusOK, resp)
+}
+
+// HandleMCPActionGet 处理MCP HTTP GET请求（用于简单查询）
+func (h *MCPHandler) HandleMCPActionGet(c *gin.Context) {
+	action := c.Query("action")
+	if action == "" {
+		c.JSON(http.StatusBadRequest, MCPResponse{
+			Status:  "error",
+			Message: "Missing 'action' query parameter",
+		})
+		return
+	}
+
+	// 从查询参数构建 params
+	params := make(map[string]interface{})
+	for _, key := range []string{"productId", "projectId", "executionId", "status", "assignedTo", "dateFrom", "dateTo", "page", "pageSize"} {
+		if val := c.Query(key); val != "" {
+			params[key] = val
+		}
+	}
+
+	resp := h.processAction(action, params)
+	c.JSON(http.StatusOK, resp)
+}
+
+// processAction 处理MCP action（HTTP模式共用）
+func (h *MCPHandler) processAction(action string, params map[string]interface{}) MCPResponse {
+	switch action {
+	case "ping":
+		return MCPResponse{
+			Status:  "ok",
+			Message: "Pong",
+			Version: "1.0",
+		}
+	case "get_products":
+		return h.processGetProducts(params)
+	case "get_projects":
+		return h.processGetProjects(params)
+	case "get_executions":
+		return h.processGetExecutions(params)
+	case "get_bugs":
+		return h.processGetBugs(params)
+	case "get_stories":
+		return h.processGetStories(params)
+	case "get_tasks":
+		return h.processGetTasks(params)
+	case "get_users":
+		return h.processGetUsers(params)
+	case "get_timelog":
+		return h.processGetTimelog(params)
+	default:
+		return MCPResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Unknown action: %s", action),
+		}
+	}
+}
+
+// ============================================
+// 具体 action 处理方法
+// ============================================
+
+func (h *MCPHandler) processGetProducts(params map[string]interface{}) MCPResponse {
+	result, err := h.productHandler.GetProductsHTTP()
+	if err != nil {
+		return MCPResponse{Status: "error", Message: err.Error()}
+	}
+	return MCPResponse{Status: "ok", Message: "Products retrieved successfully", Data: result}
+}
+
+func (h *MCPHandler) processGetProjects(params map[string]interface{}) MCPResponse {
+	productId := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	result, err := h.projectHandler.GetProjectsHTTP(productId)
+	if err != nil {
+		return MCPResponse{Status: "error", Message: err.Error()}
+	}
+	return MCPResponse{Status: "ok", Message: "Projects retrieved successfully", Data: result}
+}
+
+func (h *MCPHandler) processGetExecutions(params map[string]interface{}) MCPResponse {
+	projectId := ""
+	productId := ""
+	if v, ok := params["projectId"]; ok {
+		projectId = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	result, err := h.executionHandler.GetExecutionsHTTP(projectId, productId)
+	if err != nil {
+		return MCPResponse{Status: "error", Message: err.Error()}
+	}
+	return MCPResponse{Status: "ok", Message: "Executions retrieved successfully", Data: result}
+}
+
+func (h *MCPHandler) processGetBugs(params map[string]interface{}) MCPResponse {
+	productId := ""
+	status := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["status"]; ok {
+		status = fmt.Sprintf("%v", v)
+	}
+	result, err := h.bugHandler.GetBugsHTTP(productId, status)
+	if err != nil {
+		return MCPResponse{Status: "error", Message: err.Error()}
+	}
+	return MCPResponse{Status: "ok", Message: "Bugs retrieved successfully", Data: result}
+}
+
+func (h *MCPHandler) processGetStories(params map[string]interface{}) MCPResponse {
+	productId := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	result, err := h.storyHandler.GetStoriesHTTP(productId)
+	if err != nil {
+		return MCPResponse{Status: "error", Message: err.Error()}
+	}
+	return MCPResponse{Status: "ok", Message: "Stories retrieved successfully", Data: result}
+}
+
+func (h *MCPHandler) processGetTasks(params map[string]interface{}) MCPResponse {
+	productId := ""
+	executionId := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["executionId"]; ok {
+		executionId = fmt.Sprintf("%v", v)
+	}
+	result, err := h.taskHandler.GetTasksHTTP(productId, executionId)
+	if err != nil {
+		return MCPResponse{Status: "error", Message: err.Error()}
+	}
+	return MCPResponse{Status: "ok", Message: "Tasks retrieved successfully", Data: result}
+}
+
+func (h *MCPHandler) processGetUsers(params map[string]interface{}) MCPResponse {
+	result, err := h.userHandler.GetUsersHTTP()
+	if err != nil {
+		return MCPResponse{Status: "error", Message: err.Error()}
+	}
+	return MCPResponse{Status: "ok", Message: "Users retrieved successfully", Data: result}
+}
+
+func (h *MCPHandler) processGetTimelog(params map[string]interface{}) MCPResponse {
+	productId := ""
+	dateFrom := ""
+	dateTo := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["dateFrom"]; ok {
+		dateFrom = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["dateTo"]; ok {
+		dateTo = fmt.Sprintf("%v", v)
+	}
+	result, err := h.timelogHandler.GetTimelogHTTP(productId, dateFrom, dateTo)
+	if err != nil {
+		return MCPResponse{Status: "error", Message: err.Error()}
+	}
+	return MCPResponse{Status: "ok", Message: "Timelog retrieved successfully", Data: result}
+}
+
+// ============================================
+// stdio 模式具体处理方法
+// ============================================
+
 func (h *MCPHandler) handleGetProducts(encoder *json.Encoder, params map[string]interface{}) {
-	// 这里需要实现具体的处理逻辑
-	// 由于我们没有gin.Context，需要创建一个模拟的上下文
-	// 或者修改现有的处理器方法，使其不依赖于gin.Context
+	result, err := h.productHandler.GetProductsHTTP()
+	if err != nil {
+		h.sendErrorResponse(encoder, err.Error())
+		return
+	}
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Products retrieved successfully",
-		"data": []interface{}{},
+		"data":    result,
 	})
 }
 
-// handleGetProjects 处理获取项目列表请求
 func (h *MCPHandler) handleGetProjects(encoder *json.Encoder, params map[string]interface{}) {
+	productId := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	result, err := h.projectHandler.GetProjectsHTTP(productId)
+	if err != nil {
+		h.sendErrorResponse(encoder, err.Error())
+		return
+	}
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Projects retrieved successfully",
-		"data": []interface{}{},
+		"data":    result,
 	})
 }
 
-// handleGetExecutions 处理获取执行/迭代列表请求
 func (h *MCPHandler) handleGetExecutions(encoder *json.Encoder, params map[string]interface{}) {
+	projectId := ""
+	productId := ""
+	if v, ok := params["projectId"]; ok {
+		projectId = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	result, err := h.executionHandler.GetExecutionsHTTP(projectId, productId)
+	if err != nil {
+		h.sendErrorResponse(encoder, err.Error())
+		return
+	}
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Executions retrieved successfully",
-		"data": []interface{}{},
+		"data":    result,
 	})
 }
 
-// handleGetBugs 处理获取Bug列表请求
 func (h *MCPHandler) handleGetBugs(encoder *json.Encoder, params map[string]interface{}) {
+	productId := ""
+	status := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["status"]; ok {
+		status = fmt.Sprintf("%v", v)
+	}
+	result, err := h.bugHandler.GetBugsHTTP(productId, status)
+	if err != nil {
+		h.sendErrorResponse(encoder, err.Error())
+		return
+	}
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Bugs retrieved successfully",
-		"data": []interface{}{},
+		"data":    result,
 	})
 }
 
-// handleGetStories 处理获取需求列表请求
 func (h *MCPHandler) handleGetStories(encoder *json.Encoder, params map[string]interface{}) {
+	productId := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	result, err := h.storyHandler.GetStoriesHTTP(productId)
+	if err != nil {
+		h.sendErrorResponse(encoder, err.Error())
+		return
+	}
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Stories retrieved successfully",
-		"data": []interface{}{},
+		"data":    result,
 	})
 }
 
-// handleGetTasks 处理获取任务列表请求
 func (h *MCPHandler) handleGetTasks(encoder *json.Encoder, params map[string]interface{}) {
+	productId := ""
+	executionId := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["executionId"]; ok {
+		executionId = fmt.Sprintf("%v", v)
+	}
+	result, err := h.taskHandler.GetTasksHTTP(productId, executionId)
+	if err != nil {
+		h.sendErrorResponse(encoder, err.Error())
+		return
+	}
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Tasks retrieved successfully",
-		"data": []interface{}{},
+		"data":    result,
 	})
 }
 
-// handleGetUsers 处理获取用户列表请求
 func (h *MCPHandler) handleGetUsers(encoder *json.Encoder, params map[string]interface{}) {
+	result, err := h.userHandler.GetUsersHTTP()
+	if err != nil {
+		h.sendErrorResponse(encoder, err.Error())
+		return
+	}
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Users retrieved successfully",
-		"data": []interface{}{},
+		"data":    result,
 	})
 }
 
-// handleGetTimelog 处理获取工时数据请求
 func (h *MCPHandler) handleGetTimelog(encoder *json.Encoder, params map[string]interface{}) {
+	productId := ""
+	dateFrom := ""
+	dateTo := ""
+	if v, ok := params["productId"]; ok {
+		productId = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["dateFrom"]; ok {
+		dateFrom = fmt.Sprintf("%v", v)
+	}
+	if v, ok := params["dateTo"]; ok {
+		dateTo = fmt.Sprintf("%v", v)
+	}
+	result, err := h.timelogHandler.GetTimelogHTTP(productId, dateFrom, dateTo)
+	if err != nil {
+		h.sendErrorResponse(encoder, err.Error())
+		return
+	}
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Timelog retrieved successfully",
-		"data": []interface{}{},
+		"data":    result,
 	})
 }
 
-// handlePing 处理ping请求
 func (h *MCPHandler) handlePing(encoder *json.Encoder) {
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "ok",
+		"status":  "ok",
 		"message": "Pong",
 		"version": "1.0",
 	})
@@ -203,7 +484,7 @@ func (h *MCPHandler) sendResponse(encoder *json.Encoder, data map[string]interfa
 // sendErrorResponse 发送错误响应
 func (h *MCPHandler) sendErrorResponse(encoder *json.Encoder, errorMsg string) {
 	h.sendResponse(encoder, map[string]interface{}{
-		"status": "error",
+		"status":  "error",
 		"message": errorMsg,
 	})
 }

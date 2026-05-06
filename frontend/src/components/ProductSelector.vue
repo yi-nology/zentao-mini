@@ -55,8 +55,8 @@ const emit = defineEmits<{
 
 const productOptions = ref<Product[]>([])
 const projectOptions = ref<Project[]>([])
-const selectedProduct = ref<string>('')
-const selectedProject = ref<string>('')
+const selectedProduct = ref<number | string>('')
+const selectedProject = ref<number | string>('')
 
 const fetchProducts = async (): Promise<void> => {
   try {
@@ -78,37 +78,42 @@ const fetchProjects = async (productId: string | number): Promise<void> => {
 }
 
 const handleProductChange = async (productId: string | number): Promise<void> => {
-  selectedProduct.value = String(productId || '')
+  selectedProduct.value = productId ?? ''
   selectedProject.value = ''
   projectOptions.value = []
-  
+
   if (productId) {
     await fetchProjects(productId)
   }
-  
+
   emitSelection()
 }
 
 const handleProjectChange = (projectId: string | number): void => {
-  selectedProject.value = String(projectId || '')
+  selectedProject.value = projectId ?? ''
   emitSelection()
 }
 
 const emitSelection = (): void => {
   const selection: SelectionValue = {
-    product: selectedProduct.value,
-    project: selectedProject.value
+    product: String(selectedProduct.value),
+    project: String(selectedProject.value)
   }
   emit('update:modelValue', selection)
   emit('change', selection)
 }
 
 watch(() => props.modelValue, (newVal) => {
-  if (newVal && newVal.product !== selectedProduct.value) {
-    selectedProduct.value = newVal.product || ''
-    selectedProject.value = newVal.project || ''
-    if (newVal.product) {
-      fetchProjects(newVal.product)
+  if (newVal) {
+    const newProduct = newVal.product ? Number(newVal.product) || newVal.product : ''
+    const newProject = newVal.project ? Number(newVal.project) || newVal.project : ''
+
+    if (newProduct !== selectedProduct.value) {
+      selectedProduct.value = newProduct
+      selectedProject.value = newProject
+      if (newProduct) {
+        fetchProjects(newProduct)
+      }
     }
   }
 }, { immediate: true, deep: true })
@@ -116,10 +121,12 @@ watch(() => props.modelValue, (newVal) => {
 onMounted(() => {
   fetchProducts()
   if (props.modelValue && props.modelValue.product) {
-    selectedProduct.value = props.modelValue.product
-    selectedProject.value = props.modelValue.project || ''
-    if (props.modelValue.product) {
-      fetchProjects(props.modelValue.product)
+    const productId = Number(props.modelValue.product) || props.modelValue.product
+    const projectId = Number(props.modelValue.project) || props.modelValue.project
+    selectedProduct.value = productId
+    selectedProject.value = projectId
+    if (productId) {
+      fetchProjects(productId)
     }
   }
 })
