@@ -24,7 +24,7 @@ jobs:
       matrix:
         include:
           - name: linux-amd64
-            os: ubuntu-latest
+            os: ubuntu-22.04
             goos: linux
             goarch: amd64
             artifact_suffix: linux-amd64
