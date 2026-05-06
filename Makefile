@@ -35,9 +35,10 @@ backend-app-build:
 	@cd backend && go build -o app cmd/app/main.go
 
 # Wails 相关命令
+WAILS_TAGS ?=
 wails-build:
 	@echo "Building Wails application..."
-	@wails build
+	@wails build -tags "$(WAILS_TAGS)"
 
 wails-run:
 	@echo "Running Wails application..."

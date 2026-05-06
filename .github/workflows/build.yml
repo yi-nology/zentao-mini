@@ -24,7 +24,7 @@ jobs:
       matrix:
         include:
           - name: linux-amd64
-            os: ubuntu-22.04
+            os: ubuntu-latest
             goos: linux
             goarch: amd64
             artifact_suffix: linux-amd64
@@ -103,6 +103,8 @@ jobs:
 
       - name: Build using Makefile
         shell: bash
+        env:
+          WAILS_TAGS: ${{ matrix.goos == 'linux' && 'webkit2_41' || '' }}
         run: |
           set -e
           if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
