@@ -25,7 +25,7 @@ COPY . .
 COPY --from=frontend-builder /app/frontend/dist ./backend/cmd/app/static/
 
 # Build the app binary (single binary serves both frontend + API)
-RUN cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
     go build -ldflags="-s -w" -o /app/zentao-mini ./cmd/app/main.go
 
 # ========================
