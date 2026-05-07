@@ -196,6 +196,38 @@ curl -X POST http://localhost:12345/mcp \
       <h2 class="section-title">HTTP REST API 对接</h2>
       <p class="section-desc">启动 HTTP 服务后，通过 REST API 对接。默认端口 <code>12345</code>。</p>
 
+      <!-- 连接测试 -->
+      <div class="conn-test-card">
+        <div class="conn-test-header">
+          <h3 class="code-title">连接测试</h3>
+          <button class="conn-test-btn" :class="{ 'testing': connTesting, 'success': connStatus === 'ok', 'error': connStatus === 'error' }" @click="testConnection" :disabled="connTesting">
+            <span v-if="connTesting" class="spinner"></span>
+            <span v-else-if="connStatus === 'ok'">✓</span>
+            <span v-else-if="connStatus === 'error'">✗</span>
+            <span>{{ connTesting ? '测试中...' : connStatus === 'ok' ? '已连接' : connStatus === 'error' ? '连接失败' : '测试连接' }}</span>
+          </button>
+        </div>
+        <div v-if="connStatus === 'ok'" class="conn-info">
+          <span class="conn-badge success">服务在线</span>
+          <span class="conn-detail">版本 {{ connVersion }}</span>
+        </div>
+        <div v-if="connStatus === 'error'" class="conn-info">
+          <span class="conn-badge error">离线</span>
+          <span class="conn-detail">{{ connError }}</span>
+        </div>
+      </div>
+
+      <!-- 可用工具列表（从服务端获取） -->
+      <div v-if="tools.length" class="code-card">
+        <h3 class="code-title">可用工具 ({{ tools.length }})</h3>
+        <div class="tools-grid">
+          <div v-for="tool in tools" :key="tool.name" class="tool-chip" @click="showToolDetail(tool)">
+            <code>{{ tool.name }}</code>
+            <span class="tool-chip-desc">{{ tool.description }}</span>
+          </div>
+        </div>
+      </div>
+
       <div class="code-card">
         <h3 class="code-title">启动 HTTP 服务</h3>
         <pre class="code-block"><code>cd backend && go run cmd/server/main.go
@@ -211,7 +243,7 @@ curl -X POST http://localhost:12345/mcp \
           <span class="api-desc">说明</span>
         </div>
         <div v-for="api in apiEndpoints" :key="api.path" class="api-row">
-          <span class="api-method get">{{ api.method }}</span>
+          <span class="api-method" :class="api.method.toLowerCase()">{{ api.method }}</span>
           <span class="api-path"><code>{{ api.path }}</code></span>
           <span class="api-desc">{{ api.desc }}</span>
         </div>
@@ -333,9 +365,58 @@ curl http://localhost:12345/health</code></pre>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const activeTab = ref('claude')
+const connTesting = ref(false)
+const connStatus = ref<string | null>(null)
+const connVersion = ref('')
+const connError = ref('')
+const tools = ref<any[]>([])
+
+const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:12345'
+
+async function testConnection() {
+  connTesting.value = true
+  connError.value = ''
+  try {
+    const res = await fetch(`${baseUrl}/mcp/ping`)
+    const data = await res.json()
+    if (data.status === 'ok') {
+      connStatus.value = 'ok'
+      connVersion.value = data.version || '1.0'
+      // 同时拉取 tools
+      fetchTools()
+    } else {
+      connStatus.value = 'error'
+      connError.value = data.message || 'Unknown error'
+    }
+  } catch (e: any) {
+    connStatus.value = 'error'
+    connError.value = e.message || 'Network error'
+  } finally {
+    connTesting.value = false
+  }
+}
+
+async function fetchTools() {
+  try {
+    const res = await fetch(`${baseUrl}/mcp/tools`)
+    const data = await res.json()
+    if (data.status === 'ok') {
+      tools.value = data.tools || []
+    }
+  } catch {}
+}
+
+function showToolDetail(tool: any) {
+  alert(`${tool.name}\n\n${tool.description}\n\n参数:\n${Object.entries(tool.inputSchema?.properties || {}).map(([k, v]: any) => `  ${k}: ${v.description || v.type}`).join('\n') || '  (无参数)'}`)
+}
+
+// 页面加载时自动测试
+onMounted(() => {
+  testConnection()
+})
 
 const configTabs = [
   { id: 'claude', label: 'Claude Desktop' },
@@ -525,6 +606,8 @@ const apiEndpoints = [
 ]
 
 const mcpEndpoints = [
+  { method: 'GET', path: '/mcp/tools', desc: '列出所有可用工具' },
+  { method: 'GET', path: '/mcp/tools/:name', desc: '获取单个工具详情' },
   { method: 'POST', path: '/mcp', desc: 'MCP 统一入口（推荐）' },
   { method: 'GET', path: '/mcp?action=...', desc: 'MCP 统一入口（GET）' },
   { method: 'POST', path: '/mcp/ping', desc: 'Ping 测试' },
@@ -951,6 +1034,97 @@ curl -s "http://localhost:12345/api/timelog/dashboard?productId=1&dateFrom=2024-
   font-size: 13px;
   line-height: 1.6;
   margin: 0;
+}
+
+/* Connection Test */
+.conn-test-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.conn-test-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.conn-test-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.conn-test-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.conn-test-btn.success { border-color: #22C55E; color: #22C55E; background: #F0FDF4; }
+.conn-test-btn.error { border-color: #EF4444; color: #EF4444; background: #FEF2F2; }
+.conn-test-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid var(--color-border-light);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.conn-info { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.conn-badge {
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 100px;
+}
+.conn-badge.success { background: #F0FDF4; color: #22C55E; }
+.conn-badge.error { background: #FEF2F2; color: #EF4444; }
+.conn-detail { font-size: 12px; color: var(--color-text-tertiary); }
+
+/* Tools Grid */
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tool-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tool-chip:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.tool-chip code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.tool-chip-desc {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  line-height: 1.4;
 }
 
 .code-block.compact { padding: 12px; font-size: 12px; }

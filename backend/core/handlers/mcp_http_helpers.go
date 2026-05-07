@@ -1,5 +1,8 @@
 package handlers
 
+// Deprecated: 此文件中的 HTTP 辅助方法已被 backend/core/mcp/handlers.go 替代
+// 新代码请使用 mcp.MCPServer 直接调用 service 层
+
 import (
 	"chandao-mini/backend/core/dto"
 	"strconv"
