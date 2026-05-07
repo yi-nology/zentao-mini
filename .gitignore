@@ -27,3 +27,9 @@ build-app.sh
 .idea/golinter.xml
 .trae/specs/first-start-config-load/
 
+zentao-mini-app
+zentao-mini-local
+zentao-mini-server
+app
+server
+data/
