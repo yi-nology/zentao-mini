@@ -9,6 +9,7 @@ import (
 	"chandao-mini/backend/core/handlers"
 	"chandao-mini/backend/core/initialization"
 	"chandao-mini/backend/core/logger"
+	"chandao-mini/backend/core/mcp"
 	"chandao-mini/backend/core/metrics"
 	"chandao-mini/backend/core/middleware"
 	"chandao-mini/backend/core/utils"
@@ -71,7 +72,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	// 注册API路由（支持版本控制和向后兼容）
 	registerAPIRoutes(r, initHandler, productHandler, projectHandler, executionHandler, bugHandler, storyHandler, taskHandler, userHandler, timelogHandler)
 
-	// 注册MCP HTTP路由
+	// 注册MCP HTTP路由（使用新的 mcp 包）
 	registerMCPRoutes(r, registry)
 
 	logger.Info("Router setup completed", zap.String("gin_mode", ginMode))
@@ -138,52 +139,18 @@ func registerAPIRoutes(
 }
 
 // registerMCPRoutes 注册MCP HTTP路由
-// 提供统一的 MCP over HTTP 接口，支持 POST 和 GET 两种方式
+// 使用新的 mcp 包，直接依赖 service 层，消除 stdio/HTTP 代码重复
 func registerMCPRoutes(r *gin.Engine, registry *handlers.HandlerRegistry) {
-	mcpHandler := registry.GetMCPHandler()
-
-	// MCP 统一入口 - POST 方式（推荐）
-	// 请求体: {"action": "ping", "params": {}}
-	r.POST("/mcp", mcpHandler.HandleMCPAction)
-
-	// MCP 统一入口 - GET 方式（用于简单查询）
-	// 查询参数: /mcp?action=ping
-	r.GET("/mcp", mcpHandler.HandleMCPActionGet)
-
-	// MCP 便捷端点 - POST
-	r.POST("/mcp/ping", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-	r.POST("/mcp/products", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-	r.POST("/mcp/projects", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-	r.POST("/mcp/executions", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-	r.POST("/mcp/bugs", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-	r.POST("/mcp/stories", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-	r.POST("/mcp/tasks", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-	r.POST("/mcp/users", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-	r.POST("/mcp/timelog", func(c *gin.Context) { mcpHandler.HandleMCPAction(c) })
-
-	// MCP 便捷端点 - GET
-	r.GET("/mcp/ping", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=ping"
-		mcpHandler.HandleMCPActionGet(c)
-	})
-	r.GET("/mcp/products", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_products"
-		mcpHandler.HandleMCPActionGet(c)
-	})
-	r.GET("/mcp/bugs", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_bugs&" + c.Request.URL.RawQuery
-		mcpHandler.HandleMCPActionGet(c)
-	})
-	r.GET("/mcp/stories", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_stories&" + c.Request.URL.RawQuery
-		mcpHandler.HandleMCPActionGet(c)
-	})
-	r.GET("/mcp/tasks", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_tasks&" + c.Request.URL.RawQuery
-		mcpHandler.HandleMCPActionGet(c)
-	})
-	r.GET("/mcp/users", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_users"
-		mcpHandler.HandleMCPActionGet(c)
-	})
+	mcpServer := mcp.NewMCPServerFromServices(
+		registry.GetProductService(),
+		registry.GetProjectService(),
+		registry.GetExecutionService(),
+		registry.GetBugService(),
+		registry.GetStoryService(),
+		registry.GetTaskService(),
+		registry.GetUserService(),
+		registry.GetTimelogService(),
+	)
+	httpTransport := mcp.NewHTTPTransport(mcpServer)
+	httpTransport.RegisterRoutes(r)
 }

@@ -1,5 +1,9 @@
 package handlers
 
+// Deprecated: 此文件中的 MCPHandler 已被 backend/core/mcp/ 包替代
+// 新代码请使用 mcp.MCPServer + mcp.HTTPTransport / mcp.StdioTransport
+// 保留此文件仅为向后兼容
+
 import (
 	"encoding/json"
 	"fmt"
