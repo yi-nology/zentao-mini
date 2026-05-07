@@ -30,18 +30,8 @@ func NewHTTPTransport(server *MCPServer) *HTTPTransport {
 	return &HTTPTransport{server: server}
 }
 
-// HandleAction POST /mcp — 统一 JSON 入口
-func (t *HTTPTransport) HandleAction(c *gin.Context) {
-	var req MCPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, MCPResponse{
-			Status:  "error",
-			Message: "Invalid request: " + err.Error(),
-		})
-		return
-	}
-
-	result, err := t.server.HandleAction(req.Action, req.Params)
+// respond 辅助：统一返回格式
+func respond(c *gin.Context, result interface{}, err error) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, MCPResponse{
 			Status:  "error",
@@ -49,17 +39,39 @@ func (t *HTTPTransport) HandleAction(c *gin.Context) {
 		})
 		return
 	}
-
-	// result 可能已经是包含 status 的 map，直接返回
 	if m, ok := result.(map[string]interface{}); ok {
 		c.JSON(http.StatusOK, m)
 		return
 	}
-
 	c.JSON(http.StatusOK, MCPResponse{
 		Status: "ok",
 		Data:   result,
 	})
+}
+
+// collectQueryParams 从 URL query 收集已知参数
+func collectQueryParams(c *gin.Context) map[string]interface{} {
+	params := make(map[string]interface{})
+	for _, key := range []string{"productId", "projectId", "executionId", "status", "assignedTo", "dateFrom", "dateTo", "page", "pageSize"} {
+		if val := c.Query(key); val != "" {
+			params[key] = val
+		}
+	}
+	return params
+}
+
+// HandleAction POST /mcp — 统一 JSON 入口
+func (t *HTTPTransport) HandleAction(c *gin.Context) {
+	var req MCPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, MCPResponse{
+			Status:  "error",
+			Message: "Invalid request: expecting JSON {\"action\":\"...\",\"params\":{...}}",
+		})
+		return
+	}
+	result, err := t.server.HandleAction(req.Action, req.Params)
+	respond(c, result, err)
 }
 
 // HandleActionGet GET /mcp?action=xxx — 查询参数方式
@@ -68,36 +80,12 @@ func (t *HTTPTransport) HandleActionGet(c *gin.Context) {
 	if action == "" {
 		c.JSON(http.StatusBadRequest, MCPResponse{
 			Status:  "error",
-			Message: "Missing 'action' query parameter",
+			Message: "Usage: GET /mcp?action=<action_name>&param=value  OR  GET /mcp/<action>?param=value",
 		})
 		return
 	}
-
-	params := make(map[string]interface{})
-	for _, key := range []string{"productId", "projectId", "executionId", "status", "assignedTo", "dateFrom", "dateTo", "page", "pageSize"} {
-		if val := c.Query(key); val != "" {
-			params[key] = val
-		}
-	}
-
-	result, err := t.server.HandleAction(action, params)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, MCPResponse{
-			Status:  "error",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	if m, ok := result.(map[string]interface{}); ok {
-		c.JSON(http.StatusOK, m)
-		return
-	}
-
-	c.JSON(http.StatusOK, MCPResponse{
-		Status: "ok",
-		Data:   result,
-	})
+	result, err := t.server.HandleAction(action, collectQueryParams(c))
+	respond(c, result, err)
 }
 
 // HandleListTools GET /mcp/tools — 列出所有可用 tools
@@ -127,49 +115,38 @@ func (t *HTTPTransport) HandleGetTool(c *gin.Context) {
 }
 
 // RegisterRoutes 注册所有 MCP HTTP 路由到 gin.Engine
+// 注意：必须先注册具体路径，再注册通配路径
 func (t *HTTPTransport) RegisterRoutes(r *gin.Engine) {
-	// 统一入口
-	r.POST("/mcp", t.HandleAction)
-	r.GET("/mcp", t.HandleActionGet)
-
-	// Tools 发现端点
+	// ===== Tools 发现端点（最具体，优先匹配） =====
 	r.GET("/mcp/tools", t.HandleListTools)
 	r.GET("/mcp/tools/:name", t.HandleGetTool)
 
-	// 便捷端点 - POST
-	r.POST("/mcp/ping", func(c *gin.Context) { t.HandleAction(c) })
-	r.POST("/mcp/products", func(c *gin.Context) { t.HandleAction(c) })
-	r.POST("/mcp/projects", func(c *gin.Context) { t.HandleAction(c) })
-	r.POST("/mcp/executions", func(c *gin.Context) { t.HandleAction(c) })
-	r.POST("/mcp/bugs", func(c *gin.Context) { t.HandleAction(c) })
-	r.POST("/mcp/stories", func(c *gin.Context) { t.HandleAction(c) })
-	r.POST("/mcp/tasks", func(c *gin.Context) { t.HandleAction(c) })
-	r.POST("/mcp/users", func(c *gin.Context) { t.HandleAction(c) })
-	r.POST("/mcp/timelog", func(c *gin.Context) { t.HandleAction(c) })
+	// ===== 便捷端点：GET /mcp/<action> =====
+	// 这些路径比 /mcp 更具体，Gin 的 radix tree 会优先匹配
+	actions := []string{"ping", "products", "projects", "executions", "bugs", "stories", "tasks", "users", "timelog"}
+	for _, a := range actions {
+		action := a // capture
+		// GET /mcp/<action>?param=value
+		r.GET("/mcp/"+action, func(c *gin.Context) {
+			result, err := t.server.HandleAction(action, collectQueryParams(c))
+			respond(c, result, err)
+		})
+		// POST /mcp/<action> — 也支持 JSON body
+		r.POST("/mcp/"+action, func(c *gin.Context) {
+			var req MCPRequest
+			if err := c.ShouldBindJSON(&req); err == nil && req.Action != "" {
+				// 有 JSON body，用 body 里的 action
+				result, err := t.server.HandleAction(req.Action, req.Params)
+				respond(c, result, err)
+			} else {
+				// 没有 JSON body，用 URL 路径推断 action
+				result, err := t.server.HandleAction(action, collectQueryParams(c))
+				respond(c, result, err)
+			}
+		})
+	}
 
-	// 便捷端点 - GET
-	r.GET("/mcp/ping", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=ping"
-		t.HandleActionGet(c)
-	})
-	r.GET("/mcp/products", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_products"
-		t.HandleActionGet(c)
-	})
-	r.GET("/mcp/bugs", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_bugs&" + c.Request.URL.RawQuery
-		t.HandleActionGet(c)
-	})
-	r.GET("/mcp/stories", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_stories&" + c.Request.URL.RawQuery
-		t.HandleActionGet(c)
-	})
-	r.GET("/mcp/tasks", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_tasks&" + c.Request.URL.RawQuery
-		t.HandleActionGet(c)
-	})
-	r.GET("/mcp/users", func(c *gin.Context) {
-		c.Request.URL.RawQuery = "action=get_users"
-		t.HandleActionGet(c)
-	})
+	// ===== 统一入口（最后注册，优先级最低） =====
+	r.POST("/mcp", t.HandleAction)
+	r.GET("/mcp", t.HandleActionGet)
 }
