@@ -122,7 +122,32 @@ func (r *HandlerRegistry) GetTimelogHandler() *TimelogHandler {
 	return r.timelogHandler
 }
 
+// GetProductService 获取产品 Service
+func (r *HandlerRegistry) GetProductService() *service.ProductService { return r.productService }
+
+// GetProjectService 获取项目 Service
+func (r *HandlerRegistry) GetProjectService() *service.ProjectService { return r.projectService }
+
+// GetExecutionService 获取执行 Service
+func (r *HandlerRegistry) GetExecutionService() *service.ExecutionService { return r.executionService }
+
+// GetBugService 获取Bug Service
+func (r *HandlerRegistry) GetBugService() *service.BugService { return r.bugService }
+
+// GetStoryService 获取需求 Service
+func (r *HandlerRegistry) GetStoryService() *service.StoryService { return r.storyService }
+
+// GetTaskService 获取任务 Service
+func (r *HandlerRegistry) GetTaskService() *service.TaskService { return r.taskService }
+
+// GetUserService 获取用户 Service
+func (r *HandlerRegistry) GetUserService() *service.UserService { return r.userService }
+
+// GetTimelogService 获取工时 Service
+func (r *HandlerRegistry) GetTimelogService() *service.TimelogService { return r.timelogService }
+
 // GetMCPHandler 获取MCP Handler
+// Deprecated: 请使用 mcp.NewHTTPTransport(mcp.NewMCPServerFromServices(...)) 代替
 func (r *HandlerRegistry) GetMCPHandler() *MCPHandler {
 	return r.mcpHandler
 }
