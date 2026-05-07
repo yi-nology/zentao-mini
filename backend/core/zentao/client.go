@@ -226,28 +226,20 @@ func isAuthError(err error) bool {
 	if err == nil {
 		return false
 	}
-
+	// 优先使用 SDK 提供的类型检查
+	if zentao.IsAuthError(err) {
+		return true
+	}
+	// 兜底：匹配错误信息中的认证相关关键字
 	msg := strings.ToLower(err.Error())
 	authMarkers := []string{
 		"状态码: 401",
 		"status code: 401",
-		"status: 401",
 		"unauthorized",
 		"状态码: 403",
 		"status code: 403",
-		"status: 403",
 		"forbidden",
-		"token为空",
-		"invalid token",
-		"expired token",
-		"token expired",
-		"token invalid",
-		"token无效",
-		"token失效",
-		"token过期",
-		"令牌无效",
-		"令牌失效",
-		"令牌过期",
+		"authentication required",
 	}
 	for _, marker := range authMarkers {
 		if strings.Contains(msg, marker) {
@@ -286,8 +278,12 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 	}
 
 	// 先获取第一页，获取总数
-	firstPageResponse, err := c.sdkClient.GetProducts(1, 100)
-	if err != nil {
+	var firstPageResponse *zentao.ProductListResponse
+	if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
+		var err error
+		firstPageResponse, err = client.GetProducts(1, 100)
+		return err
+	}); err != nil {
 		metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
 		return nil, err
 	}
@@ -303,12 +299,16 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 	// 如果有更多页，继续获取
 	if totalPages > 1 {
 		for page := 2; page <= totalPages; page++ {
-			response, err := c.sdkClient.GetProducts(page, pageSize)
-			if err != nil {
+			var pageResponse *zentao.ProductListResponse
+			if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
+				var err error
+				pageResponse, err = client.GetProducts(page, pageSize)
+				return err
+			}); err != nil {
 				metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
 				return nil, err
 			}
-			allProducts = append(allProducts, response.Products...)
+			allProducts = append(allProducts, pageResponse.Products...)
 		}
 	}
 
@@ -332,18 +332,23 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 
 // GetProduct 获取产品详情
 func (c *Client) GetProduct(productID int) (*zentao.Product, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	return c.sdkClient.GetProduct(productID)
+	var result *zentao.Product
+	err := c.withTokenRetry("GetProduct", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetProduct(productID)
+		return err
+	})
+	return result, err
 }
 
 // GetAllProjects 获取所有项目列表
 func (c *Client) GetAllProjects(limit int) ([]zentao.Project, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetAllProjects(1, limit)
+	var response *zentao.ProjectListResponse
+	err := c.withTokenRetry("GetAllProjects", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetAllProjects(1, limit)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -352,10 +357,12 @@ func (c *Client) GetAllProjects(limit int) ([]zentao.Project, error) {
 
 // GetProjectsByProduct 获取产品关联的项目列表
 func (c *Client) GetProjectsByProduct(productID int, page, pageSize int) ([]zentao.Project, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetProjectsByProduct(productID, page, pageSize)
+	var response *zentao.ProjectListResponse
+	err := c.withTokenRetry("GetProjectsByProduct", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetProjectsByProduct(productID, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -364,18 +371,23 @@ func (c *Client) GetProjectsByProduct(productID int, page, pageSize int) ([]zent
 
 // GetProject 获取项目详情
 func (c *Client) GetProject(projectID int) (*zentao.Project, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	return c.sdkClient.GetProject(projectID)
+	var result *zentao.Project
+	err := c.withTokenRetry("GetProject", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetProject(projectID)
+		return err
+	})
+	return result, err
 }
 
 // GetBugs 获取产品的 Bug 列表
 func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetBugs(productID, page, pageSize)
+	var response *zentao.BugListResponse
+	err := c.withTokenRetry("GetBugs", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetBugs(productID, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -384,10 +396,12 @@ func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error
 
 // GetBugsByProject 根据项目 ID 过滤 Bug 列表
 func (c *Client) GetBugsByProject(productID, projectID int, page, pageSize int) ([]zentao.Bug, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetBugsByProject(productID, projectID, page, pageSize)
+	var response *zentao.BugListResponse
+	err := c.withTokenRetry("GetBugsByProject", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetBugsByProject(productID, projectID, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -396,10 +410,12 @@ func (c *Client) GetBugsByProject(productID, projectID int, page, pageSize int) 
 
 // GetBugsByStatus 根据状态过滤 Bug 列表
 func (c *Client) GetBugsByStatus(productID int, status string, page, pageSize int) ([]zentao.Bug, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetBugsByStatus(productID, status, page, pageSize)
+	var response *zentao.BugListResponse
+	err := c.withTokenRetry("GetBugsByStatus", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetBugsByStatus(productID, status, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -408,10 +424,12 @@ func (c *Client) GetBugsByStatus(productID int, status string, page, pageSize in
 
 // SearchBugs 搜索 Bug（支持多条件过滤）
 func (c *Client) SearchBugs(params zentao.BugSearchParams) ([]zentao.Bug, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.SearchBugs(params)
+	var response *zentao.BugListResponse
+	err := c.withTokenRetry("SearchBugs", func(client *zentao.Client) error {
+		var err error
+		response, err = client.SearchBugs(params)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -420,18 +438,23 @@ func (c *Client) SearchBugs(params zentao.BugSearchParams) ([]zentao.Bug, error)
 
 // GetBug 获取 Bug 详情
 func (c *Client) GetBug(bugID int) (*zentao.Bug, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	return c.sdkClient.GetBug(bugID)
+	var result *zentao.Bug
+	err := c.withTokenRetry("GetBug", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetBug(bugID)
+		return err
+	})
+	return result, err
 }
 
 // GetStoriesByProduct 获取产品的需求列表
 func (c *Client) GetStoriesByProduct(productID int, page, pageSize int) ([]zentao.Story, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetStoriesByProduct(productID, page, pageSize)
+	var response *zentao.StoryListResponse
+	err := c.withTokenRetry("GetStoriesByProduct", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetStoriesByProduct(productID, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -440,10 +463,12 @@ func (c *Client) GetStoriesByProduct(productID int, page, pageSize int) ([]zenta
 
 // GetStoriesByProject 获取项目的需求列表
 func (c *Client) GetStoriesByProject(projectID int, page, pageSize int) ([]zentao.Story, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetStoriesByProject(projectID, page, pageSize)
+	var response *zentao.StoryListResponse
+	err := c.withTokenRetry("GetStoriesByProject", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetStoriesByProject(projectID, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -452,10 +477,12 @@ func (c *Client) GetStoriesByProject(projectID int, page, pageSize int) ([]zenta
 
 // GetStoriesByExecution 获取执行的需求列表
 func (c *Client) GetStoriesByExecution(executionID int, page, pageSize int) ([]zentao.Story, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetStoriesByExecution(executionID, page, pageSize)
+	var response *zentao.StoryListResponse
+	err := c.withTokenRetry("GetStoriesByExecution", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetStoriesByExecution(executionID, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -464,18 +491,23 @@ func (c *Client) GetStoriesByExecution(executionID int, page, pageSize int) ([]z
 
 // GetStory 获取需求详情
 func (c *Client) GetStory(storyID int) (*zentao.Story, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	return c.sdkClient.GetStory(storyID)
+	var result *zentao.Story
+	err := c.withTokenRetry("GetStory", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetStory(storyID)
+		return err
+	})
+	return result, err
 }
 
 // GetTasks 获取执行的任务列表
 func (c *Client) GetTasks(executionID int, page, pageSize int) ([]zentao.Task, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetTasks(executionID, page, pageSize)
+	var response *zentao.TaskListResponse
+	err := c.withTokenRetry("GetTasks", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetTasks(executionID, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -484,18 +516,23 @@ func (c *Client) GetTasks(executionID int, page, pageSize int) ([]zentao.Task, e
 
 // GetTask 获取任务详情
 func (c *Client) GetTask(taskID int) (*zentao.Task, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	return c.sdkClient.GetTask(taskID)
+	var result *zentao.Task
+	err := c.withTokenRetry("GetTask", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetTask(taskID)
+		return err
+	})
+	return result, err
 }
 
 // GetExecutions 获取执行列表
 func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Execution, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-	response, err := c.sdkClient.GetExecutions(projectID, page, pageSize)
+	var response *zentao.ExecutionListResponse
+	err := c.withTokenRetry("GetExecutions", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetExecutions(projectID, page, pageSize)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -541,16 +578,16 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 	metrics.RecordCacheMiss("users")
 	startTime := time.Now()
 
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-
 	var allUsers []zentao.User
 	currentPage := 1
 
 	for {
-		response, err := c.sdkClient.GetUsers(currentPage, pageSize)
-		if err != nil {
+		var response *zentao.UserListResponse
+		if err := c.withTokenRetry("GetUsers", func(client *zentao.Client) error {
+			var err error
+			response, err = client.GetUsers(currentPage, pageSize)
+			return err
+		}); err != nil {
 			metrics.RecordZentaoAPIRequest("users", "GET", time.Since(startTime), err)
 			return nil, err
 		}

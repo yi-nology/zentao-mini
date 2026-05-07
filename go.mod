@@ -9,13 +9,12 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.19.0
 	github.com/spf13/viper v1.18.2
-	github.com/wailsapp/wails/v2 v2.12.0
-	github.com/yi-nology/common v0.3.1
+	github.com/wailsapp/wails/v2 v2.11.0
+	github.com/yi-nology/common v0.4.0
 	go.uber.org/zap v1.27.0
 )
 
 require (
-	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
@@ -91,3 +90,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
+// replace github.com/wailsapp/wails/v2 v2.11.0 => /Users/zhangyi/go/pkg/mod

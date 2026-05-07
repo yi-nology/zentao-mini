@@ -52,7 +52,7 @@ type Bug struct {
 	PlanTime      string      `json:"planTime"`
 	OpenedBy      UserRef     `json:"openedBy"`
 	OpenedDate    string      `json:"openedDate"`
-	OpenedBuild   string      `json:"openedBuild"`
+	OpenedBuild   []string    `json:"openedBuild"`
 	AssignedTo    UserRef     `json:"assignedTo"`
 	AssignedDate  string      `json:"assignedDate"`
 	Deadline      interface{} `json:"deadline"`
@@ -71,7 +71,7 @@ type Story struct {
 	ID           int         `json:"id"`
 	Product      int         `json:"product"`
 	Module       int         `json:"module"`
-	Plan         string      `json:"plan"`
+	Plan         int         `json:"plan"`
 	Source       string      `json:"source"`
 	Title        string      `json:"title"`
 	Spec         string      `json:"spec"`
