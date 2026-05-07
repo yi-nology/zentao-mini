@@ -20,7 +20,8 @@
         </router-link>
       </nav>
       <div class="sidebar-footer">
-        <span>©2014-2026 <a href="https://murphyyi.com" target="_blank" rel="noopener noreferrer">murphyyi.com</a></span>
+        <span class="version-info">v{{ appVersion }}</span>
+        <span>©2024-2026 <a href="https://murphyyi.com" target="_blank" rel="noopener noreferrer">murphyyi.com</a></span>
       </div>
     </aside>
     <div class="main-area">
@@ -41,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, provide, reactive } from 'vue'
+import { computed, provide, reactive, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
 
@@ -63,6 +64,15 @@ interface MenuItem {
 
 const route = useRoute()
 const globalSelection = reactive<GlobalSelection>({ product: '', project: '' })
+const appVersion = ref('...')
+
+onMounted(async () => {
+  try {
+    const res = await fetch('/api/version')
+    const json = await res.json()
+    if (json.data?.version) appVersion.value = json.data.version
+  } catch { appVersion.value = 'dev' }
+})
 
 const menuItems: MenuItem[] = [
   { path: '/bugs', label: 'Bug 查询', icon: 'M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z' },
@@ -183,6 +193,15 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   font-size: 11px;
   color: var(--color-text-on-dark);
   opacity: 0.5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.version-info {
+  font-family: monospace;
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .sidebar-footer a {
