@@ -122,25 +122,33 @@ func (t *HTTPTransport) RegisterRoutes(r *gin.Engine) {
 	r.GET("/mcp/tools/:name", t.HandleGetTool)
 
 	// ===== 便捷端点：GET /mcp/<action> =====
-	// 这些路径比 /mcp 更具体，Gin 的 radix tree 会优先匹配
-	actions := []string{"ping", "products", "projects", "executions", "bugs", "stories", "tasks", "users", "timelog"}
-	for _, a := range actions {
-		action := a // capture
-		// GET /mcp/<action>?param=value
-		r.GET("/mcp/"+action, func(c *gin.Context) {
-			result, err := t.server.HandleAction(action, collectQueryParams(c))
+	// 路径名 → action 名的映射
+	actionMap := map[string]string{
+		"ping":       "ping",
+		"products":   "get_products",
+		"projects":   "get_projects",
+		"executions": "get_executions",
+		"bugs":       "get_bugs",
+		"stories":    "get_stories",
+		"tasks":      "get_tasks",
+		"users":      "get_users",
+		"timelog":    "get_timelog",
+	}
+	for path, action := range actionMap {
+		act := action // capture
+		// GET /mcp/<path>?param=value
+		r.GET("/mcp/"+path, func(c *gin.Context) {
+			result, err := t.server.HandleAction(act, collectQueryParams(c))
 			respond(c, result, err)
 		})
-		// POST /mcp/<action> — 也支持 JSON body
-		r.POST("/mcp/"+action, func(c *gin.Context) {
+		// POST /mcp/<path> — 支持 JSON body 或无 body
+		r.POST("/mcp/"+path, func(c *gin.Context) {
 			var req MCPRequest
 			if err := c.ShouldBindJSON(&req); err == nil && req.Action != "" {
-				// 有 JSON body，用 body 里的 action
 				result, err := t.server.HandleAction(req.Action, req.Params)
 				respond(c, result, err)
 			} else {
-				// 没有 JSON body，用 URL 路径推断 action
-				result, err := t.server.HandleAction(action, collectQueryParams(c))
+				result, err := t.server.HandleAction(act, collectQueryParams(c))
 				respond(c, result, err)
 			}
 		})
