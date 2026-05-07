@@ -7,6 +7,7 @@ import (
 
 	"chandao-mini/backend/core/errors"
 	"chandao-mini/backend/core/handlers"
+	"chandao-mini/backend/core/version"
 	"chandao-mini/backend/core/initialization"
 	"chandao-mini/backend/core/logger"
 	"chandao-mini/backend/core/mcp"
@@ -64,6 +65,11 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 			"status":  "ok",
 			"message": "chandao-mini backend is running",
 		})
+	})
+
+	// 版本信息接口
+	r.GET("/api/version", func(c *gin.Context) {
+		errors.Success(c, version.Info())
 	})
 
 	// Prometheus metrics端点

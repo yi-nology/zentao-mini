@@ -9,6 +9,39 @@
       <span>禅道 Mini 支持两种 MCP 模式：<strong>stdio（标准输入输出）</strong>和 <strong>HTTP</strong>。AI 工具推荐使用 stdio；Web 应用和远程调用推荐使用 HTTP。</span>
     </div>
 
+    <!-- 版本 & 服务状态 -->
+    <section class="section">
+      <div class="status-card">
+        <div class="status-row">
+          <span class="status-label">版本</span>
+          <span class="status-value version-tag">v{{ versionInfo.version || '...' }}</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">构建时间</span>
+          <span class="status-value">{{ versionInfo.buildTime || '...' }}</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Git Commit</span>
+          <span class="status-value mono">{{ versionInfo.gitCommit ? versionInfo.gitCommit.substring(0, 8) : '...' }}</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Go</span>
+          <span class="status-value">{{ versionInfo.goVersion || '...' }}</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">HTTP 服务</span>
+          <span class="status-value" :class="httpStatusClass">
+            <span class="status-dot"></span>
+            {{ httpStatus }}
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">连接地址</span>
+          <code class="status-value connection-url">{{ connectionUrl }}/mcp</code>
+        </div>
+      </div>
+    </section>
+
     <!-- 协议类型说明 -->
     <section class="section">
       <h2 class="section-title">MCP 模式</h2>
@@ -368,6 +401,36 @@ curl http://localhost:12345/health</code></pre>
 import { ref, onMounted } from 'vue'
 
 const activeTab = ref('claude')
+
+// 版本 & 连接状态
+const versionInfo = ref<Record<string, string>>({})
+const httpStatus = ref('检测中...')
+const httpStatusClass = ref('checking')
+const connectionUrl = ref('')
+
+onMounted(async () => {
+  connectionUrl.value = window.location.origin
+
+  try {
+    const res = await fetch('/api/version')
+    const json = await res.json()
+    if (json.data) versionInfo.value = json.data
+  } catch {}
+
+  try {
+    const res = await fetch('/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ping' })
+    })
+    const json = await res.json()
+    httpStatus.value = json.status === 'ok' ? '在线' : '异常'
+    httpStatusClass.value = json.status === 'ok' ? 'online' : 'error'
+  } catch {
+    httpStatus.value = '离线'
+    httpStatusClass.value = 'offline'
+  }
+})
 const connTesting = ref(false)
 const connStatus = ref<string | null>(null)
 const connVersion = ref('')
@@ -795,6 +858,74 @@ curl -s "http://localhost:12345/api/timelog/dashboard?productId=1&dateFrom=2024-
 .mcp-guide {
   max-width: 960px;
   margin: 0 auto;
+}
+
+/* Status Card */
+.status-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 20px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+}
+
+.status-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-value {
+  font-size: 14px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.status-value.mono {
+  font-family: monospace;
+}
+
+.version-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.status-value.online .status-dot { background: #22c55e; }
+.status-value.checking .status-dot { background: #eab308; }
+.status-value.offline .status-dot { background: #ef4444; }
+.status-value.error .status-dot { background: #ef4444; }
+
+.connection-url {
+  font-size: 13px;
+  background: var(--color-primary-light);
+  padding: 4px 10px;
+  border-radius: 4px;
+  width: fit-content;
+  word-break: break-all;
 }
 
 .page-title {
