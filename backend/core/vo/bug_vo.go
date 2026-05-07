@@ -22,7 +22,7 @@ type BugVO struct {
 	PlanTime      string      `json:"planTime"`      // 计划时间
 	OpenedBy      UserRefVO   `json:"openedBy"`      // 创建人
 	OpenedDate    string      `json:"openedDate"`    // 创建日期
-	OpenedBuild   string      `json:"openedBuild"`   // 创建版本
+	OpenedBuild   []string    `json:"openedBuild"`   // 创建版本
 	AssignedTo    UserRefVO   `json:"assignedTo"`    // 指派给
 	AssignedDate  string      `json:"assignedDate"`  // 指派日期
 	Deadline      interface{} `json:"deadline"`      // 截止日期
