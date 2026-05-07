@@ -67,7 +67,7 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 			query.StartDate,
 			query.EndDate,
 			query.SpecificDate,
-			func(b zentao.Bug) string { return b.OpenedDate },
+			func(b zentao.Bug) string { s, _ := b.OpenedDate.(string); return s },
 		) != nil
 	})
 
