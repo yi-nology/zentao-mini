@@ -6,7 +6,7 @@ type StoryVO struct {
 	ID           int         `json:"id"`           // 需求ID
 	Product      int         `json:"product"`      // 产品ID
 	Module       int         `json:"module"`       // 模块ID
-	Plan         string      `json:"plan"`         // 计划
+	Plan         int         `json:"plan"`         // 计划
 	Source       string      `json:"source"`       // 来源
 	Title        string      `json:"title"`        // 标题
 	Spec         string      `json:"spec"`         // 规格
