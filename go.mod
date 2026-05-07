@@ -10,7 +10,7 @@ require (
 	github.com/prometheus/client_golang v1.19.0
 	github.com/spf13/viper v1.18.2
 	github.com/wailsapp/wails/v2 v2.11.0
-	github.com/yi-nology/common v0.4.0
+	github.com/yi-nology/common v0.4.5
 	go.uber.org/zap v1.27.0
 )
 

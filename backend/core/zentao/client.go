@@ -848,7 +848,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 			// 过滤掉没有消耗工时的任务
 			var filteredTasks []zentao.Task
 			for _, t := range tasksResponse.Tasks {
-				if t.Consumed > 0 {
+				if consumed, ok := t.Consumed.(float64); ok && consumed > 0 {
 					filteredTasks = append(filteredTasks, t)
 				}
 			}
