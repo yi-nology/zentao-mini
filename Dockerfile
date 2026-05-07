@@ -25,8 +25,11 @@ COPY . .
 COPY --from=frontend-builder /app/frontend/dist ./backend/cmd/app/static/
 
 # Build the app binary (single binary serves both frontend + API)
+ARG TARGETARCH
+ARG VERSION=dev
+ARG GIT_COMMIT=unknown
 RUN cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
-    go build -ldflags="-s -w" -o /app/zentao-mini ./cmd/app/main.go
+    go build -ldflags="-s -w -X chandao-mini/backend/core/version.Version=${VERSION} -X chandao-mini/backend/core/version.BuildTime=$(date -u '+%Y-%m-%dT%H:%M:%SZ') -X chandao-mini/backend/core/version.GitCommit=${GIT_COMMIT}" -o /app/zentao-mini ./cmd/app/main.go
 
 # ========================
 # Stage 3: Production
