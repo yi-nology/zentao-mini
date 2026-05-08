@@ -14,8 +14,14 @@ const routes: AppRoute[] = [
   {
     path: '/',
     component: Layout,
-    redirect: '/bugs',
+    redirect: '/dashboard',
     children: [
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('../views/Dashboard.vue'),
+        meta: { title: '仪表盘' }
+      },
       {
         path: 'bugs',
         name: 'Bugs',

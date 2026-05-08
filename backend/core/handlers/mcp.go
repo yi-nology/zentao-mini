@@ -8,9 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"sync"
+
+	"chandao-mini/backend/core/errors"
 
 	"github.com/gin-gonic/gin"
 )
@@ -136,25 +137,23 @@ type MCPResponse struct {
 func (h *MCPHandler) HandleMCPAction(c *gin.Context) {
 	var req MCPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, MCPResponse{
-			Status:  "error",
-			Message: fmt.Sprintf("Invalid request: %v", err),
-		})
+		errors.BadRequest(c, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
 
 	resp := h.processAction(req.Action, req.Params)
-	c.JSON(http.StatusOK, resp)
+	if resp.Status == "error" {
+		errors.ErrorWithCode(c, errors.CodeInternalError, resp.Message)
+		} else {
+		errors.Success(c, resp.Data)
+	}
 }
 
 // HandleMCPActionGet 处理MCP HTTP GET请求（用于简单查询）
 func (h *MCPHandler) HandleMCPActionGet(c *gin.Context) {
 	action := c.Query("action")
 	if action == "" {
-		c.JSON(http.StatusBadRequest, MCPResponse{
-			Status:  "error",
-			Message: "Missing 'action' query parameter",
-		})
+		errors.BadRequest(c, "Missing 'action' query parameter")
 		return
 	}
 
@@ -167,7 +166,11 @@ func (h *MCPHandler) HandleMCPActionGet(c *gin.Context) {
 	}
 
 	resp := h.processAction(action, params)
-	c.JSON(http.StatusOK, resp)
+	if resp.Status == "error" {
+		errors.ErrorWithCode(c, errors.CodeInternalError, resp.Message)
+	} else {
+		errors.Success(c, resp.Data)
+	}
 }
 
 // processAction 处理MCP action（HTTP模式共用）

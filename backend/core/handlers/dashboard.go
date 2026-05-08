@@ -22,7 +22,7 @@ func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 		errors.BadRequest(c, "参数格式错误")
 		return
 	}
-	result, err := h.dashboardService.GetDashboard(query.ProductID)
+	result, err := h.dashboardService.GetDashboardContext(c.Request.Context(), query.ProductID)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return
@@ -37,7 +37,7 @@ func (h *DashboardHandler) GetProjectOverview(c *gin.Context) {
 		errors.BadRequest(c, "参数格式错误")
 		return
 	}
-	result, err := h.dashboardService.GetProjectOverview(query.ProjectID)
+	result, err := h.dashboardService.GetProjectOverviewContext(c.Request.Context(), query.ProjectID)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return
@@ -52,7 +52,7 @@ func (h *DashboardHandler) GetPersonalTimelog(c *gin.Context) {
 		errors.BadRequest(c, "参数格式错误")
 		return
 	}
-	result, err := h.dashboardService.GetPersonalTimelog(query.Account, query.ProductID, query.DateFrom, query.DateTo, query.GroupBy)
+	result, err := h.dashboardService.GetPersonalTimelogContext(c.Request.Context(), query.Account, query.ProductID, query.DateFrom, query.DateTo, query.GroupBy)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return
@@ -71,7 +71,7 @@ func (h *DashboardHandler) Search(c *gin.Context) {
 		errors.Error(c, err)
 		return
 	}
-	result, err := h.dashboardService.Search(query.Keyword, query.ProductID, query.Page, query.PageSize)
+	result, err := h.dashboardService.SearchContext(c.Request.Context(), query.Keyword, query.ProductID, query.Page, query.PageSize)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return

@@ -189,6 +189,66 @@ export interface PaginatedResponse<T> {
   pageSize: number
 }
 
+// Dashboard types
+export interface BugStats {
+  total: number
+  active: number
+  resolved: number
+  closed: number
+  bySeverity: Record<string, number>
+}
+
+export interface StoryStats {
+  total: number
+  draft: number
+  active: number
+  closed: number
+  byStage: Record<string, number>
+}
+
+export interface TaskStats {
+  total: number
+  wait: number
+  doing: number
+  done: number
+  closed: number
+}
+
+export interface ProjectHours {
+  projectId: number
+  projectName: string
+  hours: number
+}
+
+export interface TimelogSummary {
+  totalHours: number
+  thisWeekHours: number
+  byProject: ProjectHours[]
+}
+
+export interface DashboardData {
+  bugs: BugStats
+  stories: StoryStats
+  tasks: TaskStats
+  timelog: TimelogSummary
+  recentBugs: Bug[]
+  recentTasks: Task[]
+}
+
+export interface SearchItem {
+  type: 'bug' | 'story' | 'task'
+  id: number
+  title: string
+  status: string
+  project: string
+  extra?: string
+}
+
+export interface SearchResult {
+  total: number
+  items: SearchItem[]
+}
+
 export interface SelectOption {
   label: string
   value: string | number
