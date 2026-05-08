@@ -28,6 +28,64 @@
       <header class="header">
         <h1 class="header-title">{{ pageTitle }}</h1>
         <div class="header-actions">
+          <div class="search-wrapper" ref="searchWrapperRef">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              class="search-input"
+              type="text"
+              placeholder="搜索 Bug / 需求 / 任务..."
+              v-model="searchKeyword"
+              @focus="onSearchFocus"
+              @keydown.escape="closeSearch"
+            />
+            <!-- Search Results Dropdown -->
+            <div v-if="searchOpen" class="search-dropdown">
+              <div v-if="searchLoading" class="search-loading">搜索中...</div>
+              <div v-else-if="searchItems.length === 0 && searchKeyword.trim()" class="search-empty">未找到相关内容</div>
+              <template v-else>
+                <div
+                  v-for="group in groupedResults"
+                  :key="group.type"
+                  class="search-group"
+                >
+                  <div class="search-group-header">
+                    <span class="search-group-icon" :style="{ backgroundColor: group.color }">{{ group.icon }}</span>
+                    <span class="search-group-label">{{ group.label }}</span>
+                    <span class="search-group-count">{{ group.items.length }}</span>
+                  </div>
+                  <div
+                    v-for="item in group.items"
+                    :key="item.type + '-' + item.id"
+                    class="search-result-item"
+                    @click="navigateTo(item)"
+                  >
+                    <span class="search-item-type" :style="{ backgroundColor: group.color + '20', color: group.color }">
+                      {{ typeLabel(item.type) }} #{{ item.id }}
+                    </span>
+                    <span class="search-item-title">{{ item.title }}</span>
+                    <span class="search-item-status" :class="'status-' + item.status">{{ item.status }}</span>
+                  </div>
+                </div>
+                <!-- Pagination -->
+                <div v-if="searchTotal > searchPageSize" class="search-pagination">
+                  <button
+                    class="search-page-btn"
+                    :disabled="searchPage <= 1"
+                    @click="searchPage--; doSearch()"
+                  >上一页</button>
+                  <span class="search-page-info">{{ searchPage }} / {{ totalPages }}</span>
+                  <button
+                    class="search-page-btn"
+                    :disabled="searchPage >= totalPages"
+                    @click="searchPage++; doSearch()"
+                  >下一页</button>
+                </div>
+              </template>
+            </div>
+          </div>
           <ProductSelector
             :model-value="globalSelection"
             @update:model-value="handleSelectionChange"
@@ -42,9 +100,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, provide, reactive, ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, provide, reactive, ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
+import { search } from '@/api/zentao'
+import type { SearchItem } from '@/types/api'
 
 interface GlobalSelection {
   product: string
@@ -62,9 +122,29 @@ interface MenuItem {
   icon: string
 }
 
+interface ResultGroup {
+  type: string
+  label: string
+  icon: string
+  color: string
+  items: SearchItem[]
+}
+
 const route = useRoute()
+const router = useRouter()
 const globalSelection = reactive<GlobalSelection>({ product: '', project: '' })
 const appVersion = ref('...')
+
+// Search state
+const searchKeyword = ref('')
+const searchOpen = ref(false)
+const searchLoading = ref(false)
+const searchItems = ref<SearchItem[]>([])
+const searchTotal = ref(0)
+const searchPage = ref(1)
+const searchPageSize = 20
+const searchWrapperRef = ref<HTMLElement | null>(null)
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
   try {
@@ -72,7 +152,94 @@ onMounted(async () => {
     const json = await res.json()
     if (json.data?.version) appVersion.value = json.data.version
   } catch { appVersion.value = 'dev' }
+
+  document.addEventListener('click', onDocClick)
 })
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+  if (debounceTimer) clearTimeout(debounceTimer)
+})
+
+const onDocClick = (e: MouseEvent) => {
+  if (searchWrapperRef.value && !searchWrapperRef.value.contains(e.target as Node)) {
+    closeSearch()
+  }
+}
+
+const onSearchFocus = () => {
+  searchOpen.value = true
+}
+
+const closeSearch = () => {
+  searchOpen.value = false
+}
+
+const doSearch = async () => {
+  const kw = searchKeyword.value.trim()
+  if (!kw) {
+    searchItems.value = []
+    searchTotal.value = 0
+    return
+  }
+  searchLoading.value = true
+  searchOpen.value = true
+  try {
+    const productId = globalSelection.product ? Number(globalSelection.product) : undefined
+    const res = await search({
+      keyword: kw,
+      productId,
+      page: searchPage.value,
+      pageSize: searchPageSize
+    })
+    const data = res.data
+    searchItems.value = data.items || []
+    searchTotal.value = data.total || 0
+  } catch {
+    searchItems.value = []
+    searchTotal.value = 0
+  } finally {
+    searchLoading.value = false
+  }
+}
+
+watch(searchKeyword, () => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    searchPage.value = 1
+    doSearch()
+  }, 300)
+})
+
+const totalPages = computed(() => Math.ceil(searchTotal.value / searchPageSize))
+
+const groupedResults = computed<ResultGroup[]>(() => {
+  const groups: ResultGroup[] = [
+    { type: 'bug', label: 'Bug', icon: '🐛', color: '#EF4444', items: [] },
+    { type: 'story', label: '需求', icon: '📋', color: '#4F6BF6', items: [] },
+    { type: 'task', label: '任务', icon: '✅', color: '#22C55E', items: [] }
+  ]
+  const map: Record<string, ResultGroup> = { bug: groups[0], story: groups[1], task: groups[2] }
+  for (const item of searchItems.value) {
+    const g = map[item.type]
+    if (g) g.items.push(item)
+  }
+  return groups.filter(g => g.items.length > 0)
+})
+
+const typeLabel = (type: string) => {
+  const m: Record<string, string> = { bug: 'Bug', story: '需求', task: '任务' }
+  return m[type] || type
+}
+
+const navigateTo = (item: SearchItem) => {
+  const routeMap: Record<string, string> = { bug: '/bugs', story: '/stories', task: '/tasks' }
+  const path = routeMap[item.type]
+  if (path) {
+    router.push({ path, query: { id: String(item.id) } })
+  }
+  closeSearch()
+}
 
 const menuItems: MenuItem[] = [
   { path: '/bugs', label: 'Bug 查询', icon: 'M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z' },
@@ -248,6 +415,188 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   gap: 12px;
 }
 
+/* Search */
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.search-input {
+  width: 260px;
+  height: 34px;
+  padding: 0 12px 0 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg);
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(79, 107, 246, 0.12);
+}
+
+.search-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 480px;
+  max-height: 420px;
+  overflow-y: auto;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  padding: 8px 0;
+}
+
+.search-loading,
+.search-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+}
+
+.search-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.search-group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #fff;
+}
+
+.search-group-count {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.search-result-item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.search-item-type {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.search-item-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-item-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background-color: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.search-item-status.status-active,
+.search-item-status.status-doing {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.search-item-status.status-resolved,
+.search-item-status.status-done,
+.search-item-status.status-closed {
+  background-color: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.search-item-status.status-draft,
+.search-item-status.status-wait {
+  background-color: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.search-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.search-page-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.search-page-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.search-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.search-page-info {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
 /* Content */
 .main {
   flex: 1;
@@ -277,6 +626,14 @@ provide<GlobalSelection>('globalSelection', globalSelection)
 
   .header {
     padding: 0 16px;
+  }
+
+  .search-input {
+    width: 160px;
+  }
+
+  .search-dropdown {
+    width: 320px;
   }
 }
 </style>

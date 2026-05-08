@@ -1,6 +1,7 @@
 package zentao
 
 import (
+	"strconv"
 	"sync"
 	"time"
 )
@@ -198,31 +199,31 @@ func (b *CacheKeyBuilder) Build(prefix string, parts ...string) string {
 
 // ProductCacheKey 产品缓存键
 func (b *CacheKeyBuilder) ProductCacheKey(productID int) string {
-	return b.Build("product", string(rune(productID)))
+	return b.Build("product", strconv.Itoa(productID))
 }
 
 // ProjectCacheKey 项目缓存键
 func (b *CacheKeyBuilder) ProjectCacheKey(projectID int) string {
-	return b.Build("project", string(rune(projectID)))
+	return b.Build("project", strconv.Itoa(projectID))
 }
 
 // BugsCacheKey Bug缓存键
 func (b *CacheKeyBuilder) BugsCacheKey(productID int, filters ...string) string {
-	parts := []string{"bugs", string(rune(productID))}
+	parts := []string{"bugs", strconv.Itoa(productID)}
 	parts = append(parts, filters...)
 	return b.Build(parts[0], parts[1:]...)
 }
 
 // StoriesCacheKey 需求缓存键
 func (b *CacheKeyBuilder) StoriesCacheKey(productID int, filters ...string) string {
-	parts := []string{"stories", string(rune(productID))}
+	parts := []string{"stories", strconv.Itoa(productID)}
 	parts = append(parts, filters...)
 	return b.Build(parts[0], parts[1:]...)
 }
 
 // TasksCacheKey 任务缓存键
 func (b *CacheKeyBuilder) TasksCacheKey(executionID int, filters ...string) string {
-	parts := []string{"tasks", string(rune(executionID))}
+	parts := []string{"tasks", strconv.Itoa(executionID)}
 	parts = append(parts, filters...)
 	return b.Build(parts[0], parts[1:]...)
 }

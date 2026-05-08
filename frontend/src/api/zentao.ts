@@ -12,7 +12,9 @@ import type {
   TimelogEffort,
   SelectOption,
   PaginatedResponse,
-  ApiResponse
+  ApiResponse,
+  DashboardData,
+  SearchResult
 } from '@/types/api'
 import api from './api'
 
@@ -251,6 +253,23 @@ export const testZentaoConnection = (): AxiosPromise<unknown> => {
   return api.get('/users/current')
 }
 
+export const getDashboard = (productId: number): AxiosPromise<ApiResponse<DashboardData>> => {
+  return api.get('/dashboard', { params: { productId } })
+}
+
 export const getInitStatus = (): AxiosPromise<unknown> => {
   return api.get('/init/status')
+}
+
+export const search = (params: {
+  keyword: string
+  productId?: number
+  page?: number
+  pageSize?: number
+}): AxiosPromise<SearchResult> => {
+  const apiParams: Record<string, unknown> = { keyword: params.keyword }
+  if (params.productId) apiParams.productId = params.productId
+  if (params.page) apiParams.page = params.page
+  if (params.pageSize) apiParams.pageSize = params.pageSize
+  return api.get('/search', { params: apiParams })
 }

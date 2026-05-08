@@ -3,6 +3,7 @@ package middleware
 import (
 	"time"
 
+	"chandao-mini/backend/core/errors"
 	"chandao-mini/backend/core/logger"
 	"chandao-mini/backend/core/metrics"
 
@@ -76,7 +77,7 @@ func MetricsMiddleware() gin.HandlerFunc {
 }
 
 // RecoveryMiddleware 恢复中间件
-// 捕获panic并记录日志，防止服务崩溃
+// 捕获panic并记录日志，返回统一错误格式
 func RecoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
@@ -92,10 +93,11 @@ func RecoveryMiddleware() gin.HandlerFunc {
 					zap.Stack("stack"),
 				)
 
-				// 返回500错误
-				c.AbortWithStatusJSON(500, gin.H{
-					"error":    "Internal Server Error",
-					"trace_id": traceID,
+				// 返回统一错误格式
+				c.AbortWithStatusJSON(500, errors.Response{
+					Code:    errors.CodeInternalError,
+					Message: "服务器内部错误",
+					Data:    nil,
 				})
 			}
 		}()

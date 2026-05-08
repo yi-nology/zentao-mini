@@ -3,6 +3,7 @@ package zentao
 import (
 	"chandao-mini/backend/core/logger"
 	"chandao-mini/backend/core/metrics"
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -15,17 +16,13 @@ import (
 
 // Client 封装禅道 SDK 客户端，支持 Token 缓存
 type Client struct {
-	sdkClient      *zentao.Client
-	account        string
-	password       *SecureString // 使用安全字符串存储密码
-	server         string
-	token          *SecureString // 使用安全字符串存储token
-	tokenExpiry    time.Time
-	usersCache     []zentao.User
-	usersExpiry    time.Time
-	productsCache  []zentao.Product
-	productsExpiry time.Time
-	mu             sync.RWMutex
+	sdkClient   *zentao.Client
+	account     string
+	password    *SecureString // 使用安全字符串存储密码
+	server      string
+	token       *SecureString // 使用安全字符串存储token
+	tokenExpiry time.Time
+	mu          sync.RWMutex
 }
 
 const tokenTTL = 23 * time.Hour
@@ -186,10 +183,7 @@ func (c *Client) UpdateConfig(server, account, password string) error {
 	// 清除缓存
 	c.token.Set("") // 清除token
 	c.tokenExpiry = time.Time{}
-	c.usersCache = nil
-	c.usersExpiry = time.Time{}
-	c.productsCache = nil
-	c.productsExpiry = time.Time{}
+	GlobalCache.Clear()
 
 	// 立即刷新Token
 	_, err := c.refreshTokenLocked()
@@ -206,6 +200,47 @@ func (c *Client) withTokenRetry(operation string, call func(*zentao.Client) erro
 	c.mu.RUnlock()
 	if err == nil || !isAuthError(err) {
 		return err
+	}
+
+	logger.Warn("Zentao token rejected, refreshing and retrying",
+		zap.String("operation", operation),
+		zap.Error(err),
+	)
+
+	if _, refreshErr := c.RefreshToken(); refreshErr != nil {
+		return fmt.Errorf("%s失败，刷新Token失败: %w，原始错误: %v", operation, refreshErr, err)
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return call(c.sdkClient)
+}
+
+// withTokenRetryContext 是 withTokenRetry 的 context 版本，支持请求取消
+func (c *Client) withTokenRetryContext(ctx context.Context, operation string, call func(*zentao.Client) error) error {
+	// 检查 context 是否已取消
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	if _, err := c.getToken(); err != nil {
+		return err
+	}
+
+	c.mu.RLock()
+	err := call(c.sdkClient)
+	c.mu.RUnlock()
+	if err == nil || !isAuthError(err) {
+		return err
+	}
+
+	// 重试前再检查 context
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	logger.Warn("Zentao token rejected, refreshing and retrying",
@@ -258,76 +293,68 @@ func (c *Client) GetAccount() string {
 
 // GetProducts 获取产品列表
 func (c *Client) GetProducts() ([]zentao.Product, error) {
-	// 检查缓存
-	c.mu.RLock()
-	if len(c.productsCache) > 0 && time.Now().Before(c.productsExpiry) {
-		// 缓存有效，直接返回
-		products := c.productsCache
-		c.mu.RUnlock()
-		metrics.RecordCacheHit("products")
-		return products, nil
-	}
-	c.mu.RUnlock()
+	cacheKey := "zentao:products:all"
 
-	// 缓存无效，重新获取所有产品
-	metrics.RecordCacheMiss("products")
-	start := time.Now()
+	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+		metrics.RecordCacheMiss("products")
+		start := time.Now()
 
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
-
-	// 先获取第一页，获取总数
-	var firstPageResponse *zentao.ProductListResponse
-	if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
-		var err error
-		firstPageResponse, err = client.GetProducts(1, 100)
-		return err
-	}); err != nil {
-		metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
-		return nil, err
-	}
-
-	var allProducts []zentao.Product
-	allProducts = append(allProducts, firstPageResponse.Products...)
-
-	// 计算总页数
-	total := firstPageResponse.Total
-	pageSize := 100
-	totalPages := (total + pageSize - 1) / pageSize
-
-	// 如果有更多页，继续获取
-	if totalPages > 1 {
-		for page := 2; page <= totalPages; page++ {
-			var pageResponse *zentao.ProductListResponse
-			if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
-				var err error
-				pageResponse, err = client.GetProducts(page, pageSize)
-				return err
-			}); err != nil {
-				metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
-				return nil, err
-			}
-			allProducts = append(allProducts, pageResponse.Products...)
+		if _, err := c.getToken(); err != nil {
+			return nil, err
 		}
+
+		// 先获取第一页，获取总数
+		var firstPageResponse *zentao.ProductListResponse
+		if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
+			var err error
+			firstPageResponse, err = client.GetProducts(1, 100)
+			return err
+		}); err != nil {
+			metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
+			return nil, err
+		}
+
+		var allProducts []zentao.Product
+		allProducts = append(allProducts, firstPageResponse.Products...)
+
+		// 计算总页数
+		total := firstPageResponse.Total
+		pageSize := 100
+		totalPages := (total + pageSize - 1) / pageSize
+
+		// 如果有更多页，继续获取
+		if totalPages > 1 {
+			for page := 2; page <= totalPages; page++ {
+				var pageResponse *zentao.ProductListResponse
+				if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
+					var err error
+					pageResponse, err = client.GetProducts(page, pageSize)
+					return err
+				}); err != nil {
+					metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
+					return nil, err
+				}
+				allProducts = append(allProducts, pageResponse.Products...)
+			}
+		}
+
+		duration := time.Since(start)
+		metrics.RecordCacheOperation("products", "fetch", duration)
+		metrics.RecordZentaoAPIRequest("products", "GET", duration, nil)
+
+		logger.Info("Products fetched",
+			zap.Int("count", len(allProducts)),
+			zap.Duration("duration", duration),
+		)
+
+		return allProducts, nil
+	}, 5*time.Minute)
+
+	if err != nil {
+		return nil, err
 	}
-
-	// 更新缓存
-	c.mu.Lock()
-	c.productsCache = allProducts
-	c.productsExpiry = time.Now().Add(24 * time.Hour) // 24小时过期
-	c.mu.Unlock()
-
-	duration := time.Since(start)
-	metrics.RecordCacheOperation("products", "fetch", duration)
-	metrics.RecordZentaoAPIRequest("products", "GET", duration, nil)
-
-	logger.Info("Products fetched",
-		zap.Int("count", len(allProducts)),
-		zap.Duration("duration", duration),
-	)
-
-	return allProducts, nil
+	metrics.RecordCacheHit("products")
+	return result.([]zentao.Product), nil
 }
 
 // GetProduct 获取产品详情
@@ -357,16 +384,25 @@ func (c *Client) GetAllProjects(limit int) ([]zentao.Project, error) {
 
 // GetProjectsByProduct 获取产品关联的项目列表
 func (c *Client) GetProjectsByProduct(productID int, page, pageSize int) ([]zentao.Project, error) {
-	var response *zentao.ProjectListResponse
-	err := c.withTokenRetry("GetProjectsByProduct", func(client *zentao.Client) error {
-		var err error
-		response, err = client.GetProjectsByProduct(productID, page, pageSize)
-		return err
-	})
+	cacheKey := DefaultKeyBuilder.Build("zentao:projects", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
+
+	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+		var response *zentao.ProjectListResponse
+		err := c.withTokenRetry("GetProjectsByProduct", func(client *zentao.Client) error {
+			var err error
+			response, err = client.GetProjectsByProduct(productID, page, pageSize)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		return response.Projects, nil
+	}, 3*time.Minute)
+
 	if err != nil {
 		return nil, err
 	}
-	return response.Projects, nil
+	return result.([]zentao.Project), nil
 }
 
 // GetProject 获取项目详情
@@ -382,16 +418,25 @@ func (c *Client) GetProject(projectID int) (*zentao.Project, error) {
 
 // GetBugs 获取产品的 Bug 列表
 func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error) {
-	var response *zentao.BugListResponse
-	err := c.withTokenRetry("GetBugs", func(client *zentao.Client) error {
-		var err error
-		response, err = client.GetBugs(productID, page, pageSize)
-		return err
-	})
+	cacheKey := DefaultKeyBuilder.Build("zentao:bugs", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
+
+	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+		var response *zentao.BugListResponse
+		err := c.withTokenRetry("GetBugs", func(client *zentao.Client) error {
+			var err error
+			response, err = client.GetBugs(productID, page, pageSize)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		return response.Bugs, nil
+	}, 2*time.Minute)
+
 	if err != nil {
 		return nil, err
 	}
-	return response.Bugs, nil
+	return result.([]zentao.Bug), nil
 }
 
 // GetBugsByProject 根据项目 ID 过滤 Bug 列表
@@ -449,16 +494,25 @@ func (c *Client) GetBug(bugID int) (*zentao.Bug, error) {
 
 // GetStoriesByProduct 获取产品的需求列表
 func (c *Client) GetStoriesByProduct(productID int, page, pageSize int) ([]zentao.Story, error) {
-	var response *zentao.StoryListResponse
-	err := c.withTokenRetry("GetStoriesByProduct", func(client *zentao.Client) error {
-		var err error
-		response, err = client.GetStoriesByProduct(productID, page, pageSize)
-		return err
-	})
+	cacheKey := DefaultKeyBuilder.Build("zentao:stories", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
+
+	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+		var response *zentao.StoryListResponse
+		err := c.withTokenRetry("GetStoriesByProduct", func(client *zentao.Client) error {
+			var err error
+			response, err = client.GetStoriesByProduct(productID, page, pageSize)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		return response.Stories, nil
+	}, 2*time.Minute)
+
 	if err != nil {
 		return nil, err
 	}
-	return response.Stories, nil
+	return result.([]zentao.Story), nil
 }
 
 // GetStoriesByProject 获取项目的需求列表
@@ -502,16 +556,25 @@ func (c *Client) GetStory(storyID int) (*zentao.Story, error) {
 
 // GetTasks 获取执行的任务列表
 func (c *Client) GetTasks(executionID int, page, pageSize int) ([]zentao.Task, error) {
-	var response *zentao.TaskListResponse
-	err := c.withTokenRetry("GetTasks", func(client *zentao.Client) error {
-		var err error
-		response, err = client.GetTasks(executionID, page, pageSize)
-		return err
-	})
+	cacheKey := DefaultKeyBuilder.Build("zentao:tasks", strconv.Itoa(executionID), strconv.Itoa(page), strconv.Itoa(pageSize))
+
+	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+		var response *zentao.TaskListResponse
+		err := c.withTokenRetry("GetTasks", func(client *zentao.Client) error {
+			var err error
+			response, err = client.GetTasks(executionID, page, pageSize)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		return response.Tasks, nil
+	}, 2*time.Minute)
+
 	if err != nil {
 		return nil, err
 	}
-	return response.Tasks, nil
+	return result.([]zentao.Task), nil
 }
 
 // GetTask 获取任务详情
@@ -527,95 +590,36 @@ func (c *Client) GetTask(taskID int) (*zentao.Task, error) {
 
 // GetExecutions 获取执行列表
 func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Execution, error) {
-	var response *zentao.ExecutionListResponse
-	err := c.withTokenRetry("GetExecutions", func(client *zentao.Client) error {
-		var err error
-		response, err = client.GetExecutions(projectID, page, pageSize)
-		return err
-	})
+	cacheKey := DefaultKeyBuilder.Build("zentao:executions", strconv.Itoa(projectID), strconv.Itoa(page), strconv.Itoa(pageSize))
+
+	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+		var response *zentao.ExecutionListResponse
+		err := c.withTokenRetry("GetExecutions", func(client *zentao.Client) error {
+			var err error
+			response, err = client.GetExecutions(projectID, page, pageSize)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		return response.Executions, nil
+	}, 3*time.Minute)
+
 	if err != nil {
 		return nil, err
 	}
-	return response.Executions, nil
+	return result.([]zentao.Execution), nil
 }
 
 // GetUsers 获取用户列表（支持分页）
 func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) {
-	// 检查缓存
-	c.mu.RLock()
-	if len(c.usersCache) > 0 && time.Now().Before(c.usersExpiry) {
-		// 缓存有效，直接返回
-		users := c.usersCache
-		c.mu.RUnlock()
-		metrics.RecordCacheHit("users")
-
-		// 计算分页
-		total := len(users)
-		start := (page - 1) * pageSize
-		end := start + pageSize
-		if start >= total {
-			return &zentao.UserListResponse{
-				Users: []zentao.User{},
-				Page:  page,
-				Total: total,
-				Limit: pageSize,
-			}, nil
-		}
-		if end > total {
-			end = total
-		}
-
-		return &zentao.UserListResponse{
-			Users: users[start:end],
-			Page:  page,
-			Total: total,
-			Limit: pageSize,
-		}, nil
-	}
-	c.mu.RUnlock()
-
-	// 缓存无效，重新获取所有用户
-	metrics.RecordCacheMiss("users")
-	startTime := time.Now()
-
-	var allUsers []zentao.User
-	currentPage := 1
-
-	for {
-		var response *zentao.UserListResponse
-		if err := c.withTokenRetry("GetUsers", func(client *zentao.Client) error {
-			var err error
-			response, err = client.GetUsers(currentPage, pageSize)
-			return err
-		}); err != nil {
-			metrics.RecordZentaoAPIRequest("users", "GET", time.Since(startTime), err)
-			return nil, err
-		}
-
-		allUsers = append(allUsers, response.Users...)
-
-		// 检查是否还有更多数据
-		if len(response.Users) < pageSize {
-			break
-		}
-
-		currentPage++
+	// 先获取全部用户（带缓存）
+	allUsers, err := c.GetUsersAll()
+	if err != nil {
+		return nil, err
 	}
 
-	// 更新缓存
-	c.mu.Lock()
-	c.usersCache = allUsers
-	c.usersExpiry = time.Now().Add(24 * time.Hour) // 24小时过期
-	c.mu.Unlock()
-
-	duration := time.Since(startTime)
-	metrics.RecordCacheOperation("users", "fetch", duration)
-	metrics.RecordZentaoAPIRequest("users", "GET", duration, nil)
-
-	logger.Info("Users fetched",
-		zap.Int("count", len(allUsers)),
-		zap.Duration("duration", duration),
-	)
+	metrics.RecordCacheHit("users")
 
 	// 计算分页
 	total := len(allUsers)
@@ -643,49 +647,58 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 
 // GetUsersAll 获取所有用户列表
 func (c *Client) GetUsersAll() ([]zentao.User, error) {
-	// 检查缓存
-	c.mu.RLock()
-	if len(c.usersCache) > 0 && time.Now().Before(c.usersExpiry) {
-		// 缓存有效，直接返回
-		users := c.usersCache
-		c.mu.RUnlock()
-		return users, nil
-	}
-	c.mu.RUnlock()
+	cacheKey := "zentao:users:all"
 
-	// 缓存无效，重新获取所有用户
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
+	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+		metrics.RecordCacheMiss("users")
+		startTime := time.Now()
 
-	// 分页获取所有用户，每次100人
-	var allUsers []zentao.User
-	currentPage := 1
-	pageSize := 100
-
-	for {
-		response, err := c.sdkClient.GetUsers(currentPage, pageSize)
-		if err != nil {
+		if _, err := c.getToken(); err != nil {
 			return nil, err
 		}
 
-		allUsers = append(allUsers, response.Users...)
+		// 分页获取所有用户，每次100人
+		var allUsers []zentao.User
+		currentPage := 1
+		pageSize := 100
 
-		// 检查是否还有更多数据
-		if len(response.Users) < pageSize {
-			break
+		for {
+			var response *zentao.UserListResponse
+			if err := c.withTokenRetry("GetUsers", func(client *zentao.Client) error {
+				var err error
+				response, err = client.GetUsers(currentPage, pageSize)
+				return err
+			}); err != nil {
+				metrics.RecordZentaoAPIRequest("users", "GET", time.Since(startTime), err)
+				return nil, err
+			}
+
+			allUsers = append(allUsers, response.Users...)
+
+			// 检查是否还有更多数据
+			if len(response.Users) < pageSize {
+				break
+			}
+
+			currentPage++
 		}
 
-		currentPage++
+		duration := time.Since(startTime)
+		metrics.RecordCacheOperation("users", "fetch", duration)
+		metrics.RecordZentaoAPIRequest("users", "GET", duration, nil)
+
+		logger.Info("Users fetched",
+			zap.Int("count", len(allUsers)),
+			zap.Duration("duration", duration),
+		)
+
+		return allUsers, nil
+	}, 10*time.Minute)
+
+	if err != nil {
+		return nil, err
 	}
-
-	// 更新缓存
-	c.mu.Lock()
-	c.usersCache = allUsers
-	c.usersExpiry = time.Now().Add(24 * time.Hour) // 24小时过期
-	c.mu.Unlock()
-
-	return allUsers, nil
+	return result.([]zentao.User), nil
 }
 
 // effortItem 工时记录项
@@ -1129,4 +1142,256 @@ func (c *Client) GetTaskEfforts(taskID int) ([]zentao.EffortEntry, error) {
 		return err
 	})
 	return result, err
+}
+
+// ========== Context-aware 方法（用于 Dashboard 等需要取消的场景） ==========
+
+// GetProductContext 获取产品详情（支持 context 取消）
+func (c *Client) GetProductContext(ctx context.Context, productID int) (*zentao.Product, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var result *zentao.Product
+	err := c.withTokenRetryContext(ctx, "GetProduct", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetProduct(productID)
+		return err
+	})
+	return result, err
+}
+
+// GetProjectContext 获取项目详情（支持 context 取消）
+func (c *Client) GetProjectContext(ctx context.Context, projectID int) (*zentao.Project, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var result *zentao.Project
+	err := c.withTokenRetryContext(ctx, "GetProject", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetProject(projectID)
+		return err
+	})
+	return result, err
+}
+
+// GetProjectsByProductContext 获取产品关联的项目（支持 context 取消）
+func (c *Client) GetProjectsByProductContext(ctx context.Context, productID int, page, pageSize int) ([]zentao.Project, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var response *zentao.ProjectListResponse
+	err := c.withTokenRetryContext(ctx, "GetProjectsByProduct", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetProjectsByProduct(productID, page, pageSize)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return response.Projects, nil
+}
+
+// GetExecutionsContext 获取执行列表（支持 context 取消）
+func (c *Client) GetExecutionsContext(ctx context.Context, projectID int, page, pageSize int) ([]zentao.Execution, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var response *zentao.ExecutionListResponse
+	err := c.withTokenRetryContext(ctx, "GetExecutions", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetExecutions(projectID, page, pageSize)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return response.Executions, nil
+}
+
+// GetTasksContext 获取执行的任务列表（支持 context 取消）
+func (c *Client) GetTasksContext(ctx context.Context, executionID int, page, pageSize int) ([]zentao.Task, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var response *zentao.TaskListResponse
+	err := c.withTokenRetryContext(ctx, "GetTasks", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetTasks(executionID, page, pageSize)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return response.Tasks, nil
+}
+
+// GetBugsContext 获取 Bug 列表（支持 context 取消）
+func (c *Client) GetBugsContext(ctx context.Context, productID int, page, pageSize int) ([]zentao.Bug, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var response *zentao.BugListResponse
+	err := c.withTokenRetryContext(ctx, "GetBugs", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetBugs(productID, page, pageSize)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return response.Bugs, nil
+}
+
+// GetStoriesByProductContext 获取产品的需求列表（支持 context 取消）
+func (c *Client) GetStoriesByProductContext(ctx context.Context, productID int, page, pageSize int) ([]zentao.Story, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var response *zentao.StoryListResponse
+	err := c.withTokenRetryContext(ctx, "GetStoriesByProduct", func(client *zentao.Client) error {
+		var err error
+		response, err = client.GetStoriesByProduct(productID, page, pageSize)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return response.Stories, nil
+}
+
+// GetTaskEffortsContext 获取任务的工时记录（支持 context 取消）
+func (c *Client) GetTaskEffortsContext(ctx context.Context, taskID int) ([]zentao.EffortEntry, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var result []zentao.EffortEntry
+	err := c.withTokenRetryContext(ctx, "GetTaskEfforts", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetTaskEfforts(taskID)
+		return err
+	})
+	return result, err
+}
+
+// GetAllBugsContext 获取产品全部 Bug（支持 context 取消，自动翻页）
+func (c *Client) GetAllBugsContext(ctx context.Context, productID int) ([]zentao.Bug, error) {
+	var all []zentao.Bug
+	page := 1
+	for {
+		select {
+		case <-ctx.Done():
+			return all, ctx.Err()
+		default:
+		}
+		bugs, err := c.GetBugsContext(ctx, productID, page, 100)
+		if err != nil {
+			return all, err
+		}
+		all = append(all, bugs...)
+		if len(bugs) < 100 {
+			break
+		}
+		page++
+	}
+	return all, nil
+}
+
+// GetAllBugsByProjectContext 获取项目全部 Bug（支持 context 取消）
+func (c *Client) GetAllBugsByProjectContext(ctx context.Context, projectID int) ([]zentao.Bug, error) {
+	var all []zentao.Bug
+	page := 1
+	for {
+		select {
+		case <-ctx.Done():
+			return all, ctx.Err()
+		default:
+		}
+		var response *zentao.BugListResponse
+		err := c.withTokenRetryContext(ctx, "GetBugsByProject", func(client *zentao.Client) error {
+			var err error
+			response, err = client.GetBugsByProject(0, projectID, page, 100)
+			return err
+		})
+		if err != nil {
+			return all, err
+		}
+		all = append(all, response.Bugs...)
+		if len(response.Bugs) < 100 {
+			break
+		}
+		page++
+	}
+	return all, nil
+}
+
+// GetAllStoriesContext 获取产品全部需求（支持 context 取消，自动翻页）
+func (c *Client) GetAllStoriesContext(ctx context.Context, productID int) ([]zentao.Story, error) {
+	var all []zentao.Story
+	page := 1
+	for {
+		select {
+		case <-ctx.Done():
+			return all, ctx.Err()
+		default:
+		}
+		stories, err := c.GetStoriesByProductContext(ctx, productID, page, 100)
+		if err != nil {
+			return all, err
+		}
+		all = append(all, stories...)
+		if len(stories) < 100 {
+			break
+		}
+		page++
+	}
+	return all, nil
+}
+
+// GetExecutionsByProductContext 按产品获取所有执行（支持 context 取消）
+func (c *Client) GetExecutionsByProductContext(ctx context.Context, productID int) ([]ExecutionContext, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	var result []ExecutionContext
+	projects, err := c.GetProjectsByProductContext(ctx, productID, 1, 200)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range projects {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+		executions, err := c.GetExecutionsContext(ctx, p.ID, 1, 200)
+		if err != nil {
+			continue
+		}
+		for _, e := range executions {
+			result = append(result, ExecutionContext{
+				Exec:     e,
+				ProjName: p.Name,
+				ExecName: e.Name,
+			})
+		}
+	}
+	return result, nil
 }
