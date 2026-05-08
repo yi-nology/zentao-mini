@@ -52,6 +52,6 @@ ENV PORT=12345
 EXPOSE 12345
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
-    CMD curl -f http://localhost:12345/api/health || exit 1
+    CMD curl -f http://localhost:12345/health || exit 1
 
 CMD ["/app/zentao-mini"]
