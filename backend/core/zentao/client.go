@@ -1026,3 +1026,107 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 		"efforts":     effortsData,
 	}, nil
 }
+
+// ========== Dashboard 聚合查询方法 ==========
+
+// ExecutionContext 执行上下文（包含执行信息和关联的项目）
+type ExecutionContext struct {
+	Exec     zentao.Execution
+	ProjName string
+	ExecName string
+}
+
+func getTaskFloat64(v interface{}) float64 {
+	if f, ok := v.(float64); ok {
+		return f
+	}
+	return 0
+}
+
+// GetAllBugs 获取产品全部 Bug（自动翻页）
+func (c *Client) GetAllBugs(productID int) ([]zentao.Bug, error) {
+	var all []zentao.Bug
+	page := 1
+	for {
+		bugs, err := c.GetBugs(productID, page, 100)
+		if err != nil {
+			return all, err
+		}
+		all = append(all, bugs...)
+		if len(bugs) < 100 {
+			break
+		}
+		page++
+	}
+	return all, nil
+}
+
+// GetAllBugsByProject 获取项目全部 Bug
+func (c *Client) GetAllBugsByProject(projectID int) ([]zentao.Bug, error) {
+	var all []zentao.Bug
+	page := 1
+	for {
+		bugs, err := c.GetBugsByProject(0, projectID, page, 100)
+		if err != nil {
+			return all, err
+		}
+		all = append(all, bugs...)
+		if len(bugs) < 100 {
+			break
+		}
+		page++
+	}
+	return all, nil
+}
+
+// GetAllStories 获取产品全部需求（自动翻页）
+func (c *Client) GetAllStories(productID int) ([]zentao.Story, error) {
+	var all []zentao.Story
+	page := 1
+	for {
+		stories, err := c.GetStoriesByProduct(productID, page, 100)
+		if err != nil {
+			return all, err
+		}
+		all = append(all, stories...)
+		if len(stories) < 100 {
+			break
+		}
+		page++
+	}
+	return all, nil
+}
+
+// GetExecutionsByProduct 按产品获取所有执行
+func (c *Client) GetExecutionsByProduct(productID int) ([]ExecutionContext, error) {
+	var result []ExecutionContext
+	projects, err := c.GetProjectsByProduct(productID, 1, 200)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range projects {
+		executions, err := c.GetExecutions(p.ID, 1, 200)
+		if err != nil {
+			continue
+		}
+		for _, e := range executions {
+			result = append(result, ExecutionContext{
+				Exec:     e,
+				ProjName: p.Name,
+				ExecName: e.Name,
+			})
+		}
+	}
+	return result, nil
+}
+
+// GetTaskEfforts 获取任务的工时记录
+func (c *Client) GetTaskEfforts(taskID int) ([]zentao.EffortEntry, error) {
+	var result []zentao.EffortEntry
+	err := c.withTokenRetry("GetTaskEfforts", func(client *zentao.Client) error {
+		var err error
+		result, err = client.GetTaskEfforts(taskID)
+		return err
+	})
+	return result, err
+}
