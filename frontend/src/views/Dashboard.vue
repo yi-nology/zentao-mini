@@ -16,8 +16,8 @@
           </div>
           <div class="stat-info">
             <span class="stat-label">Bug</span>
-            <span class="stat-value">{{ data.bugs.total }}</span>
-            <span class="stat-sub">活跃 <strong>{{ data.bugs.active }}</strong> · 已解决 {{ data.bugs.resolved }} · 已关闭 {{ data.bugs.closed }}</span>
+            <span class="stat-value">{{ data.bugs?.total ?? 0 }}</span>
+            <span class="stat-sub">活跃 <strong>{{ data.bugs?.active ?? 0 }}</strong> · 已解决 {{ data.bugs?.resolved ?? 0 }} · 已关闭 {{ data.bugs?.closed ?? 0 }}</span>
           </div>
         </div>
 
@@ -29,8 +29,8 @@
           </div>
           <div class="stat-info">
             <span class="stat-label">需求</span>
-            <span class="stat-value">{{ data.stories.total }}</span>
-            <span class="stat-sub">活跃 <strong>{{ data.stories.active }}</strong> · 草稿 {{ data.stories.draft }} · 已关闭 {{ data.stories.closed }}</span>
+            <span class="stat-value">{{ data.stories?.total ?? 0 }}</span>
+            <span class="stat-sub">活跃 <strong>{{ data.stories?.active ?? 0 }}</strong> · 草稿 {{ data.stories?.draft ?? 0 }} · 已关闭 {{ data.stories?.closed ?? 0 }}</span>
           </div>
         </div>
 
@@ -42,8 +42,8 @@
           </div>
           <div class="stat-info">
             <span class="stat-label">任务</span>
-            <span class="stat-value">{{ data.tasks.total }}</span>
-            <span class="stat-sub">进行中 <strong>{{ data.tasks.doing }}</strong> · 待开始 {{ data.tasks.wait }} · 已完成 {{ data.tasks.done }}</span>
+            <span class="stat-value">{{ data.tasks?.total ?? 0 }}</span>
+            <span class="stat-sub">进行中 <strong>{{ data.tasks?.doing ?? 0 }}</strong> · 待开始 {{ data.tasks?.wait ?? 0 }} · 已完成 {{ data.tasks?.done ?? 0 }}</span>
           </div>
         </div>
 
@@ -55,8 +55,8 @@
           </div>
           <div class="stat-info">
             <span class="stat-label">工时汇总</span>
-            <span class="stat-value">{{ data.timelog.totalHours.toFixed(1) }}<small>h</small></span>
-            <span class="stat-sub">本周 <strong>{{ data.timelog.thisWeekHours.toFixed(1) }}h</strong></span>
+            <span class="stat-value">{{ (data.timelog?.totalHours ?? 0).toFixed(1) }}<small>h</small></span>
+            <span class="stat-sub">本周 <strong>{{ (data.timelog?.thisWeekHours ?? 0).toFixed(1) }}h</strong></span>
           </div>
         </div>
       </div>
@@ -68,7 +68,7 @@
             <h3>最近 Bug</h3>
             <router-link to="/bugs" class="list-link">查看全部 →</router-link>
           </div>
-          <div v-if="data.recentBugs.length === 0" class="list-empty">暂无数据</div>
+          <div v-if="!data.recentBugs || data.recentBugs.length === 0" class="list-empty">暂无数据</div>
           <ul v-else class="list-body">
             <li v-for="bug in data.recentBugs" :key="bug.id" class="list-item">
               <span class="item-status-dot" :class="'dot--' + bug.status"></span>
@@ -84,7 +84,7 @@
             <h3>最近任务</h3>
             <router-link to="/tasks" class="list-link">查看全部 →</router-link>
           </div>
-          <div v-if="data.recentTasks.length === 0" class="list-empty">暂无数据</div>
+          <div v-if="!data.recentTasks || data.recentTasks.length === 0" class="list-empty">暂无数据</div>
           <ul v-else class="list-body">
             <li v-for="task in data.recentTasks" :key="task.id" class="list-item">
               <span class="item-status-dot" :class="'dot--' + task.status"></span>
