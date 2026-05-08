@@ -58,6 +58,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	taskHandler := registry.GetTaskHandler()
 	userHandler := registry.GetUserHandler()
 	timelogHandler := registry.GetTimelogHandler()
+	dashboardHandler := registry.GetDashboardHandler()
 
 	// 健康检查接口
 	r.GET("/health", func(c *gin.Context) {
@@ -76,7 +77,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	r.GET("/metrics", metrics.Handler())
 
 	// 注册API路由（支持版本控制和向后兼容）
-	registerAPIRoutes(r, initHandler, productHandler, projectHandler, executionHandler, bugHandler, storyHandler, taskHandler, userHandler, timelogHandler)
+	registerAPIRoutes(r, initHandler, productHandler, projectHandler, executionHandler, bugHandler, storyHandler, taskHandler, userHandler, timelogHandler, dashboardHandler)
 
 	// 注册MCP HTTP路由（使用新的 mcp 包）
 	registerMCPRoutes(r, registry)
@@ -99,6 +100,7 @@ func registerAPIRoutes(
 	taskHandler *handlers.TaskHandler,
 	userHandler *handlers.UserHandler,
 	timelogHandler *handlers.TimelogHandler,
+	dashboardHandler *handlers.DashboardHandler,
 ) {
 	registerRoutes := func(apiGroup *gin.RouterGroup) {
 		// 初始化相关接口
@@ -132,6 +134,12 @@ func registerAPIRoutes(
 		apiGroup.GET("/timelog/analysis", timelogHandler.GetTimelogAnalysis)
 		apiGroup.GET("/timelog/dashboard", timelogHandler.GetTimelogDashboard)
 		apiGroup.GET("/timelog/efforts", timelogHandler.GetTimelogEfforts)
+
+		// Dashboard
+		apiGroup.GET("/dashboard", dashboardHandler.GetDashboard)
+		apiGroup.GET("/project/overview", dashboardHandler.GetProjectOverview)
+		apiGroup.GET("/personal/timelog", dashboardHandler.GetPersonalTimelog)
+		apiGroup.GET("/search", dashboardHandler.Search)
 	}
 
 	// 注册API v1版本路由（推荐使用）

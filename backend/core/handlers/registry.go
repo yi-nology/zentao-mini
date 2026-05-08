@@ -22,6 +22,7 @@ type HandlerRegistry struct {
 	taskService      *service.TaskService
 	userService      *service.UserService
 	timelogService   *service.TimelogService
+	dashboardService *service.DashboardService
 
 	// Handler层实例
 	productHandler   *ProductHandler
@@ -32,6 +33,7 @@ type HandlerRegistry struct {
 	taskHandler      *TaskHandler
 	userHandler      *UserHandler
 	timelogHandler   *TimelogHandler
+	dashboardHandler *DashboardHandler
 	mcpHandler       *MCPHandler
 	initHandler      *InitHandler
 }
@@ -53,6 +55,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.taskService = service.NewTaskService(client)
 	registry.userService = service.NewUserService(client)
 	registry.timelogService = service.NewTimelogService(client)
+	registry.dashboardService = service.NewDashboardService(client)
 
 	// 初始化所有Handler层实例，注入Service依赖
 	registry.productHandler = NewProductHandler(registry.productService)
@@ -63,6 +66,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.taskHandler = NewTaskHandler(registry.taskService)
 	registry.userHandler = NewUserHandler(registry.userService)
 	registry.timelogHandler = NewTimelogHandler(registry.timelogService)
+	registry.dashboardHandler = NewDashboardHandler(registry.dashboardService)
 
 	// MCP handler依赖其他handler
 	registry.mcpHandler = NewMCPHandler(
@@ -155,4 +159,8 @@ func (r *HandlerRegistry) GetMCPHandler() *MCPHandler {
 // GetInitHandler 获取初始化Handler
 func (r *HandlerRegistry) GetInitHandler() *InitHandler {
 	return r.initHandler
+}
+
+func (r *HandlerRegistry) GetDashboardHandler() *DashboardHandler {
+	return r.dashboardHandler
 }

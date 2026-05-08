@@ -58,6 +58,8 @@ func (e *AppError) Unwrap() error {
 // HTTPStatus 返回对应的HTTP状态码
 func (e *AppError) HTTPStatus() int {
 	switch {
+	case e.Code == CodeSuccess:
+		return http.StatusOK
 	case e.Code >= 20000 && e.Code < 30000:
 		return http.StatusOK
 	case e.Code >= 40000 && e.Code < 40100:
