@@ -129,7 +129,9 @@ const fetchData = async (): Promise<void> => {
   loading.value = true
   try {
     const res = await getDashboard(pid)
-    data.value = res.data
+    // 拦截器已解包 response.data，res 实际是 ApiResponse<DashboardData>
+    const raw = res as unknown as { data: DashboardData }
+    data.value = raw.data
   } catch (e) {
     console.error('获取仪表盘数据失败:', e)
     data.value = null
