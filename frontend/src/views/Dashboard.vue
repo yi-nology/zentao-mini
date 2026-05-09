@@ -129,7 +129,7 @@ const fetchData = async (): Promise<void> => {
   loading.value = true
   try {
     const res = await getDashboard(pid)
-    data.value = res.data.data
+    data.value = res.data
   } catch (e) {
     console.error('获取仪表盘数据失败:', e)
     data.value = null
