@@ -57,13 +57,9 @@ func (h *InitHandler) UploadConfig(c *gin.Context) {
 		return
 	}
 
-	err = h.zentaoClient.UpdateConfig(authConfig.Domain, authConfig.Username, authConfig.Password)
-	if err != nil {
-		errors.InternalError(c, "更新禅道配置失败")
-		return
-	}
+	h.zentaoClient.UpdateConfig(authConfig.Domain, authConfig.Username, authConfig.Password)
 
-	errors.SuccessWithMessage(c, "初始化成功", nil)
+	errors.SuccessWithMessage(c, "配置已保存，正在后台连接禅道...", nil)
 }
 
 func (h *InitHandler) GetInitStatus(c *gin.Context) {
@@ -79,5 +75,17 @@ func (h *InitHandler) GetInitStatus(c *gin.Context) {
 		"isFirstStart": status.IsFirstStart,
 		"hasConfig":    status.HasConfig,
 		"message":      status.Message,
+	})
+}
+
+func (h *InitHandler) GetAccountInfo(c *gin.Context) {
+	domain := h.zentaoClient.GetServer()
+	account := h.zentaoClient.GetAccount()
+	connected := h.zentaoClient.IsConnected()
+
+	errors.Success(c, gin.H{
+		"domain":    domain,
+		"account":   account,
+		"connected": connected,
 	})
 }

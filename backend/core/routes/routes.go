@@ -106,6 +106,7 @@ func registerAPIRoutes(
 		// 初始化相关接口
 		apiGroup.POST("/init/upload", initHandler.UploadConfig)
 		apiGroup.GET("/init/status", initHandler.GetInitStatus)
+		apiGroup.GET("/init/account", initHandler.GetAccountInfo)
 
 		// 产品相关接口
 		apiGroup.GET("/products", productHandler.GetProducts)

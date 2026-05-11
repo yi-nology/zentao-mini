@@ -28,6 +28,11 @@
       <header class="header">
         <h1 class="header-title">{{ pageTitle }}</h1>
         <div class="header-actions">
+          <div class="account-info" v-if="accountInfo">
+            <span class="account-status-dot" :class="accountInfo.connected ? 'connected' : 'disconnected'"></span>
+            <span class="account-text">{{ accountInfo.account }}</span>
+            <span class="account-domain" v-if="accountInfo.domain">@ {{ accountInfo.domain.replace(/^https?:\/\//, '') }}</span>
+          </div>
           <div class="search-wrapper" ref="searchWrapperRef">
             <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8" />
@@ -103,7 +108,7 @@
 import { computed, provide, reactive, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
-import { search } from '@/api/zentao'
+import { search, getAccountInfo } from '@/api/zentao'
 import type { SearchItem } from '@/types/api'
 
 interface GlobalSelection {
@@ -134,6 +139,7 @@ const route = useRoute()
 const router = useRouter()
 const globalSelection = reactive<GlobalSelection>({ product: '', project: '' })
 const appVersion = ref('...')
+const accountInfo = ref<{ domain: string; account: string; connected: boolean } | null>(null)
 
 // Search state
 const searchKeyword = ref('')
@@ -152,6 +158,13 @@ onMounted(async () => {
     const json = await res.json()
     if (json.data?.version) appVersion.value = json.data.version
   } catch { appVersion.value = 'dev' }
+
+  try {
+    const res = await getAccountInfo() as unknown as { code: number; data: { domain: string; account: string; connected: boolean } }
+    if (res.code === 0 && res.data) {
+      accountInfo.value = res.data
+    }
+  } catch { /* ignore */ }
 
   document.addEventListener('click', onDocClick)
 })
@@ -414,6 +427,43 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.account-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-hover);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.account-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.account-status-dot.connected {
+  background-color: #22C55E;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+}
+
+.account-status-dot.disconnected {
+  background-color: #EF4444;
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+}
+
+.account-text {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.account-domain {
+  color: var(--color-text-tertiary);
 }
 
 /* Search */
