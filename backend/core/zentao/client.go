@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/yi-nology/common/biz/zentao"
@@ -18,11 +19,13 @@ import (
 type Client struct {
 	sdkClient   *zentao.Client
 	account     string
-	password    *SecureString // 使用安全字符串存储密码
+	password    *SecureString
 	server      string
-	token       *SecureString // 使用安全字符串存储token
-	tokenExpiry time.Time
+	token       *SecureString
+	tokenExpiry atomic.Int64
 	mu          sync.RWMutex
+	connected   atomic.Bool
+	refreshing  atomic.Bool
 }
 
 const tokenTTL = 23 * time.Hour
@@ -54,116 +57,123 @@ func NewClient(server, account, password string) *Client {
 
 // startTokenRefreshTask 启动Token自动刷新任务
 func (c *Client) startTokenRefreshTask() {
-	ticker := time.NewTicker(2 * time.Hour) // 每2小时检查一次
+	ticker := time.NewTicker(2 * time.Hour)
 	defer ticker.Stop()
 
 	for {
 		<-ticker.C
-		// 检查Token是否即将过期（剩余时间小于2小时）
-		c.mu.RLock()
-		remaining := c.tokenExpiry.Sub(time.Now())
-		c.mu.RUnlock()
-
-		if remaining < 2*time.Hour {
-			// 刷新Token
+		if c.isTokenExpired() {
 			if _, err := c.RefreshToken(); err != nil {
-				// 刷新失败，下次再试
 				continue
 			}
 		}
 	}
 }
 
+func (c *Client) isTokenExpired() bool {
+	expiry := time.Unix(c.tokenExpiry.Load(), 0)
+	return time.Now().After(expiry)
+}
+
 // IsTokenExpired 检查 Token 是否已过期
 func (c *Client) IsTokenExpired() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.token.Get() == "" || time.Now().After(c.tokenExpiry)
+	return c.isTokenExpired()
 }
 
 // getToken 获取有效的 Token（带缓存）
+// 核心设计：网络 I/O 在锁外执行，绝不持锁做 HTTP 请求
 func (c *Client) getToken() (string, error) {
-	c.mu.RLock()
 	tokenStr := c.token.Get()
-	if tokenStr != "" && time.Now().Before(c.tokenExpiry) {
-		c.mu.RUnlock()
-		// 缓存命中
+	if tokenStr != "" && !c.isTokenExpired() {
 		metrics.RecordCacheHit("token")
 		return tokenStr, nil
 	}
-	c.mu.RUnlock()
 
-	// 缓存未命中
 	metrics.RecordCacheMiss("token")
-	start := time.Now()
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// 双重检查
-	tokenStr = c.token.Get()
-	if tokenStr != "" && time.Now().Before(c.tokenExpiry) {
-		return tokenStr, nil
+	if !c.refreshing.CompareAndSwap(false, true) {
+		c.mu.RLock()
+		defer c.mu.RUnlock()
+		tokenStr = c.token.Get()
+		if tokenStr != "" && !c.isTokenExpired() {
+			return tokenStr, nil
+		}
+		return "", fmt.Errorf("token 刷新进行中，请稍后重试")
 	}
+	defer c.refreshing.Store(false)
 
-	tokenStr, err := c.refreshTokenLocked()
+	start := time.Now()
+	tokenStr, err := c.doRefreshToken()
 	if err != nil {
+		c.connected.Store(false)
 		logger.Error("Failed to get token after retries", zap.Error(err))
 		return "", err
 	}
 
+	c.connected.Store(true)
 	metrics.RecordCacheOperation("token", "refresh", time.Since(start))
 	return tokenStr, nil
 }
 
 // RefreshToken 强制刷新 Token
 func (c *Client) RefreshToken() (string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	if !c.refreshing.CompareAndSwap(false, true) {
+		return "", fmt.Errorf("token 刷新进行中")
+	}
+	defer c.refreshing.Store(false)
 
-	return c.refreshTokenLocked()
+	start := time.Now()
+	tokenStr, err := c.doRefreshToken()
+	if err != nil {
+		c.connected.Store(false)
+		return "", err
+	}
+
+	c.connected.Store(true)
+	metrics.RecordCacheOperation("token", "refresh", time.Since(start))
+	return tokenStr, nil
 }
 
-func (c *Client) refreshTokenLocked() (string, error) {
+// doRefreshToken 在无锁状态下执行网络请求，完成后用短锁写入状态
+func (c *Client) doRefreshToken() (string, error) {
+	c.mu.RLock()
+	account := c.account
+	passwordStr := c.password.Get()
+	sdk := c.sdkClient
+	c.mu.RUnlock()
+
 	start := time.Now()
-	// 尝试获取Token，最多重试3次
 	var token string
 	var err error
-	passwordStr := c.password.Get() // 临时获取密码
 	for i := 0; i < 3; i++ {
-		token, err = c.sdkClient.GetToken(c.account, passwordStr)
+		token, err = sdk.GetToken(account, passwordStr)
 		if err == nil {
 			break
 		}
-		// 重试前等待一段时间
 		time.Sleep(time.Duration(i+1) * time.Second)
 	}
-	// 清除临时密码变量
 	passwordStr = ""
 
 	if err != nil {
 		return "", err
 	}
 
-	c.token.Set(token) // 使用安全字符串存储token
-	c.tokenExpiry = time.Now().Add(tokenTTL)
+	c.mu.Lock()
+	c.token.Set(token)
+	c.tokenExpiry.Store(time.Now().Add(tokenTTL).Unix())
 	c.sdkClient.SetToken(token)
+	c.mu.Unlock()
 
 	metrics.RecordTokenRefresh()
 	logger.Info("Token refreshed successfully",
 		zap.Duration("duration", time.Since(start)),
-		zap.Time("expiry", c.tokenExpiry),
 	)
 
 	return token, nil
 }
 
-// UpdateConfig 更新客户端配置并刷新Token
+// UpdateConfig 更新客户端配置并异步刷新Token
 func (c *Client) UpdateConfig(server, account, password string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// 确保server URL格式正确
 	if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
 		server = "http://" + server
 	}
@@ -171,23 +181,32 @@ func (c *Client) UpdateConfig(server, account, password string) error {
 		server = strings.TrimSuffix(server, "/")
 	}
 
-	// 更新配置
+	c.mu.Lock()
 	c.server = server
 	c.account = account
-	c.password.Set(password) // 使用安全字符串存储密码
-
-	// 重新创建SDK客户端
+	c.password.Set(password)
 	c.sdkClient = zentao.NewClient(server)
-	c.sdkClient.SetTimeout(10 * time.Second)
-
-	// 清除缓存
-	c.token.Set("") // 清除token
-	c.tokenExpiry = time.Time{}
+	c.sdkClient.SetTimeout(120 * time.Second)
+	c.token.Set("")
+	c.tokenExpiry.Store(0)
 	GlobalCache.Clear()
+	c.mu.Unlock()
 
-	// 立即刷新Token
-	_, err := c.refreshTokenLocked()
-	return err
+	go func() {
+		if _, err := c.RefreshToken(); err != nil {
+			logger.Warn("异步刷新Token失败", zap.Error(err))
+		}
+	}()
+
+	return nil
+}
+
+func (c *Client) GetServer() string {
+	return c.server
+}
+
+func (c *Client) IsConnected() bool {
+	return c.connected.Load()
 }
 
 func (c *Client) withTokenRetry(operation string, call func(*zentao.Client) error) error {
@@ -196,8 +215,10 @@ func (c *Client) withTokenRetry(operation string, call func(*zentao.Client) erro
 	}
 
 	c.mu.RLock()
-	err := call(c.sdkClient)
+	sdk := c.sdkClient
 	c.mu.RUnlock()
+
+	err := call(sdk)
 	if err == nil || !isAuthError(err) {
 		return err
 	}
@@ -212,13 +233,12 @@ func (c *Client) withTokenRetry(operation string, call func(*zentao.Client) erro
 	}
 
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return call(c.sdkClient)
+	sdk = c.sdkClient
+	c.mu.RUnlock()
+	return call(sdk)
 }
 
-// withTokenRetryContext 是 withTokenRetry 的 context 版本，支持请求取消
 func (c *Client) withTokenRetryContext(ctx context.Context, operation string, call func(*zentao.Client) error) error {
-	// 检查 context 是否已取消
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -230,13 +250,14 @@ func (c *Client) withTokenRetryContext(ctx context.Context, operation string, ca
 	}
 
 	c.mu.RLock()
-	err := call(c.sdkClient)
+	sdk := c.sdkClient
 	c.mu.RUnlock()
+
+	err := call(sdk)
 	if err == nil || !isAuthError(err) {
 		return err
 	}
 
-	// 重试前再检查 context
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -253,8 +274,9 @@ func (c *Client) withTokenRetryContext(ctx context.Context, operation string, ca
 	}
 
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return call(c.sdkClient)
+	sdk = c.sdkClient
+	c.mu.RUnlock()
+	return call(sdk)
 }
 
 func isAuthError(err error) bool {
@@ -286,8 +308,6 @@ func isAuthError(err error) bool {
 
 // GetAccount 获取当前登录用户的账号
 func (c *Client) GetAccount() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	return c.account
 }
 
