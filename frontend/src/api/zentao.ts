@@ -261,6 +261,10 @@ export const getInitStatus = (): AxiosPromise<unknown> => {
   return api.get('/init/status')
 }
 
+export const getAccountInfo = (): AxiosPromise<unknown> => {
+  return api.get('/init/account')
+}
+
 export const search = (params: {
   keyword: string
   productId?: number
