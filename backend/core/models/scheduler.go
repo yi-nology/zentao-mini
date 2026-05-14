@@ -9,6 +9,7 @@ type WebhookConfig struct {
 	Enabled  bool   `json:"enabled"`
 	Platform string `json:"platform"` // generic | lanxin
 	Secret   string `json:"secret"`   // 蓝信加签密钥
+	SkipSSL  bool   `json:"skipSSL"`  // 跳过SSL证书验证
 }
 
 type SchedulerTask struct {
