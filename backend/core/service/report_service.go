@@ -119,7 +119,7 @@ func (s *ReportService) GenerateBugReport(projectID int, projectName string, sta
 
 func buildMessage(title string, t time.Time, total, highSeverity int, details []models.AssigneeBugStats, statusBreakdown map[string]int) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("🔴 %s\n", title))
+	sb.WriteString(fmt.Sprintf("【提醒】🔴 %s\n", title))
 	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
 	sb.WriteString(fmt.Sprintf("📊 剩余 Bug：%d个（高级别 %d个）\n\n", total, highSeverity))
