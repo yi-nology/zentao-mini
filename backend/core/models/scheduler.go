@@ -22,6 +22,7 @@ type SchedulerTask struct {
 	ProjectName  string          `json:"projectName"`
 	ProductName  string          `json:"productName"`
 	StatusFilter string          `json:"statusFilter"`
+	Keyword      string          `json:"keyword"`
 	LastRunAt    *time.Time      `json:"lastRunAt"`
 	LastRunStatus string         `json:"lastRunStatus"`
 	CreatedAt    time.Time       `json:"createdAt"`
