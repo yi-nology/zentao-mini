@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -157,6 +158,11 @@ func (s *WebhookService) sendSingle(wh models.WebhookConfig, payload WebhookPayl
 	}
 
 	client := &http.Client{Timeout: 15 * time.Second}
+	if wh.SkipSSL {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
 	req, err := http.NewRequest("POST", wh.URL, bytes.NewReader(body))
 	if err != nil {
 		result.Error = err.Error()

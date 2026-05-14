@@ -35,8 +35,8 @@ func severityInt(v interface{}) int {
 	}
 }
 
-func (s *ReportService) GenerateBugReport(projectID int, projectName string, statusFilter string, keyword string) (*models.BugReport, error) {
-	bugs, err := s.client.GetAllBugsByProject(projectID)
+func (s *ReportService) GenerateBugReport(productID int, projectID int, projectName string, statusFilter string, keyword string) (*models.BugReport, error) {
+	bugs, err := s.client.GetAllBugsByProjectWithProduct(productID, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("获取Bug列表失败: %w", err)
 	}

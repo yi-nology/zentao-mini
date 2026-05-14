@@ -103,6 +103,17 @@ func Init(configPath string, envPrefix string) error {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	envKeys := []string{
+		"server.type", "server.port", "server.read_timeout", "server.write_timeout", "server.shutdown_timeout",
+		"zentao.server", "zentao.account", "zentao.password", "zentao.token_refresh_interval", "zentao.request_timeout",
+		"auth.db_path", "auth.config_path",
+		"log.level", "log.format", "log.enable_caller", "log.enable_stacktrace",
+		"rate_limit.requests_per_minute", "rate_limit.block_duration_minutes",
+	}
+	for _, key := range envKeys {
+		_ = v.BindEnv(key)
+	}
+
 	// 读取配置文件
 	if configPath != "" {
 		v.SetConfigFile(configPath)

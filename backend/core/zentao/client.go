@@ -1096,10 +1096,15 @@ func (c *Client) GetAllBugs(productID int) ([]zentao.Bug, error) {
 
 // GetAllBugsByProject 获取项目全部 Bug
 func (c *Client) GetAllBugsByProject(projectID int) ([]zentao.Bug, error) {
+	return c.GetAllBugsByProjectWithProduct(0, projectID)
+}
+
+// GetAllBugsByProjectWithProduct 获取项目全部 Bug（指定产品ID）
+func (c *Client) GetAllBugsByProjectWithProduct(productID int, projectID int) ([]zentao.Bug, error) {
 	var all []zentao.Bug
 	page := 1
 	for {
-		bugs, err := c.GetBugsByProject(0, projectID, page, 100)
+		bugs, err := c.GetBugsByProject(productID, projectID, page, 100)
 		if err != nil {
 			return all, err
 		}

@@ -165,11 +165,17 @@
               <div v-if="wh.platform === 'lanxin'" class="webhook-row" style="margin-top:6px">
                 <input v-model="wh.secret" class="form-input wh-url-full" placeholder="蓝信签名密钥 (可选，留空则不加签)" />
               </div>
+              <div class="webhook-row" style="margin-top:4px">
+                <label class="wh-enable">
+                  <input type="checkbox" v-model="wh.skipSSL" />
+                  跳过SSL验证
+                </label>
+              </div>
               <div style="margin-top:4px">
                 <button class="btn btn-sm" @click="handleTestWebhook(wh.url)" :disabled="!wh.url">测试</button>
               </div>
             </div>
-            <button class="btn btn-sm" @click="form.webhooks.push({ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '' })">+ 添加 Webhook</button>
+            <button class="btn btn-sm" @click="form.webhooks.push({ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false })">+ 添加 Webhook</button>
             <div v-if="testResult" class="test-result" :class="testResult.success ? 'test-ok' : 'test-fail'">
               {{ testResult.success ? '连接成功' : '连接失败: ' + testResult.error }}
             </div>
@@ -284,7 +290,7 @@ const form = reactive<{
   cronExpr: '0 9 * * 1-5',
   statusFilter: 'active',
   keyword: '提醒',
-  webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '' }],
+  webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }],
 })
 
 onMounted(() => {
@@ -346,7 +352,7 @@ const openCreateDialog = () => {
   form.cronExpr = '0 9 * * 1-5'
   form.statusFilter = 'active'
   form.keyword = '提醒'
-  form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '' }]
+  form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }]
   testResult.value = null
   dialogVisible.value = true
 }
@@ -372,9 +378,24 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     const payload = {
-      ...form,
-      productId: Number(form.productId),
-      projectId: Number(form.projectId),
+      name: form.name,
+      cronExpr: form.cronExpr,
+      enabled: false,
+      productId: Number(form.productId) || 0,
+      projectId: Number(form.projectId) || 0,
+      projectName: form.projectName,
+      productName: form.productName,
+      statusFilter: form.statusFilter,
+      keyword: form.keyword,
+      webhooks: form.webhooks.map(w => ({
+        id: w.id || '',
+        name: w.name,
+        url: w.url,
+        enabled: w.enabled,
+        platform: w.platform || 'generic',
+        secret: w.secret || '',
+        skipSSL: w.skipSSL || false,
+      })),
     }
     if (isEdit.value) {
       await updateTask(form.id, payload)
