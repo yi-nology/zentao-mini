@@ -5,6 +5,7 @@ export interface WebhookConfig {
   enabled: boolean
   platform: string
   secret: string
+  skipSSL: boolean
 }
 
 export interface SchedulerTask {

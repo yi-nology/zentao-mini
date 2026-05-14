@@ -201,7 +201,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask) *models.TaskE
 		zap.String("taskID", task.ID),
 		zap.String("taskName", task.Name))
 
-	report, err := s.report.GenerateBugReport(task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword)
+	report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword)
 	if err != nil {
 		logEntry.Status = "failed"
 		logEntry.Error = err.Error()
