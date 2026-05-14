@@ -3,6 +3,8 @@ export interface WebhookConfig {
   name: string
   url: string
   enabled: boolean
+  platform: string
+  secret: string
 }
 
 export interface SchedulerTask {

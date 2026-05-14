@@ -2,9 +2,13 @@ package service
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,12 +22,12 @@ func NewWebhookService() *WebhookService {
 }
 
 type WebhookPayload struct {
-	Title           string                   `json:"title"`
-	Timestamp       string                   `json:"timestamp"`
-	Project         string                   `json:"project"`
-	Summary         WebhookSummary           `json:"summary"`
-	Details         []AssigneeDetailPayload  `json:"details"`
-	Message         string                   `json:"message"`
+	Title           string                  `json:"title"`
+	Timestamp       string                  `json:"timestamp"`
+	Project         string                  `json:"project"`
+	Summary         WebhookSummary          `json:"summary"`
+	Details         []AssigneeDetailPayload `json:"details"`
+	Message         string                  `json:"message"`
 }
 
 type WebhookSummary struct {
@@ -41,6 +45,21 @@ type AssigneeDetailPayload struct {
 	Serious      int    `json:"serious"`
 	Moderate     int    `json:"moderate"`
 	Minor        int    `json:"minor"`
+}
+
+func detectPlatform(url string) string {
+	if strings.Contains(url, "apigw") && strings.Contains(url, "bot/hook/messages") {
+		return "lanxin"
+	}
+	return "generic"
+}
+
+func genLanxinSign(secret string) (string, string) {
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+	stringToSign := timestamp + "@" + secret
+	h := hmac.New(sha256.New, []byte(stringToSign))
+	signature := base64.StdEncoding.EncodeToString(h.Sum(nil))
+	return signature, timestamp
 }
 
 func (s *WebhookService) buildPayload(report *models.BugReport) WebhookPayload {
@@ -69,6 +88,23 @@ func (s *WebhookService) buildPayload(report *models.BugReport) WebhookPayload {
 		Details: details,
 		Message: report.Message,
 	}
+}
+
+func (s *WebhookService) buildLanxinBody(wh models.WebhookConfig, payload WebhookPayload) ([]byte, error) {
+	msg := map[string]interface{}{
+		"msgType": "text",
+		"msgData": map[string]interface{}{
+			"text": map[string]string{
+				"content": payload.Message,
+			},
+		},
+	}
+	if wh.Secret != "" {
+		sign, timestamp := genLanxinSign(wh.Secret)
+		msg["sign"] = sign
+		msg["timestamp"] = timestamp
+	}
+	return json.Marshal(msg)
 }
 
 func (s *WebhookService) SendAll(webhooks []models.WebhookConfig, report *models.BugReport) []models.WebhookResult {
@@ -102,19 +138,31 @@ func (s *WebhookService) sendSingle(wh models.WebhookConfig, payload WebhookPayl
 		WebhookURL:  wh.URL,
 	}
 
-	body, err := json.Marshal(payload)
+	platform := wh.Platform
+	if platform == "" {
+		platform = detectPlatform(wh.URL)
+	}
+
+	var body []byte
+	var err error
+
+	if platform == "lanxin" {
+		body, err = s.buildLanxinBody(wh, payload)
+	} else {
+		body, err = json.Marshal(payload)
+	}
 	if err != nil {
 		result.Error = err.Error()
 		return result
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 15 * time.Second}
 	req, err := http.NewRequest("POST", wh.URL, bytes.NewReader(body))
 	if err != nil {
 		result.Error = err.Error()
 		return result
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -124,14 +172,31 @@ func (s *WebhookService) sendSingle(wh models.WebhookConfig, payload WebhookPayl
 	defer resp.Body.Close()
 
 	result.StatusCode = resp.StatusCode
-	result.Success = resp.StatusCode >= 200 && resp.StatusCode < 300
-	if !result.Success {
+
+	var respBody map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err == nil {
+		if errCode, ok := respBody["errCode"]; ok {
+			if code, ok := errCode.(float64); ok && code == 0 {
+				result.Success = true
+			} else {
+				result.Success = false
+				result.Error = fmt.Sprintf("errCode=%v errMsg=%v", respBody["errCode"], respBody["errMsg"])
+			}
+		} else {
+			result.Success = resp.StatusCode >= 200 && resp.StatusCode < 300
+		}
+	} else {
+		result.Success = resp.StatusCode >= 200 && resp.StatusCode < 300
+	}
+
+	if !result.Success && result.Error == "" {
 		result.Error = fmt.Sprintf("HTTP %d", resp.StatusCode)
 	}
 	return result
 }
 
 func (s *WebhookService) TestWebhook(url string) (*models.WebhookResult, error) {
+	platform := detectPlatform(url)
 	testPayload := WebhookPayload{
 		Title:     "Webhook 连通性测试",
 		Timestamp: time.Now().Format(time.RFC3339),
@@ -142,9 +207,10 @@ func (s *WebhookService) TestWebhook(url string) (*models.WebhookResult, error) 
 			StatusBreakdown: map[string]int{"active": 0, "resolved": 0, "closed": 0},
 		},
 		Details: []AssigneeDetailPayload{},
-		Message: "这是一条测试消息，用于验证 Webhook 连通性。",
+		Message: "【提醒】这是一条测试消息，用于验证 Webhook 连通性。",
 	}
 
-	result := s.sendSingle(models.WebhookConfig{URL: url}, testPayload)
+	wh := models.WebhookConfig{URL: url, Platform: platform}
+	result := s.sendSingle(wh, testPayload)
 	return &result, nil
 }

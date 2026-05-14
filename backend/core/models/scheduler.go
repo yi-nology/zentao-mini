@@ -3,10 +3,12 @@ package models
 import "time"
 
 type WebhookConfig struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	URL     string `json:"url"`
-	Enabled bool   `json:"enabled"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	Enabled  bool   `json:"enabled"`
+	Platform string `json:"platform"` // generic | lanxin
+	Secret   string `json:"secret"`   // 蓝信加签密钥
 }
 
 type SchedulerTask struct {
