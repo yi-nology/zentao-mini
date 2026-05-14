@@ -51,6 +51,12 @@ const routes: AppRoute[] = [
         name: 'MCPGuide',
         component: () => import('../views/MCPGuide.vue'),
         meta: { title: 'MCP对接指南' }
+      },
+      {
+        path: 'scheduler',
+        name: 'Scheduler',
+        component: () => import('../views/Scheduler.vue'),
+        meta: { title: '定时任务' }
       }
     ]
   },

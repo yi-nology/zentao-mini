@@ -100,6 +100,8 @@ func (a *HTTPApp) Stop(ctx context.Context) error {
 		a.cancel()
 	}
 
+	a.deps.Handlers.StopScheduler()
+
 	if a.server != nil {
 		logger.Info("HTTP server shutting down", zap.String("name", a.Name()))
 		if err := a.server.Shutdown(ctx); err != nil {

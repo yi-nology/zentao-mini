@@ -48,7 +48,6 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	r.Use(utils.PaginationMiddleware())    // 分页中间件
 	r.Use(errors.CORSMiddleware())         // CORS中间件（从环境变量读取配置）
 
-	// 从注册表获取处理器（单例模式）
 	initHandler := registry.GetInitHandler()
 	productHandler := registry.GetProductHandler()
 	projectHandler := registry.GetProjectHandler()
@@ -59,6 +58,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	userHandler := registry.GetUserHandler()
 	timelogHandler := registry.GetTimelogHandler()
 	dashboardHandler := registry.GetDashboardHandler()
+	schedulerHandler := registry.GetSchedulerHandler()
 
 	// 健康检查接口
 	r.GET("/health", func(c *gin.Context) {
@@ -77,7 +77,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	r.GET("/metrics", metrics.Handler())
 
 	// 注册API路由（支持版本控制和向后兼容）
-	registerAPIRoutes(r, initHandler, productHandler, projectHandler, executionHandler, bugHandler, storyHandler, taskHandler, userHandler, timelogHandler, dashboardHandler)
+	registerAPIRoutes(r, initHandler, productHandler, projectHandler, executionHandler, bugHandler, storyHandler, taskHandler, userHandler, timelogHandler, dashboardHandler, schedulerHandler)
 
 	// 注册MCP HTTP路由（使用新的 mcp 包）
 	registerMCPRoutes(r, registry)
@@ -101,6 +101,7 @@ func registerAPIRoutes(
 	userHandler *handlers.UserHandler,
 	timelogHandler *handlers.TimelogHandler,
 	dashboardHandler *handlers.DashboardHandler,
+	schedulerHandler *handlers.SchedulerHandler,
 ) {
 	registerRoutes := func(apiGroup *gin.RouterGroup) {
 		// 初始化相关接口
@@ -141,6 +142,19 @@ func registerAPIRoutes(
 		apiGroup.GET("/project/overview", dashboardHandler.GetProjectOverview)
 		apiGroup.GET("/personal/timelog", dashboardHandler.GetPersonalTimelog)
 		apiGroup.GET("/search", dashboardHandler.Search)
+
+		scheduler := apiGroup.Group("/scheduler")
+		{
+			scheduler.GET("/tasks", schedulerHandler.ListTasks)
+			scheduler.POST("/tasks", schedulerHandler.CreateTask)
+			scheduler.PUT("/tasks/:id", schedulerHandler.UpdateTask)
+			scheduler.DELETE("/tasks/:id", schedulerHandler.DeleteTask)
+			scheduler.PATCH("/tasks/:id/toggle", schedulerHandler.ToggleTask)
+			scheduler.POST("/tasks/:id/run", schedulerHandler.RunTaskNow)
+			scheduler.GET("/tasks/:id/logs", schedulerHandler.GetTaskLogs)
+			scheduler.GET("/logs", schedulerHandler.GetAllLogs)
+			scheduler.POST("/test-webhook", schedulerHandler.TestWebhook)
+		}
 	}
 
 	// 注册API v1版本路由（推荐使用）
