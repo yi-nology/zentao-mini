@@ -1,0 +1,39 @@
+import api from './api'
+import type {
+  SchedulerTask,
+  TaskExecutionLog,
+  WebhookResult,
+} from '@/types/scheduler'
+
+interface ApiResponse<T> {
+  code: number
+  message: string
+  data: T
+}
+
+export const listTasks = (): Promise<ApiResponse<SchedulerTask[]>> =>
+  api.get('/scheduler/tasks')
+
+export const createTask = (task: Partial<SchedulerTask>): Promise<ApiResponse<SchedulerTask>> =>
+  api.post('/scheduler/tasks', task)
+
+export const updateTask = (id: string, task: Partial<SchedulerTask>): Promise<ApiResponse<SchedulerTask>> =>
+  api.put(`/scheduler/tasks/${id}`, task)
+
+export const deleteTask = (id: string): Promise<ApiResponse<null>> =>
+  api.delete(`/scheduler/tasks/${id}`)
+
+export const toggleTask = (id: string): Promise<ApiResponse<SchedulerTask>> =>
+  api.patch(`/scheduler/tasks/${id}/toggle`)
+
+export const runTaskNow = (id: string): Promise<ApiResponse<TaskExecutionLog>> =>
+  api.post(`/scheduler/tasks/${id}/run`)
+
+export const getTaskLogs = (id: string): Promise<ApiResponse<TaskExecutionLog[]>> =>
+  api.get(`/scheduler/tasks/${id}/logs`)
+
+export const getAllLogs = (): Promise<ApiResponse<TaskExecutionLog[]>> =>
+  api.get('/scheduler/logs')
+
+export const testWebhook = (url: string): Promise<ApiResponse<WebhookResult>> =>
+  api.post('/scheduler/test-webhook', { url })

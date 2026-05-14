@@ -14,34 +14,35 @@ import (
 
 // Injectors from wire.go:
 
-// InitializeHTTPApp 初始化HTTP应用
-// 使用wire自动生成依赖注入代码
 func InitializeHTTPApp(config *AppConfig) (Application, error) {
 	initService := provideInitService(config)
 	client := provideZentaoClient(config, initService)
-	dependencies := NewDependencies(initService, client)
+	configStore := provideConfigStore(config)
+	dependencies := NewDependencies(initService, client, configStore)
 	application := provideHTTPApp(config, dependencies)
 	return application, nil
 }
 
-// InitializeWailsApp 初始化Wails应用
-// 使用wire自动生成依赖注入代码
 func InitializeWailsApp(config *AppConfig) (Application, error) {
 	initService := provideInitService(config)
 	client := provideZentaoClient(config, initService)
-	dependencies := NewDependencies(initService, client)
+	configStore := provideConfigStore(config)
+	dependencies := NewDependencies(initService, client, configStore)
 	application := provideWailsApp(config, dependencies)
 	return application, nil
 }
 
 // wire.go:
 
-// provideInitService 提供InitService实例
 func provideInitService(config *AppConfig) *initialization.InitService {
 	return initialization.NewInitService(
 		config.AuthDBPath,
 		config.EncryptionKey,
 	)
+}
+
+func provideConfigStore(config *AppConfig) *initialization.ConfigStore {
+	return initialization.NewConfigStore(config.AuthDBPath)
 }
 
 // provideZentaoClient 提供ZentaoClient实例
