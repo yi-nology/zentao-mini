@@ -141,17 +141,30 @@
           </div>
           <div class="form-group">
             <label>Webhook 列表 <span class="required">*</span></label>
-            <div v-for="(wh, idx) in form.webhooks" :key="idx" class="webhook-row">
-              <input v-model="wh.name" class="form-input wh-name" placeholder="名称" />
-              <input v-model="wh.url" class="form-input wh-url" placeholder="https://..." />
-              <label class="wh-enable">
-                <input type="checkbox" v-model="wh.enabled" />
-                启用
-              </label>
-              <button class="btn btn-sm btn-danger" @click="form.webhooks.splice(idx, 1)">✕</button>
-              <button class="btn btn-sm" @click="handleTestWebhook(wh.url)" :disabled="!wh.url">测试</button>
+            <div v-for="(wh, idx) in form.webhooks" :key="idx" class="webhook-block">
+              <div class="webhook-row">
+                <input v-model="wh.name" class="form-input wh-name" placeholder="名称" />
+                <select v-model="wh.platform" class="form-input wh-platform">
+                  <option value="generic">通用</option>
+                  <option value="lanxin">蓝信</option>
+                </select>
+                <label class="wh-enable">
+                  <input type="checkbox" v-model="wh.enabled" />
+                  启用
+                </label>
+                <button class="btn btn-sm btn-danger" @click="form.webhooks.splice(idx, 1)">✕</button>
+              </div>
+              <div class="webhook-row" style="margin-top:6px">
+                <input v-model="wh.url" class="form-input wh-url-full" placeholder="Webhook URL (https://...)" />
+              </div>
+              <div v-if="wh.platform === 'lanxin'" class="webhook-row" style="margin-top:6px">
+                <input v-model="wh.secret" class="form-input wh-url-full" placeholder="蓝信签名密钥 (可选，留空则不加签)" />
+              </div>
+              <div style="margin-top:4px">
+                <button class="btn btn-sm" @click="handleTestWebhook(wh.url)" :disabled="!wh.url">测试</button>
+              </div>
             </div>
-            <button class="btn btn-sm" @click="form.webhooks.push({ id: '', name: '', url: '', enabled: true })">+ 添加 Webhook</button>
+            <button class="btn btn-sm" @click="form.webhooks.push({ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '' })">+ 添加 Webhook</button>
             <div v-if="testResult" class="test-result" :class="testResult.success ? 'test-ok' : 'test-fail'">
               {{ testResult.success ? '连接成功' : '连接失败: ' + testResult.error }}
             </div>
@@ -264,7 +277,7 @@ const form = reactive<{
   productName: '',
   cronExpr: '0 9 * * 1-5',
   statusFilter: 'active',
-  webhooks: [{ id: '', name: '', url: '', enabled: true }],
+  webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '' }],
 })
 
 onMounted(() => {
@@ -325,7 +338,7 @@ const openCreateDialog = () => {
   form.productName = ''
   form.cronExpr = '0 9 * * 1-5'
   form.statusFilter = 'active'
-  form.webhooks = [{ id: '', name: '', url: '', enabled: true }]
+  form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '' }]
   testResult.value = null
   dialogVisible.value = true
 }
@@ -699,11 +712,21 @@ watch(() => activeTab.value, (tab) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+}
+
+.webhook-block {
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin-bottom: 10px;
+  background: var(--color-bg);
 }
 
 .wh-name { width: 120px !important; flex-shrink: 0; }
+.wh-platform { width: 100px !important; flex-shrink: 0; }
 .wh-url { flex: 1 !important; }
+.wh-url-full { width: 100% !important; }
 
 .wh-enable {
   display: flex;
