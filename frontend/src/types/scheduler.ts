@@ -18,6 +18,7 @@ export interface SchedulerTask {
   projectName: string
   productName: string
   statusFilter: string
+  keyword: string
   lastRunAt: string | null
   lastRunStatus: string
   createdAt: string

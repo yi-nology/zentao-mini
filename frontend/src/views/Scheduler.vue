@@ -140,6 +140,11 @@
             </select>
           </div>
           <div class="form-group">
+            <label>消息关键词</label>
+            <input v-model="form.keyword" class="form-input" placeholder="如：提醒（蓝信自定义关键词触发必填）" />
+            <div class="hint-text">填写后消息开头会自动加上【关键词】，用于触发群机器人关键词提醒</div>
+          </div>
+          <div class="form-group">
             <label>Webhook 列表 <span class="required">*</span></label>
             <div v-for="(wh, idx) in form.webhooks" :key="idx" class="webhook-block">
               <div class="webhook-row">
@@ -260,13 +265,14 @@ const runResult = ref<TaskExecutionLog | null>(null)
 
 const form = reactive<{
   id: string
-  name: string
+   name: string
   productId: number | string
   projectId: number | string
   projectName: string
   productName: string
   cronExpr: string
   statusFilter: string
+  keyword: string
   webhooks: WebhookConfig[]
 }>({
   id: '',
@@ -277,6 +283,7 @@ const form = reactive<{
   productName: '',
   cronExpr: '0 9 * * 1-5',
   statusFilter: 'active',
+  keyword: '提醒',
   webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '' }],
 })
 
@@ -338,6 +345,7 @@ const openCreateDialog = () => {
   form.productName = ''
   form.cronExpr = '0 9 * * 1-5'
   form.statusFilter = 'active'
+  form.keyword = '提醒'
   form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '' }]
   testResult.value = null
   dialogVisible.value = true
@@ -676,6 +684,12 @@ watch(() => activeTab.value, (tab) => {
 .form-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(79, 107, 246, 0.12);
+}
+
+.hint-text {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
 }
 
 .form-row {
