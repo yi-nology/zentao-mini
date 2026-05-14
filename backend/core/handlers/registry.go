@@ -10,10 +10,8 @@ import (
 // 使用单例模式确保所有handler和service只初始化一次，避免重复创建
 // 这是依赖注入模式的核心组件，提供统一的handler访问入口
 type HandlerRegistry struct {
-	// 禅道客户端
 	client *myzentao.Client
 
-	// Service层实例
 	productService   *service.ProductService
 	projectService   *service.ProjectService
 	executionService *service.ExecutionService
@@ -23,8 +21,10 @@ type HandlerRegistry struct {
 	userService      *service.UserService
 	timelogService   *service.TimelogService
 	dashboardService *service.DashboardService
+	reportService    *service.ReportService
+	webhookService   *service.WebhookService
+	schedulerService *service.SchedulerService
 
-	// Handler层实例
 	productHandler   *ProductHandler
 	projectHandler   *ProjectHandler
 	executionHandler *ExecutionHandler
@@ -34,6 +34,7 @@ type HandlerRegistry struct {
 	userHandler      *UserHandler
 	timelogHandler   *TimelogHandler
 	dashboardHandler *DashboardHandler
+	schedulerHandler *SchedulerHandler
 	mcpHandler       *MCPHandler
 	initHandler      *InitHandler
 }
@@ -46,7 +47,6 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 		client: client,
 	}
 
-	// 初始化所有Service层实例
 	registry.productService = service.NewProductService(client)
 	registry.projectService = service.NewProjectService(client)
 	registry.executionService = service.NewExecutionService(client)
@@ -57,7 +57,6 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.timelogService = service.NewTimelogService(client)
 	registry.dashboardService = service.NewDashboardService(client)
 
-	// 初始化所有Handler层实例，注入Service依赖
 	registry.productHandler = NewProductHandler(registry.productService)
 	registry.projectHandler = NewProjectHandler(registry.projectService)
 	registry.executionHandler = NewExecutionHandler(registry.executionService)
@@ -68,7 +67,6 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.timelogHandler = NewTimelogHandler(registry.timelogService)
 	registry.dashboardHandler = NewDashboardHandler(registry.dashboardService)
 
-	// MCP handler依赖其他handler
 	registry.mcpHandler = NewMCPHandler(
 		registry.productHandler,
 		registry.projectHandler,
@@ -80,10 +78,23 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 		registry.timelogHandler,
 	)
 
-	// Init handler依赖initService和zentaoClient
 	registry.initHandler = NewInitHandler(initService, client)
 
 	return registry
+}
+
+func (r *HandlerRegistry) InitScheduler(store *initialization.ConfigStore) {
+	r.reportService = service.NewReportService(r.client)
+	r.webhookService = service.NewWebhookService()
+	r.schedulerService = service.NewSchedulerService(store, r.reportService, r.webhookService)
+	r.schedulerHandler = NewSchedulerHandler(r.schedulerService, r.webhookService)
+	_ = r.schedulerService.Start()
+}
+
+func (r *HandlerRegistry) StopScheduler() {
+	if r.schedulerService != nil {
+		r.schedulerService.Stop()
+	}
 }
 
 // GetProductHandler 获取产品Handler
@@ -163,4 +174,8 @@ func (r *HandlerRegistry) GetInitHandler() *InitHandler {
 
 func (r *HandlerRegistry) GetDashboardHandler() *DashboardHandler {
 	return r.dashboardHandler
+}
+
+func (r *HandlerRegistry) GetSchedulerHandler() *SchedulerHandler {
+	return r.schedulerHandler
 }

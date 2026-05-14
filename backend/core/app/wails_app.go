@@ -140,7 +140,7 @@ func (a *WailsApp) Start(ctx context.Context) error {
 
 // Stop 停止Wails应用
 func (a *WailsApp) Stop(ctx context.Context) error {
-	// 取消上下文，停止后端服务
+	a.deps.Handlers.StopScheduler()
 	if a.cancel != nil {
 		a.cancel()
 	}
