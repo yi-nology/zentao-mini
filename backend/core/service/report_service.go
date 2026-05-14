@@ -35,7 +35,7 @@ func severityInt(v interface{}) int {
 	}
 }
 
-func (s *ReportService) GenerateBugReport(projectID int, projectName string, statusFilter string) (*models.BugReport, error) {
+func (s *ReportService) GenerateBugReport(projectID int, projectName string, statusFilter string, keyword string) (*models.BugReport, error) {
 	bugs, err := s.client.GetAllBugsByProject(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("获取Bug列表失败: %w", err)
@@ -103,7 +103,7 @@ func (s *ReportService) GenerateBugReport(projectID int, projectName string, sta
 
 	now := time.Now()
 	title := fmt.Sprintf("Bug 分布报告 - %s", projectName)
-	message := buildMessage(title, now, len(filtered), totalHigh, details, statusBreakdown)
+	message := buildMessage(title, now, len(filtered), totalHigh, details, statusBreakdown, keyword)
 
 	return &models.BugReport{
 		Title:           title,
@@ -117,9 +117,13 @@ func (s *ReportService) GenerateBugReport(projectID int, projectName string, sta
 	}, nil
 }
 
-func buildMessage(title string, t time.Time, total, highSeverity int, details []models.AssigneeBugStats, statusBreakdown map[string]int) string {
+func buildMessage(title string, t time.Time, total, highSeverity int, details []models.AssigneeBugStats, statusBreakdown map[string]int, keyword string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("【提醒】🔴 %s\n", title))
+	kw := ""
+	if keyword != "" {
+		kw = fmt.Sprintf("【%s】", keyword)
+	}
+	sb.WriteString(fmt.Sprintf("%s🔴 %s\n", kw, title))
 	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
 	sb.WriteString(fmt.Sprintf("📊 剩余 Bug：%d个（高级别 %d个）\n\n", total, highSeverity))
