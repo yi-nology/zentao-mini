@@ -3,9 +3,9 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 
-	"chandao-mini/backend/core/errors"
-	"chandao-mini/backend/core/models"
-	"chandao-mini/backend/core/service"
+	"github.com/yi-nology/zentao-mini/backend/core/errors"
+	"github.com/yi-nology/zentao-mini/backend/core/models"
+	"github.com/yi-nology/zentao-mini/backend/core/service"
 )
 
 type SchedulerHandler struct {

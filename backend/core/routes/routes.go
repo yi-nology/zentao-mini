@@ -5,16 +5,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"chandao-mini/backend/core/errors"
-	"chandao-mini/backend/core/handlers"
-	"chandao-mini/backend/core/version"
-	"chandao-mini/backend/core/initialization"
-	"chandao-mini/backend/core/logger"
-	"chandao-mini/backend/core/mcp"
-	"chandao-mini/backend/core/metrics"
-	"chandao-mini/backend/core/middleware"
-	"chandao-mini/backend/core/utils"
-	"chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/errors"
+	"github.com/yi-nology/zentao-mini/backend/core/handlers"
+	"github.com/yi-nology/zentao-mini/backend/core/version"
+	"github.com/yi-nology/zentao-mini/backend/core/initialization"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/mcp"
+	"github.com/yi-nology/zentao-mini/backend/core/metrics"
+	"github.com/yi-nology/zentao-mini/backend/core/middleware"
+	"github.com/yi-nology/zentao-mini/backend/core/utils"
+	"github.com/yi-nology/zentao-mini/backend/core/zentao"
 
 	"go.uber.org/zap"
 )
@@ -59,6 +59,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	timelogHandler := registry.GetTimelogHandler()
 	dashboardHandler := registry.GetDashboardHandler()
 	schedulerHandler := registry.GetSchedulerHandler()
+	healthHandler := registry.GetHealthHandler()
 
 	// 健康检查接口
 	r.GET("/health", func(c *gin.Context) {
@@ -72,6 +73,9 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	r.GET("/api/version", func(c *gin.Context) {
 		errors.Success(c, version.Info())
 	})
+
+	// 心跳检测接口
+	r.GET("/api/healthz", healthHandler.Check)
 
 	// Prometheus metrics端点
 	r.GET("/metrics", metrics.Handler())

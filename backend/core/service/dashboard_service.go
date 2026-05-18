@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	myzentao "chandao-mini/backend/core/zentao"
-	"chandao-mini/backend/core/vo"
+	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/vo"
 	"github.com/yi-nology/common/biz/zentao"
 )
 

@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"chandao-mini/backend/core/models"
+	"github.com/yi-nology/zentao-mini/backend/core/models"
 	"github.com/yi-nology/common/biz/zentao"
 )
 

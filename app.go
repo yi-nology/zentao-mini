@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"chandao-mini/backend/core/app"
+	"github.com/yi-nology/zentao-mini/backend/core/app"
 
 	"github.com/joho/godotenv"
 )

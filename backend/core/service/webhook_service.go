@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"chandao-mini/backend/core/models"
+	"github.com/yi-nology/zentao-mini/backend/core/models"
 )
 
 type WebhookService struct{}

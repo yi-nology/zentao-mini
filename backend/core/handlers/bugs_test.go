@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"chandao-mini/backend/core/errors"
+	"github.com/yi-nology/zentao-mini/backend/core/errors"
 )
 
 func init() {

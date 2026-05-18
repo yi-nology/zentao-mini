@@ -4,7 +4,7 @@ package handlers
 // 新代码请使用 mcp.MCPServer 直接调用 service 层
 
 import (
-	"chandao-mini/backend/core/dto"
+	"github.com/yi-nology/zentao-mini/backend/core/dto"
 	"strconv"
 )
 

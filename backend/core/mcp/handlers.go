@@ -1,7 +1,7 @@
 package mcp
 
 import (
-	"chandao-mini/backend/core/dto"
+	"github.com/yi-nology/zentao-mini/backend/core/dto"
 	"fmt"
 	"strconv"
 )

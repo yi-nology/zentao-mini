@@ -8,8 +8,8 @@ import (
 
 	"github.com/yi-nology/common/biz/zentao"
 
-	"chandao-mini/backend/core/models"
-	myzentao "chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/models"
+	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
 type ReportService struct {

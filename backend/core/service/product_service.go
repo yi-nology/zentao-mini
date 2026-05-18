@@ -3,8 +3,8 @@ package service
 import (
 	"github.com/yi-nology/common/biz/zentao"
 
-	"chandao-mini/backend/core/vo"
-	myzentao "chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/vo"
+	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
 // ProductService 产品业务逻辑服务
