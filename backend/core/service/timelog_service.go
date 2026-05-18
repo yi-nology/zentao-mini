@@ -1,8 +1,8 @@
 package service
 
 import (
-	"chandao-mini/backend/core/dto"
-	myzentao "chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/dto"
+	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
 // TimelogService 工时统计业务逻辑服务

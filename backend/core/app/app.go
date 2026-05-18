@@ -3,9 +3,9 @@ package app
 import (
 	"context"
 
-	"chandao-mini/backend/core/handlers"
-	"chandao-mini/backend/core/initialization"
-	"chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/handlers"
+	"github.com/yi-nology/zentao-mini/backend/core/initialization"
+	"github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
 type Application interface {

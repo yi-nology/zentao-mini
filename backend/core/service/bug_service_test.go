@@ -6,8 +6,8 @@ import (
 
 	"github.com/yi-nology/common/biz/zentao"
 
-	"chandao-mini/backend/core/dto"
-	"chandao-mini/backend/core/models"
+	"github.com/yi-nology/zentao-mini/backend/core/dto"
+	"github.com/yi-nology/zentao-mini/backend/core/models"
 )
 
 type MockClient struct {

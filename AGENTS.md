@@ -4,7 +4,7 @@
 
 Wails v2 desktop app (Go + Vue 3) for Zentao (禅道) project management. Also deployable as a standalone HTTP server or embedded app with static frontend.
 
-**Go module name is `chandao-mini`** (not `zentao-mini`). Import paths use `chandao-mini/backend/...`.
+**Go module name is `github.com/yi-nology/zentao-mini`**. Import paths use `github.com/yi-nology/zentao-mini/backend/...`.
 
 ## Architecture
 

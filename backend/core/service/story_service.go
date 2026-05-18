@@ -5,10 +5,10 @@ import (
 
 	"github.com/yi-nology/common/biz/zentao"
 
-	"chandao-mini/backend/core/dto"
-	"chandao-mini/backend/core/utils"
-	"chandao-mini/backend/core/vo"
-	myzentao "chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/dto"
+	"github.com/yi-nology/zentao-mini/backend/core/utils"
+	"github.com/yi-nology/zentao-mini/backend/core/vo"
+	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
 // StoryService 需求业务逻辑服务

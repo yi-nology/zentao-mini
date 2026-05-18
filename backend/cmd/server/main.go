@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"chandao-mini/backend/core/app"
-	"chandao-mini/backend/core/config"
-	"chandao-mini/backend/core/logger"
-	"chandao-mini/backend/core/metrics"
+	"github.com/yi-nology/zentao-mini/backend/core/app"
+	"github.com/yi-nology/zentao-mini/backend/core/config"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/metrics"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"

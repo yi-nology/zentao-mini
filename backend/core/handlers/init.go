@@ -6,10 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"chandao-mini/backend/core/errors"
-	"chandao-mini/backend/core/initialization"
-	"chandao-mini/backend/core/logger"
-	"chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/errors"
+	"github.com/yi-nology/zentao-mini/backend/core/initialization"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
 type InitHandler struct {

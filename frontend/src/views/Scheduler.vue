@@ -35,7 +35,7 @@
               <span v-for="wh in task.webhooks" :key="wh.id" class="webhook-tag" :class="{ disabled: !wh.enabled }">
                 {{ wh.name }}
               </span>
-              <span v-if="task.webhooks.length === 0" class="text-muted">无</span>
+              <span v-if="(task.webhooks || []).length === 0" class="text-muted">无</span>
             </td>
             <td>
               <span class="status-badge" :class="task.enabled ? 'status-on' : 'status-off'" @click="handleToggle(task)">
@@ -85,10 +85,10 @@
             <td>{{ log.bugTotal }}</td>
             <td>{{ log.highSeverity }}</td>
             <td>
-              <span v-for="wr in log.webhookResults" :key="wr.webhookId" class="wh-result" :class="wr.success ? 'wh-ok' : 'wh-fail'" :title="wr.webhookName + ': ' + (wr.error || 'OK')">
+              <span v-for="wr in log.webhookResults || []" :key="wr.webhookId" class="wh-result" :class="wr.success ? 'wh-ok' : 'wh-fail'" :title="wr.webhookName + ': ' + (wr.error || 'OK')">
                 {{ wr.success ? '✓' : '✗' }} {{ wr.webhookName }}
               </span>
-              <span v-if="log.webhookResults.length === 0" class="text-muted">-</span>
+              <span v-if="(log.webhookResults || []).length === 0" class="text-muted">-</span>
             </td>
             <td class="error-cell">{{ log.error || '-' }}</td>
           </tr>
@@ -215,7 +215,7 @@
               <span class="result-label">指派人分组：</span>
               <span>{{ runResult.assigneeCount }} 人</span>
             </div>
-            <div v-if="runResult.webhookResults.length > 0" class="result-webhooks">
+            <div v-if="runResult.webhookResults?.length > 0" class="result-webhooks">
               <div class="result-label">Webhook 结果：</div>
               <div v-for="wr in runResult.webhookResults" :key="wr.webhookId" class="wh-result-item">
                 <span :class="wr.success ? 'wh-ok' : 'wh-fail'">{{ wr.success ? '✓' : '✗' }}</span>

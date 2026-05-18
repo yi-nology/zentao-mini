@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"chandao-mini/backend/core/config"
+	"github.com/yi-nology/zentao-mini/backend/core/config"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

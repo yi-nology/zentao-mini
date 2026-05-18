@@ -6,8 +6,8 @@ package app
 import (
 	"os"
 
-	"chandao-mini/backend/core/initialization"
-	"chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/initialization"
+	"github.com/yi-nology/zentao-mini/backend/core/zentao"
 
 	"github.com/google/wire"
 )

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"chandao-mini/backend/core/models"
+	"github.com/yi-nology/zentao-mini/backend/core/models"
 )
 
 const maxLogs = 100
