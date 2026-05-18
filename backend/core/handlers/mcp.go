@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	"chandao-mini/backend/core/errors"
+	"github.com/yi-nology/zentao-mini/backend/core/errors"
 
 	"github.com/gin-gonic/gin"
 )

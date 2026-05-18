@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"chandao-mini/backend/core/errors"
-	"chandao-mini/backend/core/service"
+	"github.com/yi-nology/zentao-mini/backend/core/errors"
+	"github.com/yi-nology/zentao-mini/backend/core/service"
 )
 
 type UserHandler struct {

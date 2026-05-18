@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"chandao-mini/backend/core/logger"
-	"chandao-mini/backend/core/routes"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/routes"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

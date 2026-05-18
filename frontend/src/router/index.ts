@@ -57,6 +57,12 @@ const routes: AppRoute[] = [
         name: 'Scheduler',
         component: () => import('../views/Scheduler.vue'),
         meta: { title: '定时任务' }
+      },
+      {
+        path: 'health',
+        name: 'HealthCheck',
+        component: () => import('../views/HealthCheck.vue'),
+        meta: { title: '心跳检测' }
       }
     ]
   },

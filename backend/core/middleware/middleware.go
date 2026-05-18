@@ -3,9 +3,9 @@ package middleware
 import (
 	"time"
 
-	"chandao-mini/backend/core/errors"
-	"chandao-mini/backend/core/logger"
-	"chandao-mini/backend/core/metrics"
+	"github.com/yi-nology/zentao-mini/backend/core/errors"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/metrics"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

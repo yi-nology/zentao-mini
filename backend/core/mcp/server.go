@@ -1,8 +1,8 @@
 package mcp
 
 import (
-	"chandao-mini/backend/core/service"
-	myzentao "chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/service"
+	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
 // MCPServer 是 MCP 服务的核心，直接依赖 service 层

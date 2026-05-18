@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
-	"chandao-mini/backend/core/initialization"
-	"chandao-mini/backend/core/logger"
-	"chandao-mini/backend/core/models"
+	"github.com/yi-nology/zentao-mini/backend/core/initialization"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/models"
 
 	"go.uber.org/zap"
 )
@@ -190,11 +190,12 @@ func (s *SchedulerService) RunTaskNow(id string) (*models.TaskExecutionLog, erro
 
 func (s *SchedulerService) executeTask(task *models.SchedulerTask) *models.TaskExecutionLog {
 	logEntry := &models.TaskExecutionLog{
-		ID:        uuid.New().String(),
-		TaskID:    task.ID,
-		TaskName:  task.Name,
-		StartedAt: time.Now(),
-		Status:    "running",
+		ID:             uuid.New().String(),
+		TaskID:         task.ID,
+		TaskName:       task.Name,
+		StartedAt:      time.Now(),
+		Status:         "running",
+		WebhookResults: []models.WebhookResult{},
 	}
 
 	logger.Info("开始执行定时任务",

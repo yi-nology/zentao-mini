@@ -1,8 +1,8 @@
 package zentao
 
 import (
-	"chandao-mini/backend/core/logger"
-	"chandao-mini/backend/core/metrics"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/metrics"
 	"context"
 	"fmt"
 	"strconv"

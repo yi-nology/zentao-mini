@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"chandao-mini/backend/core/initialization"
-	"chandao-mini/backend/core/service"
-	myzentao "chandao-mini/backend/core/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/initialization"
+	"github.com/yi-nology/zentao-mini/backend/core/service"
+	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
 // HandlerRegistry Handler注册表
@@ -37,6 +37,7 @@ type HandlerRegistry struct {
 	schedulerHandler *SchedulerHandler
 	mcpHandler       *MCPHandler
 	initHandler      *InitHandler
+	healthHandler    *HealthHandler
 }
 
 // NewHandlerRegistry 创建Handler注册表
@@ -80,6 +81,17 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 
 	registry.initHandler = NewInitHandler(initService, client)
 
+	registry.healthHandler = NewHealthHandler(
+		client,
+		registry.productService,
+		registry.projectService,
+		registry.bugService,
+		registry.storyService,
+		registry.taskService,
+		registry.userService,
+		nil,
+	)
+
 	return registry
 }
 
@@ -88,6 +100,7 @@ func (r *HandlerRegistry) InitScheduler(store *initialization.ConfigStore) {
 	r.webhookService = service.NewWebhookService()
 	r.schedulerService = service.NewSchedulerService(store, r.reportService, r.webhookService)
 	r.schedulerHandler = NewSchedulerHandler(r.schedulerService, r.webhookService)
+	r.healthHandler.schedulerService = r.schedulerService
 	_ = r.schedulerService.Start()
 }
 
@@ -178,4 +191,8 @@ func (r *HandlerRegistry) GetDashboardHandler() *DashboardHandler {
 
 func (r *HandlerRegistry) GetSchedulerHandler() *SchedulerHandler {
 	return r.schedulerHandler
+}
+
+func (r *HandlerRegistry) GetHealthHandler() *HealthHandler {
+	return r.healthHandler
 }
