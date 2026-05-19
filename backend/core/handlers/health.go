@@ -175,7 +175,7 @@ func (h *HealthHandler) checkProducts() CheckItem {
 
 func (h *HealthHandler) checkProjects() CheckItem {
 	start := time.Now()
-	projects, err := h.projectService.GetProjects(nil)
+	projects, err := h.projectService.GetProjects(&dto.ProjectQueryDTO{})
 	if err != nil {
 		return CheckItem{
 			Status:    "fail",

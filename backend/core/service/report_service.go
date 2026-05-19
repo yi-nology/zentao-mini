@@ -35,7 +35,7 @@ func severityInt(v interface{}) int {
 	}
 }
 
-func (s *ReportService) GenerateBugReport(productID int, projectID int, projectName string, statusFilter string, keyword string) (*models.BugReport, error) {
+func (s *ReportService) GenerateBugReport(productID int, projectID int, projectName string, statusFilter string, keyword string, externalInfo string) (*models.BugReport, error) {
 	bugs, err := s.client.GetAllBugsByProjectWithProduct(productID, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("获取Bug列表失败: %w", err)
@@ -103,7 +103,7 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 
 	now := time.Now()
 	title := fmt.Sprintf("Bug 分布报告 - %s", projectName)
-	message := buildMessage(title, now, len(filtered), totalHigh, details, statusBreakdown, keyword)
+	message := buildMessage(title, now, len(filtered), totalHigh, details, statusBreakdown, keyword, externalInfo)
 
 	return &models.BugReport{
 		Title:           title,
@@ -117,7 +117,7 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 	}, nil
 }
 
-func buildMessage(title string, t time.Time, total, highSeverity int, details []models.AssigneeBugStats, statusBreakdown map[string]int, keyword string) string {
+func buildMessage(title string, t time.Time, total, highSeverity int, details []models.AssigneeBugStats, statusBreakdown map[string]int, keyword string, externalInfo string) string {
 	var sb strings.Builder
 	kw := ""
 	if keyword != "" {
@@ -138,6 +138,9 @@ func buildMessage(title string, t time.Time, total, highSeverity int, details []
 	}
 
 	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
+	if externalInfo != "" {
+		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
+	}
 	sb.WriteString(fmt.Sprintf("⚠️ 高级别 Bug 共 %d个，需重点关注！\n", highSeverity))
 	sb.WriteString(fmt.Sprintf("📈 Bug 状态分布：活跃 %d | 已解决 %d | 已关闭 %d",
 		statusBreakdown["active"], statusBreakdown["resolved"], statusBreakdown["closed"]))
