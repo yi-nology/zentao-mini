@@ -145,6 +145,11 @@
             <div class="hint-text">填写后消息开头会自动加上【关键词】，用于触发群机器人关键词提醒</div>
           </div>
           <div class="form-group">
+            <label>外部信息</label>
+            <textarea v-model="form.externalInfo" class="form-input form-textarea" placeholder="如：上线时间、负责人、相关链接等附加信息，会附加在蓝信消息中" rows="3"></textarea>
+            <div class="hint-text">可选，填写后会展示在 Bug 报告消息中</div>
+          </div>
+          <div class="form-group">
             <label>Webhook 列表 <span class="required">*</span></label>
             <div v-for="(wh, idx) in form.webhooks" :key="idx" class="webhook-block">
               <div class="webhook-row">
@@ -279,6 +284,7 @@ const form = reactive<{
   cronExpr: string
   statusFilter: string
   keyword: string
+  externalInfo: string
   webhooks: WebhookConfig[]
 }>({
   id: '',
@@ -290,6 +296,7 @@ const form = reactive<{
   cronExpr: '0 9 * * 1-5',
   statusFilter: 'active',
   keyword: '提醒',
+  externalInfo: '',
   webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }],
 })
 
@@ -352,6 +359,7 @@ const openCreateDialog = () => {
   form.cronExpr = '0 9 * * 1-5'
   form.statusFilter = 'active'
   form.keyword = '提醒'
+  form.externalInfo = ''
   form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }]
   testResult.value = null
   dialogVisible.value = true
@@ -367,6 +375,7 @@ const openEditDialog = (task: SchedulerTask) => {
   form.productName = task.productName
   form.cronExpr = task.cronExpr
   form.statusFilter = task.statusFilter
+  form.externalInfo = task.externalInfo || ''
   form.webhooks = task.webhooks.map(w => ({ ...w }))
   testResult.value = null
   dialogVisible.value = true
@@ -387,6 +396,7 @@ const handleSubmit = async () => {
       productName: form.productName,
       statusFilter: form.statusFilter,
       keyword: form.keyword,
+      externalInfo: form.externalInfo,
       webhooks: form.webhooks.map(w => ({
         id: w.id || '',
         name: w.name,
@@ -705,6 +715,12 @@ watch(() => activeTab.value, (tab) => {
 .form-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(79, 107, 246, 0.12);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
 }
 
 .hint-text {
