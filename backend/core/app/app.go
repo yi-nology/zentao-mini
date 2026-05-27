@@ -36,12 +36,10 @@ type Dependencies struct {
 }
 
 func NewDependencies(initService *initialization.InitService, zentaoClient *zentao.Client, configStore *initialization.ConfigStore) *Dependencies {
-	deps := &Dependencies{
+	return &Dependencies{
 		InitService:  initService,
 		ZentaoClient: zentaoClient,
 		ConfigStore:  configStore,
 		Handlers:     handlers.NewHandlerRegistry(zentaoClient, initService),
 	}
-	deps.Handlers.InitScheduler(configStore)
-	return deps
 }

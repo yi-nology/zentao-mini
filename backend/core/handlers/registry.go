@@ -99,7 +99,7 @@ func (r *HandlerRegistry) InitScheduler(store *initialization.ConfigStore) {
 	r.reportService = service.NewReportService(r.client)
 	r.webhookService = service.NewWebhookService()
 	r.schedulerService = service.NewSchedulerService(store, r.reportService, r.webhookService)
-	r.schedulerHandler = NewSchedulerHandler(r.schedulerService, r.webhookService)
+	r.schedulerHandler = NewSchedulerHandler(r.schedulerService, r.webhookService, r.reportService)
 	r.healthHandler.schedulerService = r.schedulerService
 	_ = r.schedulerService.Start()
 }

@@ -1135,6 +1135,57 @@ func (c *Client) GetAllStories(productID int) ([]zentao.Story, error) {
 	return all, nil
 }
 
+// GetAllTasksByProject 获取项目全部任务（自动翻页）
+func (c *Client) GetAllTasksByProject(projectID int) ([]zentao.Task, error) {
+	var all []zentao.Task
+	executions, err := c.GetExecutions(projectID, 1, 1000)
+	if err != nil {
+		return nil, err
+	}
+	for _, execution := range executions {
+		tasks, err := c.GetTasks(execution.ID, 1, 10000)
+		if err != nil {
+			continue
+		}
+		all = append(all, tasks...)
+	}
+	return all, nil
+}
+
+// GetAllTasksByProduct 获取产品全部任务（自动翻页）
+func (c *Client) GetAllTasksByProduct(productID int) ([]zentao.Task, error) {
+	var all []zentao.Task
+	projects, err := c.GetProjectsByProduct(productID, 1, 2000)
+	if err != nil {
+		return nil, err
+	}
+	for _, project := range projects {
+		tasks, err := c.GetAllTasksByProject(project.ID)
+		if err != nil {
+			continue
+		}
+		all = append(all, tasks...)
+	}
+	return all, nil
+}
+
+// GetAllStoriesByProject 获取项目全部需求（自动翻页）
+func (c *Client) GetAllStoriesByProject(projectID int) ([]zentao.Story, error) {
+	var all []zentao.Story
+	executions, err := c.GetExecutions(projectID, 1, 1000)
+	if err != nil {
+		return nil, err
+	}
+	for _, execution := range executions {
+		stories, err := c.GetStoriesByExecution(execution.ID, 1, 10000)
+		if err != nil {
+			continue
+		}
+		all = append(all, stories...)
+	}
+	return all, nil
+}
+
 // GetExecutionsByProduct 按产品获取所有执行
 func (c *Client) GetExecutionsByProduct(productID int) ([]ExecutionContext, error) {
 	var result []ExecutionContext

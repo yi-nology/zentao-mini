@@ -62,6 +62,9 @@ func (a *WailsApp) Start(ctx context.Context) error {
 		log.Printf("Warning: failed to initialize logger: %v", err)
 	}
 
+	// 初始化定时任务调度器（logger初始化之后）
+	a.deps.Handlers.InitScheduler(a.deps.ConfigStore)
+
 	// 初始化性能监控
 	if err := metrics.Init(); err != nil {
 		logger.Error("Failed to initialize metrics", zap.Error(err))

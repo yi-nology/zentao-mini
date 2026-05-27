@@ -13,22 +13,23 @@ type WebhookConfig struct {
 }
 
 type SchedulerTask struct {
-	ID           string          `json:"id"`
-	Name         string          `json:"name"`
-	Enabled      bool            `json:"enabled"`
-	CronExpr     string          `json:"cronExpr"`
-	Webhooks     []WebhookConfig `json:"webhooks"`
-	ProjectID    int             `json:"projectId"`
-	ProductID    int             `json:"productId"`
-	ProjectName  string          `json:"projectName"`
-	ProductName  string          `json:"productName"`
-	StatusFilter string          `json:"statusFilter"`
-	Keyword      string          `json:"keyword"`
-	ExternalInfo string          `json:"externalInfo"`
-	LastRunAt    *time.Time      `json:"lastRunAt"`
-	LastRunStatus string         `json:"lastRunStatus"`
-	CreatedAt    time.Time       `json:"createdAt"`
-	UpdatedAt    time.Time       `json:"updatedAt"`
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	Enabled       bool            `json:"enabled"`
+	CronExpr      string          `json:"cronExpr"`
+	Webhooks      []WebhookConfig `json:"webhooks"`
+	ProjectID     int             `json:"projectId"`
+	ProductID     int             `json:"productId"`
+	ProjectName   string          `json:"projectName"`
+	ProductName   string          `json:"productName"`
+	StatusFilter  string          `json:"statusFilter"`
+	ReportType    string          `json:"reportType"` // bug | requirement | task
+	Keyword       string          `json:"keyword"`
+	ExternalInfo  string          `json:"externalInfo"`
+	LastRunAt     *time.Time      `json:"lastRunAt"`
+	LastRunStatus string          `json:"lastRunStatus"`
+	CreatedAt     time.Time       `json:"createdAt"`
+	UpdatedAt     time.Time       `json:"updatedAt"`
 }
 
 type TaskExecutionLog struct {
@@ -79,4 +80,54 @@ type BugReport struct {
 type CronDB struct {
 	Tasks []SchedulerTask    `json:"tasks"`
 	Logs  []TaskExecutionLog `json:"logs"`
+}
+
+type AssigneeStoryStats struct {
+	Assignee   string `json:"assignee"`
+	Account    string `json:"account"`
+	Total      int    `json:"total"`
+	Active     int    `json:"active"`
+	Changed    int    `json:"changed"`
+	Closed     int    `json:"closed"`
+	Resolved   int    `json:"resolved"`
+	Accepted   int    `json:"accepted"`
+}
+
+type RequirementReport struct {
+	Title           string                 `json:"title"`
+	Timestamp       string                 `json:"timestamp"`
+	ProjectName     string                 `json:"projectName"`
+	ProductName     string                 `json:"productName"`
+	Total           int                    `json:"total"`
+	StatusBreakdown map[string]int         `json:"statusBreakdown"`
+	Details         []AssigneeStoryStats   `json:"details"`
+	Message         string                 `json:"message"`
+}
+
+type TaskProgressStats struct {
+	Assignee   string  `json:"assignee"`
+	Account    string  `json:"account"`
+	Total      int     `json:"total"`
+	Wait       int     `json:"wait"`
+	Doing      int     `json:"doing"`
+	Done       int     `json:"done"`
+	Paused     int     `json:"paused"`
+	Cancelled  int     `json:"cancelled"`
+	Estimate   float64 `json:"estimate"`
+	Consumed   float64 `json:"consumed"`
+	Progress   float64 `json:"progress"`
+}
+
+type TaskProgressReport struct {
+	Title           string              `json:"title"`
+	Timestamp       string              `json:"timestamp"`
+	ProjectName     string              `json:"projectName"`
+	ProductName     string              `json:"productName"`
+	Total           int                 `json:"total"`
+	StatusBreakdown map[string]int      `json:"statusBreakdown"`
+	TotalEstimate   float64             `json:"totalEstimate"`
+	TotalConsumed   float64             `json:"totalConsumed"`
+	OverallProgress float64             `json:"overallProgress"`
+	Details         []TaskProgressStats `json:"details"`
+	Message         string              `json:"message"`
 }

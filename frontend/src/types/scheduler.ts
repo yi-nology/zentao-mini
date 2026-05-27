@@ -19,6 +19,7 @@ export interface SchedulerTask {
   projectName: string
   productName: string
   statusFilter: string
+  reportType: string
   keyword: string
   externalInfo: string
   lastRunAt: string | null
@@ -86,3 +87,59 @@ export const STATUS_OPTIONS = [
   { label: '已关闭 (closed)', value: 'closed' },
   { label: '全部', value: 'all' },
 ] as const
+
+export const REPORT_TYPE_OPTIONS = [
+  { label: 'Bug 分布报告', value: 'bug', icon: '🐛', color: '#EF4444' },
+  { label: '需求进度播报', value: 'requirement', icon: '📋', color: '#4F6BF6' },
+  { label: '任务进度播报', value: 'task', icon: '✅', color: '#22C55E' },
+] as const
+
+export interface AssigneeStoryStats {
+  assignee: string
+  account: string
+  total: number
+  active: number
+  changed: number
+  closed: number
+  resolved: number
+  accepted: number
+}
+
+export interface RequirementReport {
+  title: string
+  timestamp: string
+  projectName: string
+  productName: string
+  total: number
+  statusBreakdown: Record<string, number>
+  details: AssigneeStoryStats[]
+  message: string
+}
+
+export interface TaskProgressStats {
+  assignee: string
+  account: string
+  total: number
+  wait: number
+  doing: number
+  done: number
+  paused: number
+  cancelled: number
+  estimate: number
+  consumed: number
+  progress: number
+}
+
+export interface TaskProgressReport {
+  title: string
+  timestamp: string
+  projectName: string
+  productName: string
+  total: number
+  statusBreakdown: Record<string, number>
+  totalEstimate: number
+  totalConsumed: number
+  overallProgress: number
+  details: TaskProgressStats[]
+  message: string
+}

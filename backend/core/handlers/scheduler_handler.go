@@ -11,12 +11,14 @@ import (
 type SchedulerHandler struct {
 	schedulerService *service.SchedulerService
 	webhookService   *service.WebhookService
+	reportService    *service.ReportService
 }
 
-func NewSchedulerHandler(schedulerService *service.SchedulerService, webhookService *service.WebhookService) *SchedulerHandler {
+func NewSchedulerHandler(schedulerService *service.SchedulerService, webhookService *service.WebhookService, reportService *service.ReportService) *SchedulerHandler {
 	return &SchedulerHandler{
 		schedulerService: schedulerService,
 		webhookService:   webhookService,
+		reportService:    reportService,
 	}
 }
 
@@ -43,12 +45,8 @@ func (h *SchedulerHandler) CreateTask(c *gin.Context) {
 		errors.MissingParam(c, "cronExpr")
 		return
 	}
-	if task.ProjectID == 0 {
-		errors.MissingParam(c, "projectId")
-		return
-	}
-	if len(task.Webhooks) == 0 {
-		errors.MissingParam(c, "webhooks")
+	if task.ProjectID == 0 && task.ProductID == 0 {
+		errors.BadRequest(c, "请提供产品ID或项目ID")
 		return
 	}
 	if err := h.schedulerService.CreateTask(&task); err != nil {
@@ -159,4 +157,54 @@ func (h *SchedulerHandler) GetAllLogs(c *gin.Context) {
 		return
 	}
 	errors.Success(c, logs)
+}
+
+func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
+	var req struct {
+		ReportType  string `json:"reportType"`
+		ProductID   int    `json:"productId"`
+		ProjectID   int    `json:"projectId"`
+		ProjectName string `json:"projectName"`
+		ProductName string `json:"productName"`
+		StatusFilter string `json:"statusFilter"`
+		Keyword     string `json:"keyword"`
+		ExternalInfo string `json:"externalInfo"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.BadRequest(c, "请求参数格式错误")
+		return
+	}
+	if req.ProjectID == 0 && req.ProductID == 0 {
+		errors.BadRequest(c, "请提供产品ID或项目ID")
+		return
+	}
+
+	reportType := req.ReportType
+	if reportType == "" {
+		reportType = "bug"
+	}
+
+	switch reportType {
+	case "requirement":
+		report, err := h.reportService.GenerateRequirementReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo)
+		if err != nil {
+			errors.Error(c, errors.ExternalError("禅道API", err))
+			return
+		}
+		errors.Success(c, report)
+	case "task":
+		report, err := h.reportService.GenerateTaskReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo)
+		if err != nil {
+			errors.Error(c, errors.ExternalError("禅道API", err))
+			return
+		}
+		errors.Success(c, report)
+	default:
+		report, err := h.reportService.GenerateBugReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, req.Keyword, req.ExternalInfo)
+		if err != nil {
+			errors.Error(c, errors.ExternalError("禅道API", err))
+			return
+		}
+		errors.Success(c, report)
+	}
 }

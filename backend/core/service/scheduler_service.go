@@ -119,9 +119,15 @@ func (s *SchedulerService) CreateTask(task *models.SchedulerTask) error {
 	if task.StatusFilter == "" {
 		task.StatusFilter = "active"
 	}
+	if task.ReportType == "" {
+		task.ReportType = "bug"
+	}
 	for i := range task.Webhooks {
 		if task.Webhooks[i].ID == "" {
 			task.Webhooks[i].ID = uuid.New().String()
+		}
+		if task.Webhooks[i].Name == "" {
+			task.Webhooks[i].Name = task.Webhooks[i].Platform
 		}
 	}
 	if err := s.store.CreateTask(task); err != nil {
@@ -135,9 +141,15 @@ func (s *SchedulerService) CreateTask(task *models.SchedulerTask) error {
 
 func (s *SchedulerService) UpdateTask(task *models.SchedulerTask) error {
 	task.UpdatedAt = time.Now()
+	if task.ReportType == "" {
+		task.ReportType = "bug"
+	}
 	for i := range task.Webhooks {
 		if task.Webhooks[i].ID == "" {
 			task.Webhooks[i].ID = uuid.New().String()
+		}
+		if task.Webhooks[i].Name == "" {
+			task.Webhooks[i].Name = task.Webhooks[i].Platform
 		}
 	}
 	if err := s.store.UpdateTask(task); err != nil {
@@ -200,24 +212,59 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask) *models.TaskE
 
 	logger.Info("开始执行定时任务",
 		zap.String("taskID", task.ID),
-		zap.String("taskName", task.Name))
+		zap.String("taskName", task.Name),
+		zap.String("reportType", task.ReportType))
 
-	report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword, task.ExternalInfo)
-	if err != nil {
+	reportType := task.ReportType
+	if reportType == "" {
+		reportType = "bug"
+	}
+
+	var message string
+	var reportErr error
+
+	switch reportType {
+	case "requirement":
+		report, err := s.report.GenerateRequirementReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo)
+		if err != nil {
+			reportErr = err
+		} else {
+			message = report.Message
+			logEntry.BugTotal = report.Total
+		}
+	case "task":
+		report, err := s.report.GenerateTaskReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo)
+		if err != nil {
+			reportErr = err
+		} else {
+			message = report.Message
+			logEntry.BugTotal = report.Total
+			logEntry.HighSeverity = 0
+			logEntry.AssigneeCount = len(report.Details)
+		}
+	default: // "bug"
+		report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword, task.ExternalInfo)
+		if err != nil {
+			reportErr = err
+		} else {
+			message = report.Message
+			logEntry.BugTotal = report.Total
+			logEntry.HighSeverity = report.HighSeverity
+			logEntry.AssigneeCount = len(report.Details)
+		}
+	}
+
+	if reportErr != nil {
 		logEntry.Status = "failed"
-		logEntry.Error = err.Error()
+		logEntry.Error = reportErr.Error()
 		now := time.Now()
 		logEntry.FinishedAt = &now
 		_ = s.store.SaveLog(logEntry)
-		logger.Error("定时任务执行失败", zap.String("taskID", task.ID), zap.Error(err))
+		logger.Error("定时任务执行失败", zap.String("taskID", task.ID), zap.Error(reportErr))
 		return logEntry
 	}
 
-	logEntry.BugTotal = report.Total
-	logEntry.HighSeverity = report.HighSeverity
-	logEntry.AssigneeCount = len(report.Details)
-
-	webhookResults := s.webhook.SendAll(task.Webhooks, report)
+	webhookResults := s.webhook.SendAllGeneric(task.Webhooks, message)
 	logEntry.WebhookResults = webhookResults
 
 	successCount := 0
@@ -250,8 +297,9 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask) *models.TaskE
 	_ = s.store.SaveLog(logEntry)
 	logger.Info("定时任务执行完成",
 		zap.String("taskID", task.ID),
+		zap.String("reportType", reportType),
 		zap.String("status", logEntry.Status),
-		zap.Int("bugTotal", report.Total))
+		zap.Int("bugTotal", logEntry.BugTotal))
 	return logEntry
 }
 

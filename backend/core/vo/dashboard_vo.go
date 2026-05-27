@@ -12,11 +12,12 @@ type DashboardVO struct {
 
 // BugStatsVO Bug 统计
 type BugStatsVO struct {
-	Total   int            `json:"total"`
-	Active  int            `json:"active"`
-	Resolved int           `json:"resolved"`
-	Closed  int            `json:"closed"`
+	Total      int            `json:"total"`
+	Active     int            `json:"active"`
+	Resolved   int            `json:"resolved"`
+	Closed     int            `json:"closed"`
 	BySeverity map[string]int `json:"bySeverity"`
+	ByType     map[string]int `json:"byType"`
 }
 
 // StoryStatsVO 需求统计

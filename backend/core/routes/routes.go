@@ -158,6 +158,7 @@ func registerAPIRoutes(
 			scheduler.GET("/tasks/:id/logs", schedulerHandler.GetTaskLogs)
 			scheduler.GET("/logs", schedulerHandler.GetAllLogs)
 			scheduler.POST("/test-webhook", schedulerHandler.TestWebhook)
+			scheduler.POST("/preview", schedulerHandler.PreviewReport)
 		}
 	}
 

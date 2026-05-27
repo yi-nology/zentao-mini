@@ -196,6 +196,7 @@ export interface BugStats {
   resolved: number
   closed: number
   bySeverity: Record<string, number>
+  byType: Record<string, number>
 }
 
 export interface StoryStats {

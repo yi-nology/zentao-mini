@@ -63,6 +63,12 @@ const routes: AppRoute[] = [
         name: 'HealthCheck',
         component: () => import('../views/HealthCheck.vue'),
         meta: { title: '心跳检测' }
+      },
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: () => import('../views/Settings.vue'),
+        meta: { title: '设置' }
       }
     ]
   },

@@ -13,6 +13,7 @@ const config: UserConfig = {
   },
   base: './',
   server: {
+    port: 6100,
     proxy: {
       '/api': {
         target: 'http://localhost:12345',

@@ -7,6 +7,11 @@
             <el-option v-for="item in userOptions" :key="item.account" :label="item.realname || item.account" :value="item.account" />
           </el-select>
         </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="filterForm.status" placeholder="请选择状态" clearable style="width: 120px">
+            <el-option v-for="item in storyStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="时间范围">
           <el-date-picker v-model="filterForm.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 240px" />
         </el-form-item>
@@ -28,12 +33,12 @@
           <el-button type="success" size="small" @click="handleExport" :disabled="selectedStories.length === 0">导出</el-button>
         </div>
       </div>
-      <el-table v-loading="loading" :data="storyList" border stripe style="width: 100%" @select="handleSelect" @select-all="handleSelectAll">
+      <el-table v-loading="loading" :data="filteredStoryList" border stripe style="width: 100%" @select="handleSelect" @select-all="handleSelectAll">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" align="center" />
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <a href="javascript:void(0)" @click="openZentaoLink(`https://ZENTAO_DOMAIN/story-view-${row.id}.html`)" class="story-title">{{ row.title }}</a>
+            <a href="javascript:void(0)" @click="openZentaoLink(buildZentaoUrl(`story-view-${row.id}.html`))" class="story-title">{{ row.title }}</a>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="90" align="center">
@@ -75,7 +80,7 @@
           <el-descriptions-item label="优先级">{{ currentStory.pri }}</el-descriptions-item>
           <el-descriptions-item label="指派人">{{ (currentStory.assignedTo as unknown as { realname?: string; account?: string })?.realname || (currentStory.assignedTo as unknown as { realname?: string; account?: string })?.account || currentStory.assignedTo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ currentStory.openedDate }}</el-descriptions-item>
-          <el-descriptions-item label="描述" :span="2"><div v-html="currentStory.spec"></div></el-descriptions-item>
+          <el-descriptions-item label="描述" :span="2"><div v-html="sanitizeHtml(currentStory.spec)"></div></el-descriptions-item>
         </el-descriptions>
       </div>
     </el-dialog>
@@ -83,21 +88,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, inject, watch } from 'vue'
+import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import * as XLSX from 'xlsx'
-import { getStories, getUsers } from '@/api/zentao'
+import { sanitizeHtml } from '@/utils/sanitize'
+import { getStories, getUsers, getStoryStatusOptions } from '@/api/zentao'
+import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Story, User } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
 
 interface GlobalSelection { product: number | null; project: number | null; execution: number | null }
-interface FilterForm { assignedTo: string; dateRange: [string, string] | []; specificDate: string }
+interface FilterForm { assignedTo: string; status: string; dateRange: [string, string] | []; specificDate: string }
 interface Pagination { page: number; pageSize: number; total: number }
 
 const globalSelection = inject<GlobalSelection>('globalSelection')!
-const filterForm = reactive<FilterForm>({ assignedTo: '', dateRange: [], specificDate: '' })
+const { buildUrl: buildZentaoUrl } = useZentaoConfig()
+const filterForm = reactive<FilterForm>({ assignedTo: '', status: '', dateRange: [], specificDate: '' })
 const userOptions = ref<User[]>([])
+const storyStatusOptions = ref(getStoryStatusOptions())
 const storyList = ref<Story[]>([])
 const loading = ref<boolean>(false)
 const selectedStories = ref<Story[]>([])
@@ -125,11 +133,18 @@ watch(() => globalSelection.product, (newProduct: number | null) => {
 
 watch(() => globalSelection.project, () => { if (globalSelection.product) { pagination.page = 1; fetchStories() } })
 
+const filteredStoryList = computed(() => {
+  return storyList.value.filter((story: Story) => {
+    if (filterForm.status && story.status !== filterForm.status) return false
+    return true
+  })
+})
+
 const handleSearch = (): void => {
   if (!globalSelection.product && !globalSelection.project) { ElMessage.warning('请先在顶部选择产品或项目'); return }
   pagination.page = 1; fetchStories()
 }
-const handleReset = (): void => { filterForm.assignedTo = ''; filterForm.dateRange = []; filterForm.specificDate = ''; pagination.page = 1; storyList.value = []; pagination.total = 0 }
+const handleReset = (): void => { filterForm.assignedTo = ''; filterForm.status = ''; filterForm.dateRange = []; filterForm.specificDate = ''; pagination.page = 1; fetchStories() }
 const handleSizeChange = (size: number): void => { pagination.pageSize = size; pagination.page = 1; fetchStories() }
 const handlePageChange = (page: number): void => { pagination.page = page; fetchStories() }
 const getStatusType = (status: string): string => ({ draft: 'info', active: 'success', changed: 'warning', closed: 'info' }[status] || 'info')
@@ -141,15 +156,31 @@ const handleSelectAll = (selection: Story[]): void => { selectedStories.value = 
 const handleViewDetails = (): void => { if (selectedStories.value.length > 0) { currentStory.value = selectedStories.value[0]; detailDialogVisible.value = true } }
 const handleViewDetail = (row: Story): void => { currentStory.value = row; detailDialogVisible.value = true }
 
-const handleExport = (): void => {
-  if (selectedStories.value.length > 0) {
-    const exportData = selectedStories.value.map((story: Story) => ({ ID: story.id, 标题: story.title, 状态: getStatusLabel(story.status), 阶段: getStageLabel(story.stage), 优先级: story.pri, 指派人: (story.assignedTo as unknown as { realname?: string })?.realname || '' }))
-    const worksheet = XLSX.utils.json_to_sheet(exportData)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, '需求列表')
-    XLSX.writeFile(workbook, `需求列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
+const handleExport = async (): Promise<void> => {
+  if (selectedStories.value.length === 0) return
+  const XLSX = await import('xlsx')
+  const exportData = selectedStories.value.map((story: Story) => ({ ID: story.id, 标题: story.title, 状态: getStatusLabel(story.status), 阶段: getStageLabel(story.stage), 优先级: story.pri, 指派人: (story.assignedTo as unknown as { realname?: string })?.realname || '' }))
+  const worksheet = XLSX.utils.json_to_sheet(exportData)
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, '需求列表')
+  try {
+    const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
+    if (w.runtime && w.runtime.BrowserOpenURL) {
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([wbout], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `需求列表_${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } else {
+      XLSX.writeFile(workbook, `需求列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    }
     ElMessage.success(`导出 ${selectedStories.value.length} 个需求成功`)
-  }
+  } catch { ElMessage.error('导出失败') }
 }
 
 const openZentaoLink = (url: string): void => {

@@ -220,3 +220,34 @@ func (s *WebhookService) TestWebhook(url string) (*models.WebhookResult, error) 
 	result := s.sendSingle(wh, testPayload)
 	return &result, nil
 }
+
+func (s *WebhookService) SendAllGeneric(webhooks []models.WebhookConfig, message string) []models.WebhookResult {
+	payload := WebhookPayload{
+		Title:     "",
+		Timestamp: time.Now().Format(time.RFC3339),
+		Project:   "",
+		Summary:   WebhookSummary{},
+		Details:   []AssigneeDetailPayload{},
+		Message:   message,
+	}
+	results := make([]models.WebhookResult, 0, len(webhooks))
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, wh := range webhooks {
+		if !wh.Enabled {
+			continue
+		}
+		wg.Add(1)
+		go func(wh models.WebhookConfig) {
+			defer wg.Done()
+			result := s.sendSingle(wh, payload)
+			mu.Lock()
+			results = append(results, result)
+			mu.Unlock()
+		}(wh)
+	}
+	wg.Wait()
+	return results
+}

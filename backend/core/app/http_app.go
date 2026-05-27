@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/yi-nology/zentao-mini/backend/core/config"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/routes"
 
@@ -38,6 +40,20 @@ func NewHTTPApp(config *AppConfig, deps *Dependencies) *HTTPApp {
 // Start 启动HTTP服务器
 func (a *HTTPApp) Start(ctx context.Context) error {
 	a.ctx, a.cancel = context.WithCancel(ctx)
+
+	// 初始化配置
+	if err := config.Init("", "ZENTAO_MINI"); err != nil {
+		log.Printf("Warning: failed to initialize config: %v", err)
+	}
+	cfg := config.Get()
+
+	// 初始化日志
+	if err := logger.Init(&cfg.Log); err != nil {
+		log.Printf("Warning: failed to initialize logger: %v", err)
+	}
+
+	// 初始化定时任务调度器（logger初始化之后）
+	a.deps.Handlers.InitScheduler(a.deps.ConfigStore)
 
 	// 设置路由
 	a.router = routes.SetupRouterWithHandlers(

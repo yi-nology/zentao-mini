@@ -292,6 +292,7 @@ func (s *DashboardService) Search(keyword string, productID int, page int, pageS
 func calcBugStats(bugs []zentao.Bug) vo.BugStatsVO {
 	stats := vo.BugStatsVO{
 		BySeverity: make(map[string]int),
+		ByType:     make(map[string]int),
 		Total:      len(bugs),
 	}
 	for _, b := range bugs {
@@ -304,6 +305,11 @@ func calcBugStats(bugs []zentao.Bug) vo.BugStatsVO {
 			stats.Closed++
 		}
 		stats.BySeverity[fmt.Sprintf("%v", b.Severity)]++
+		bugType := b.Type
+		if bugType == "" {
+			bugType = "未分类"
+		}
+		stats.ByType[bugType]++
 	}
 	return stats
 }

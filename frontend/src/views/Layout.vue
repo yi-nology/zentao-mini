@@ -41,10 +41,13 @@
             <input
               class="search-input"
               type="text"
-              placeholder="搜索 Bug / 需求 / 任务..."
+              placeholder="搜索 Bug / 需求 / 任务... (Ctrl+K)"
               v-model="searchKeyword"
               @focus="onSearchFocus"
               @keydown.escape="closeSearch"
+              @keydown.down.prevent="highlightNext"
+              @keydown.up.prevent="highlightPrev"
+              @keydown.enter.prevent="enterHighlighted"
             />
             <!-- Search Results Dropdown -->
             <div v-if="searchOpen" class="search-dropdown">
@@ -65,6 +68,7 @@
                     v-for="item in group.items"
                     :key="item.type + '-' + item.id"
                     class="search-result-item"
+                    :class="{ highlighted: flatResults.indexOf(item) === searchHighlightIndex }"
                     @click="navigateTo(item)"
                   >
                     <span class="search-item-type" :style="{ backgroundColor: group.color + '20', color: group.color }">
@@ -149,10 +153,13 @@ const searchItems = ref<SearchItem[]>([])
 const searchTotal = ref(0)
 const searchPage = ref(1)
 const searchPageSize = 20
+const searchHighlightIndex = ref(-1)
 const searchWrapperRef = ref<HTMLElement | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
+  document.addEventListener('keydown', onGlobalKeydown)
+
   try {
     const res = await fetch('/api/version')
     const json = await res.json()
@@ -171,6 +178,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onGlobalKeydown)
   if (debounceTimer) clearTimeout(debounceTimer)
 })
 
@@ -180,8 +188,20 @@ const onDocClick = (e: MouseEvent) => {
   }
 }
 
+const onGlobalKeydown = (e: KeyboardEvent) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault()
+    const input = searchWrapperRef.value?.querySelector('input') as HTMLInputElement | null
+    if (input) {
+      input.focus()
+      searchOpen.value = true
+    }
+  }
+}
+
 const onSearchFocus = () => {
   searchOpen.value = true
+  searchHighlightIndex.value = -1
 }
 
 const closeSearch = () => {
@@ -226,6 +246,27 @@ watch(searchKeyword, () => {
 
 const totalPages = computed(() => Math.ceil(searchTotal.value / searchPageSize))
 
+const flatResults = computed(() => {
+  const items: SearchItem[] = []
+  groupedResults.value.forEach(g => items.push(...g.items))
+  return items
+})
+
+const highlightNext = () => {
+  if (flatResults.value.length === 0) return
+  searchHighlightIndex.value = Math.min(searchHighlightIndex.value + 1, flatResults.value.length - 1)
+}
+
+const highlightPrev = () => {
+  searchHighlightIndex.value = Math.max(searchHighlightIndex.value - 1, -1)
+}
+
+const enterHighlighted = () => {
+  if (searchHighlightIndex.value >= 0 && searchHighlightIndex.value < flatResults.value.length) {
+    navigateTo(flatResults.value[searchHighlightIndex.value])
+  }
+}
+
 const groupedResults = computed<ResultGroup[]>(() => {
   const groups: ResultGroup[] = [
     { type: 'bug', label: 'Bug', icon: '🐛', color: '#EF4444', items: [] },
@@ -263,7 +304,8 @@ const menuItems: MenuItem[] = [
   { path: '/scheduler', label: '定时任务', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
   { path: '/health', label: '心跳检测', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
   { path: '/mcp-guide', label: 'MCP 对接', icon: 'M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { path: '/init-guide', label: '重新初始化', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' }
+  { path: '/settings', label: '设置', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+  { path: '/init-guide', label: '重新初始化', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' }
 ]
 
 const pageTitle = computed<string>(() => {
@@ -566,8 +608,9 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   transition: background-color var(--transition-fast);
 }
 
-.search-result-item:hover {
-  background-color: var(--color-bg-hover);
+.search-result-item:hover,
+.search-result-item.highlighted {
+  background: var(--color-bg-hover);
 }
 
 .search-item-type {

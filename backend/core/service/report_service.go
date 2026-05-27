@@ -146,3 +146,255 @@ func buildMessage(title string, t time.Time, total, highSeverity int, details []
 		statusBreakdown["active"], statusBreakdown["resolved"], statusBreakdown["closed"]))
 	return sb.String()
 }
+
+func (s *ReportService) GenerateRequirementReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string) (*models.RequirementReport, error) {
+	var stories []zentao.Story
+	var err error
+
+	if projectID > 0 {
+		stories, err = s.client.GetAllStoriesByProject(projectID)
+	} else if productID > 0 {
+		stories, err = s.client.GetAllStories(productID)
+	} else {
+		return nil, fmt.Errorf("请提供产品ID或项目ID")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("获取需求列表失败: %w", err)
+	}
+
+	statusBreakdown := map[string]int{}
+	for _, st := range stories {
+		statusBreakdown[st.Status]++
+	}
+
+	assigneeMap := make(map[string]*models.AssigneeStoryStats)
+	for _, st := range stories {
+		name := ""
+		account := ""
+		if ref, ok := st.AssignedTo.(zentao.UserRef); ok {
+			name = ref.Realname
+			account = ref.Account
+		} else if ref, ok := st.AssignedTo.(map[string]interface{}); ok {
+			if v, ok := ref["realname"].(string); ok {
+				name = v
+			}
+			if v, ok := ref["account"].(string); ok {
+				account = v
+			}
+		}
+		if name == "" {
+			name = "未指派"
+		}
+		stat, ok := assigneeMap[name]
+		if !ok {
+			stat = &models.AssigneeStoryStats{
+				Assignee: name,
+				Account:  account,
+			}
+			assigneeMap[name] = stat
+		}
+		stat.Total++
+		switch st.Status {
+		case "active":
+			stat.Active++
+		case "changed":
+			stat.Changed++
+		case "closed":
+			stat.Closed++
+		case "resolved":
+			stat.Resolved++
+		case "accepted":
+			stat.Accepted++
+		}
+	}
+
+	details := make([]models.AssigneeStoryStats, 0, len(assigneeMap))
+	for _, stat := range assigneeMap {
+		details = append(details, *stat)
+	}
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].Total > details[j].Total
+	})
+
+	now := time.Now()
+	title := fmt.Sprintf("需求进度报告 - %s", projectName)
+	message := buildRequirementMessage(title, now, len(stories), details, statusBreakdown, keyword, externalInfo)
+
+	return &models.RequirementReport{
+		Title:           title,
+		Timestamp:       now.Format(time.RFC3339),
+		ProjectName:     projectName,
+		ProductName:     productName,
+		Total:           len(stories),
+		StatusBreakdown: statusBreakdown,
+		Details:         details,
+		Message:         message,
+	}, nil
+}
+
+func buildRequirementMessage(title string, t time.Time, total int, details []models.AssigneeStoryStats, statusBreakdown map[string]int, keyword string, externalInfo string) string {
+	var sb strings.Builder
+	kw := ""
+	if keyword != "" {
+		kw = fmt.Sprintf("【%s】", keyword)
+	}
+	sb.WriteString(fmt.Sprintf("%s📋 %s\n", kw, title))
+	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	sb.WriteString(fmt.Sprintf("📊 需求总数：%d个\n\n", total))
+
+	for _, d := range details {
+		sb.WriteString(fmt.Sprintf("👤 %s  共%d个需求\n", d.Assignee, d.Total))
+		sb.WriteString(fmt.Sprintf("   └ 活跃:%d 变更:%d 已解决:%d 已关闭:%d 已验收:%d\n",
+			d.Active, d.Changed, d.Resolved, d.Closed, d.Accepted))
+	}
+
+	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
+	if externalInfo != "" {
+		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
+	}
+	sb.WriteString(fmt.Sprintf("📈 需求状态分布："))
+	for status, count := range statusBreakdown {
+		sb.WriteString(fmt.Sprintf("%s %d | ", status, count))
+	}
+	return sb.String()
+}
+
+func (s *ReportService) GenerateTaskReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string) (*models.TaskProgressReport, error) {
+	var tasks []zentao.Task
+	var err error
+
+	if projectID > 0 {
+		tasks, err = s.client.GetAllTasksByProject(projectID)
+	} else if productID > 0 {
+		tasks, err = s.client.GetAllTasksByProduct(productID)
+	} else {
+		return nil, fmt.Errorf("请提供产品ID或项目ID")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("获取任务列表失败: %w", err)
+	}
+
+	statusBreakdown := map[string]int{}
+	var totalEstimate, totalConsumed float64
+
+	for _, t := range tasks {
+		statusBreakdown[t.Status]++
+		totalEstimate += toFloat64(t.Estimate)
+		totalConsumed += toFloat64(t.Consumed)
+	}
+
+	var overallProgress float64
+	if totalEstimate > 0 {
+		overallProgress = (totalConsumed / totalEstimate) * 100
+		if overallProgress > 100 {
+			overallProgress = 100
+		}
+	}
+
+	assigneeMap := make(map[string]*models.TaskProgressStats)
+	for _, t := range tasks {
+		name := ""
+		account := ""
+		if ref, ok := t.AssignedTo.(zentao.UserRef); ok {
+			name = ref.Realname
+			account = ref.Account
+		} else if ref, ok := t.AssignedTo.(map[string]interface{}); ok {
+			if v, ok := ref["realname"].(string); ok {
+				name = v
+			}
+			if v, ok := ref["account"].(string); ok {
+				account = v
+			}
+		}
+		if name == "" {
+			name = "未指派"
+		}
+		stat, ok := assigneeMap[name]
+		if !ok {
+			stat = &models.TaskProgressStats{
+				Assignee: name,
+				Account:  account,
+			}
+			assigneeMap[name] = stat
+		}
+		stat.Total++
+		stat.Estimate += toFloat64(t.Estimate)
+		stat.Consumed += toFloat64(t.Consumed)
+		switch t.Status {
+		case "wait":
+			stat.Wait++
+		case "doing":
+			stat.Doing++
+		case "done":
+			stat.Done++
+		case "pause":
+			stat.Paused++
+		case "cancel":
+			stat.Cancelled++
+		}
+	}
+
+	for _, stat := range assigneeMap {
+		if stat.Estimate > 0 {
+			stat.Progress = (stat.Consumed / stat.Estimate) * 100
+			if stat.Progress > 100 {
+				stat.Progress = 100
+			}
+		}
+	}
+
+	details := make([]models.TaskProgressStats, 0, len(assigneeMap))
+	for _, stat := range assigneeMap {
+		details = append(details, *stat)
+	}
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].Total > details[j].Total
+	})
+
+	now := time.Now()
+	title := fmt.Sprintf("任务进度报告 - %s", projectName)
+	message := buildTaskMessage(title, now, len(tasks), totalEstimate, totalConsumed, overallProgress, details, statusBreakdown, keyword, externalInfo)
+
+	return &models.TaskProgressReport{
+		Title:           title,
+		Timestamp:       now.Format(time.RFC3339),
+		ProjectName:     projectName,
+		ProductName:     productName,
+		Total:           len(tasks),
+		StatusBreakdown: statusBreakdown,
+		TotalEstimate:   totalEstimate,
+		TotalConsumed:   totalConsumed,
+		OverallProgress: overallProgress,
+		Details:         details,
+		Message:         message,
+	}, nil
+}
+
+func buildTaskMessage(title string, t time.Time, total int, totalEstimate, totalConsumed, overallProgress float64, details []models.TaskProgressStats, statusBreakdown map[string]int, keyword string, externalInfo string) string {
+	var sb strings.Builder
+	kw := ""
+	if keyword != "" {
+		kw = fmt.Sprintf("【%s】", keyword)
+	}
+	sb.WriteString(fmt.Sprintf("%s✅ %s\n", kw, title))
+	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	sb.WriteString(fmt.Sprintf("📊 任务总数：%d个 | 整体进度：%.0f%%\n", total, overallProgress))
+	sb.WriteString(fmt.Sprintf("⏱ 预估工时：%.1fh | 已消耗：%.1fh\n\n", totalEstimate, totalConsumed))
+
+	for _, d := range details {
+		progressStr := fmt.Sprintf("%.0f%%", d.Progress)
+		sb.WriteString(fmt.Sprintf("👤 %s  共%d个任务  进度%s\n", d.Assignee, d.Total, progressStr))
+		sb.WriteString(fmt.Sprintf("   └ 待开始:%d 进行中:%d 已完成:%d 已暂停:%d\n",
+			d.Wait, d.Doing, d.Done, d.Paused))
+	}
+
+	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
+	if externalInfo != "" {
+		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
+	}
+	sb.WriteString(fmt.Sprintf("📈 任务状态分布：待开始 %d | 进行中 %d | 已完成 %d | 已暂停 %d",
+		statusBreakdown["wait"], statusBreakdown["doing"], statusBreakdown["done"], statusBreakdown["pause"]))
+	return sb.String()
+}

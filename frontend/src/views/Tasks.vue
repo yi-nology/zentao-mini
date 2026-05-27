@@ -1,5 +1,25 @@
 <template>
   <div class="page-container">
+    <!-- Stats Summary -->
+    <div class="stats-bar">
+      <div class="stat-pill">
+        <span class="stat-pill-label">总计</span>
+        <span class="stat-pill-value">{{ pagination.total }}</span>
+      </div>
+      <div class="stat-pill stat-pill--doing">
+        <span class="stat-pill-label">进行中</span>
+        <span class="stat-pill-value">{{ statusCounts.doing }}</span>
+      </div>
+      <div class="stat-pill stat-pill--wait">
+        <span class="stat-pill-label">待开始</span>
+        <span class="stat-pill-value">{{ statusCounts.wait }}</span>
+      </div>
+      <div class="stat-pill stat-pill--done">
+        <span class="stat-pill-label">已完成</span>
+        <span class="stat-pill-value">{{ statusCounts.done }}</span>
+      </div>
+    </div>
+
     <div class="filter-card">
       <el-form :inline="true" :model="filterForm" class="filter-form">
         <el-form-item label="执行/迭代">
@@ -28,9 +48,9 @@
     </div>
 
     <div class="table-card">
-      <el-table v-loading="loading" :data="taskList" border stripe style="width: 100%">
+      <el-table v-loading="loading" :data="taskList" border stripe style="width: 100%" :row-class-name="tableRowClassName">
         <el-table-column prop="id" label="ID" width="80" align="center" />
-        <el-table-column prop="name" label="标题" min-width="200">
+        <el-table-column prop="name" label="标题" min-width="220">
           <template #default="{ row }">
             <a href="javascript:void(0)" @click="openZentaoTask(row.id)" class="task-title">{{ row.name }}</a>
           </template>
@@ -40,23 +60,29 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="指派给" width="100" align="center">
-          <template #default="{ row }">{{ row.assignedTo?.realname || row.assignedTo?.account || '未指派' }}</template>
+        <el-table-column label="指派给" width="110" align="center">
+          <template #default="{ row }">
+            <span class="assignee-cell">{{ row.assignedTo?.realname || row.assignedTo?.account || '未指派' }}</span>
+          </template>
         </el-table-column>
-        <el-table-column prop="estimate" label="预估" width="70" align="center">
-          <template #default="{ row }">{{ row.estimate || 0 }}h</template>
+        <el-table-column prop="estimate" label="预估" width="80" align="center">
+          <template #default="{ row }">
+            <span :class="{ 'text-overdue': row.estimate > 0 && row.consumed > row.estimate }">{{ row.estimate || 0 }}h</span>
+          </template>
         </el-table-column>
-        <el-table-column prop="consumed" label="消耗" width="70" align="center">
-          <template #default="{ row }">{{ row.consumed || 0 }}h</template>
+        <el-table-column prop="consumed" label="消耗" width="80" align="center">
+          <template #default="{ row }">
+            <span :class="{ 'text-overdue': row.estimate > 0 && row.consumed > row.estimate }">{{ row.consumed || 0 }}h</span>
+          </template>
         </el-table-column>
-        <el-table-column label="进度" width="120" align="center">
+        <el-table-column label="进度" width="130" align="center">
           <template #default="{ row }">
             <el-progress :percentage="getProgress(row.estimate, row.consumed)" :status="getProgressStatus(row.estimate, row.consumed)" :stroke-width="8" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="60" align="center">
+        <el-table-column label="操作" width="80" align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openTaskDetail(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="openTaskDetail(row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -70,12 +96,16 @@
         <el-descriptions :column="1" border>
           <el-descriptions-item label="ID">{{ currentTask.id }}</el-descriptions-item>
           <el-descriptions-item label="标题">{{ currentTask.name }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ getStatusLabel(currentTask.status) }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="getStatusType(currentTask.status)">{{ getStatusLabel(currentTask.status) }}</el-tag>
+          </el-descriptions-item>
           <el-descriptions-item label="指派给">{{ currentTask.assignedTo?.realname || currentTask.assignedTo?.account || '未指派' }}</el-descriptions-item>
           <el-descriptions-item label="预估工时">{{ currentTask.estimate || 0 }}h</el-descriptions-item>
           <el-descriptions-item label="消耗工时">{{ currentTask.consumed || 0 }}h</el-descriptions-item>
-          <el-descriptions-item label="进度">{{ getProgress(currentTask.estimate, currentTask.consumed) }}%</el-descriptions-item>
-          <el-descriptions-item label="描述" :span="2"><div v-html="currentTask.desc || '无'" /></el-descriptions-item>
+          <el-descriptions-item label="进度">
+            <el-progress :percentage="getProgress(currentTask.estimate, currentTask.consumed)" :status="getProgressStatus(currentTask.estimate, currentTask.consumed)" :stroke-width="10" style="max-width: 300px" />
+          </el-descriptions-item>
+          <el-descriptions-item label="描述" :span="2"><div v-html="sanitizeHtml(currentTask.desc || '无')" /></el-descriptions-item>
         </el-descriptions>
         <div class="dialog-actions">
           <el-button @click="openZentaoTask(currentTask.id)">在禅道中查看</el-button>
@@ -89,7 +119,9 @@
 import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { sanitizeHtml } from '@/utils/sanitize'
 import { getExecutions, getTasks, getTaskStatusOptions, getUsers } from '@/api/zentao'
+import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Task, User, Execution, SelectOption } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
 
@@ -98,6 +130,7 @@ interface FilterForm { execution: number | null; assignedTo: string; status: str
 interface Pagination { page: number; pageSize: number; total: number }
 
 const globalSelection = inject<GlobalSelection>('globalSelection')!
+const { buildUrl: buildZentaoUrl } = useZentaoConfig()
 const filterForm = reactive<FilterForm>({ execution: null, assignedTo: '', status: '', dateRange: [] })
 const executionOptions = ref<Execution[]>([])
 const statusOptions = ref<SelectOption[]>(getTaskStatusOptions())
@@ -107,6 +140,14 @@ const loading = ref<boolean>(false)
 const detailDialogVisible = ref<boolean>(false)
 const currentTask = ref<Task | null>(null)
 const pagination = reactive<Pagination>({ page: 1, pageSize: 20, total: 0 })
+
+const statusCounts = computed(() => {
+  const counts = { doing: 0, wait: 0, done: 0 }
+  taskList.value.forEach(t => {
+    if (t.status in counts) counts[t.status as keyof typeof counts]++
+  })
+  return counts
+})
 
 const assignedToOptions = computed(() => {
   const assignees = new Map<string, { value: string; label: string }>()
@@ -148,9 +189,10 @@ const getStatusType = (status: string): string => ({ wait: 'info', doing: 'prima
 const getStatusLabel = (status: string): string => ({ wait: '未开始', doing: '进行中', done: '已完成', pause: '已暂停', cancel: '已取消', closed: '已关闭' }[status] || status)
 const getProgress = (estimate: number, consumed: number): number => { if (!estimate || estimate === 0) return 0; return Math.min(Math.round((consumed / estimate) * 100), 100) }
 const getProgressStatus = (estimate: number, consumed: number): string => { if (!estimate || estimate === 0) return ''; const ratio = consumed / estimate; if (ratio > 1) return 'exception'; if (ratio >= 0.8) return 'warning'; return '' }
+const tableRowClassName = ({ row }: { row: Task }) => { if (row.estimate > 0 && row.consumed > row.estimate) return 'overdue-row'; return '' }
 const openTaskDetail = (task: Task): void => { currentTask.value = task; detailDialogVisible.value = true }
 const openZentaoTask = (taskId: number): void => {
-  const url = `https://ZENTAO_DOMAIN/task-view-${taskId}.html`
+  const url = buildZentaoUrl(`task-view-${taskId}.html`)
   try { const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }; if (w.runtime && w.runtime.BrowserOpenURL) { runtime.BrowserOpenURL(url) } else { window.open(url, '_blank', 'noopener,noreferrer') } } catch { window.open(url, '_blank', 'noopener,noreferrer') }
 }
 
@@ -158,9 +200,98 @@ onMounted(() => { fetchExecutions(); fetchUsers(); fetchTasks() })
 </script>
 
 <style scoped>
-.task-title { color: var(--color-primary); text-decoration: none; cursor: pointer; transition: color var(--transition-fast); }
+.page-container {
+  max-width: 1200px;
+}
+
+/* Stats Bar */
+.stats-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: var(--space-md);
+}
+
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  font-size: 13px;
+}
+
+.stat-pill-label {
+  color: var(--color-text-tertiary);
+}
+
+.stat-pill-value {
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-size: 16px;
+}
+
+.stat-pill--doing .stat-pill-value { color: var(--color-primary); }
+.stat-pill--wait .stat-pill-value { color: var(--color-warning); }
+.stat-pill--done .stat-pill-value { color: var(--color-success); }
+
+/* Filter */
+.filter-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-md);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Table */
+.table-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.task-title { color: var(--color-primary); text-decoration: none; cursor: pointer; transition: color var(--transition-fast); font-weight: 500; }
 .task-title:hover { text-decoration: underline; color: var(--color-primary-hover); }
+
+.assignee-cell {
+  font-size: 13px;
+}
+
+.text-overdue {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+:deep(.el-table .overdue-row) {
+  background-color: #fef2f2 !important;
+}
+
+:deep(.el-table .overdue-row:hover > td) {
+  background-color: #fee2e2 !important;
+}
+
+/* Pagination */
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-md);
+}
+
+/* Dialog */
 .task-detail { line-height: 1.6; padding: 8px; }
 .task-detail :deep(.el-descriptions__label) { font-weight: 600; color: var(--color-text-primary); }
 .dialog-actions { margin-top: 20px; display: flex; justify-content: flex-end; }
+
+/* Responsive */
+@media screen and (max-width: 768px) {
+  .stats-bar {
+    flex-wrap: wrap;
+  }
+  .filter-card :deep(.el-form-item) {
+    margin-bottom: 12px;
+  }
+}
 </style>

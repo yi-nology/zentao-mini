@@ -16,6 +16,10 @@ auth.json
 
 # Database files
 auth.db
+backend/cron.db
+
+# Environment files
+backend/.env
 
 # Frontend build artifacts
 frontend/package.json.md5
@@ -24,8 +28,9 @@ frontend/package.json.md5
 build-app.sh
 
 # IDE and test files
-.idea/golinter.xml
-.trae/specs/first-start-config-load/
+.idea/
+.trae/
+.qoder/
 
 zentao-mini-app
 zentao-mini-local

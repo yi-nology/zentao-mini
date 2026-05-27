@@ -5,6 +5,11 @@
       <span>加载中...</span>
     </div>
 
+    <div v-else-if="error" class="error-banner">
+      <span>加载仪表盘数据失败：{{ error }}</span>
+      <el-button type="primary" size="small" @click="fetchData">重试</el-button>
+    </div>
+
     <template v-else-if="data">
       <!-- Stats Cards -->
       <div class="stats-grid">
@@ -18,6 +23,7 @@
             <span class="stat-label">Bug</span>
             <span class="stat-value">{{ data.bugs?.total ?? 0 }}</span>
             <span class="stat-sub">活跃 <strong>{{ data.bugs?.active ?? 0 }}</strong> · 已解决 {{ data.bugs?.resolved ?? 0 }} · 已关闭 {{ data.bugs?.closed ?? 0 }}</span>
+            <span v-if="bugTypeSummary" class="stat-sub">{{ bugTypeSummary }}</span>
           </div>
         </div>
 
@@ -58,6 +64,25 @@
             <span class="stat-value">{{ (data.timelog?.totalHours ?? 0).toFixed(1) }}<small>h</small></span>
             <span class="stat-sub">本周 <strong>{{ (data.timelog?.thisWeekHours ?? 0).toFixed(1) }}h</strong></span>
           </div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>Bug 严重程度分布</h3>
+          <div v-if="hasSeverityData" class="chart-wrapper"><canvas ref="severityChartRef" /></div>
+          <div v-else class="chart-empty">暂无数据</div>
+        </div>
+        <div class="chart-card">
+          <h3>Bug 类型分布</h3>
+          <div v-if="hasTypeData" class="chart-wrapper"><canvas ref="typeChartRef" /></div>
+          <div v-else class="chart-empty">暂无数据</div>
+        </div>
+        <div class="chart-card">
+          <h3>任务状态分布</h3>
+          <div v-if="hasTaskData" class="chart-wrapper"><canvas ref="taskChartRef" /></div>
+          <div v-else class="chart-empty">暂无数据</div>
         </div>
       </div>
 
@@ -107,8 +132,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, inject, watch } from 'vue'
+import { ref, inject, watch, computed, onBeforeUnmount, nextTick } from 'vue'
 import { getDashboard } from '@/api/zentao'
+import { ElMessage } from 'element-plus'
+import Chart from 'chart.js/auto'
+import type { Chart as ChartType } from 'chart.js/auto'
 import type { DashboardData } from '@/types/api'
 
 interface GlobalSelection {
@@ -118,7 +146,104 @@ interface GlobalSelection {
 
 const globalSelection = inject<GlobalSelection>('globalSelection')!
 const loading = ref(false)
+const error = ref('')
 const data = ref<DashboardData | null>(null)
+
+const severityChartRef = ref<HTMLCanvasElement | null>(null)
+const typeChartRef = ref<HTMLCanvasElement | null>(null)
+const taskChartRef = ref<HTMLCanvasElement | null>(null)
+let charts: ChartType[] = []
+
+const bugTypeSummary = computed(() => {
+  const byType = data.value?.bugs?.byType
+  if (!byType) return ''
+  return Object.entries(byType)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([type, count]) => `${type} ${count}`)
+    .join(' · ')
+})
+
+const destroyCharts = () => {
+  charts.forEach(c => c.destroy())
+  charts = []
+}
+
+const severityLabelMap: Record<string, string> = { '1': '致命', '2': '严重', '3': '一般', '4': '轻微', '5': '建议' }
+
+const hasSeverityData = computed(() => {
+  const bySeverity = data.value?.bugs?.bySeverity
+  return bySeverity && Object.keys(bySeverity).length > 0
+})
+
+const hasTypeData = computed(() => {
+  const byType = data.value?.bugs?.byType
+  return byType && Object.keys(byType).length > 0
+})
+
+const hasTaskData = computed(() => {
+  const tasks = data.value?.tasks
+  if (!tasks) return false
+  return (tasks.wait || 0) + (tasks.doing || 0) + (tasks.done || 0) + (tasks.closed || 0) > 0
+})
+
+const renderCharts = () => {
+  destroyCharts()
+  if (!data.value) return
+
+  const bugs = data.value.bugs
+  const tasks = data.value.tasks
+
+  // Bug severity pie
+  if (severityChartRef.value && bugs?.bySeverity && Object.keys(bugs.bySeverity).length > 0) {
+    const labels = Object.keys(bugs.bySeverity).map(k => severityLabelMap[k] || `等级${k}`)
+    const values = Object.values(bugs.bySeverity)
+    charts.push(new Chart(severityChartRef.value, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data: values, backgroundColor: ['#EF4444', '#F59E0B', '#3B82F6', '#94A3B8'], borderWidth: 0 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true, pointStyleWidth: 10 } } } }
+    }))
+  }
+
+  // Bug type pie
+  if (typeChartRef.value && bugs?.byType && Object.keys(bugs.byType).length > 0) {
+    const labels = Object.keys(bugs.byType)
+    const values = Object.values(bugs.byType)
+    const colors = ['#EF4444', '#F59E0B', '#3B82F6', '#22C55E', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#6366F1', '#14B8A6']
+    charts.push(new Chart(typeChartRef.value, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length), borderWidth: 0 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true, pointStyleWidth: 10 } } } }
+    }))
+  }
+
+  // Task status doughnut
+  if (taskChartRef.value && tasks) {
+    const entries = [
+      { key: 'wait', label: '未开始' },
+      { key: 'doing', label: '进行中' },
+      { key: 'done', label: '已完成' },
+      { key: 'closed', label: '已关闭' }
+    ].filter(e => (tasks as Record<string, number>)[e.key] > 0)
+
+    if (entries.length > 0) {
+      charts.push(new Chart(taskChartRef.value, {
+        type: 'doughnut',
+        data: {
+          labels: entries.map(e => e.label),
+          datasets: [{ data: entries.map(e => (tasks as Record<string, number>)[e.key]), backgroundColor: ['#94A3B8', '#3B82F6', '#22C55E', '#6B7280'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true, pointStyleWidth: 10 } } } }
+      }))
+    }
+  }
+}
 
 const fetchData = async (): Promise<void> => {
   const pid = Number(globalSelection.product)
@@ -127,23 +252,36 @@ const fetchData = async (): Promise<void> => {
     return
   }
   loading.value = true
+  error.value = ''
   try {
     const res = await getDashboard(pid)
-    // 拦截器已解包 response.data，res 实际是 ApiResponse<DashboardData>
     const raw = res as unknown as { data: DashboardData }
     data.value = raw.data
-  } catch (e) {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '未知错误'
     console.error('获取仪表盘数据失败:', e)
+    error.value = msg
     data.value = null
+    ElMessage.error('获取仪表盘数据失败')
   } finally {
     loading.value = false
   }
 }
 
 watch(() => globalSelection.product, (val) => {
+  destroyCharts()
   if (val) fetchData()
   else data.value = null
 }, { immediate: true })
+
+watch(data, async (newData) => {
+  if (!newData) return
+  await nextTick()
+  await nextTick()
+  renderCharts()
+})
+
+onBeforeUnmount(() => { destroyCharts() })
 
 const getBugStatusLabel = (status: string): string => {
   const map: Record<string, string> = { active: '激活', resolved: '已解决', closed: '已关闭' }
@@ -183,6 +321,20 @@ const getTaskStatusLabel = (status: string): string => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Error Banner */
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border-radius: var(--radius-md);
+  font-size: 14px;
 }
 
 /* Stats Grid */
@@ -266,6 +418,42 @@ const getTaskStatusLabel = (status: string): string => {
 .stat-sub strong {
   color: var(--color-text-secondary);
   font-weight: 600;
+}
+
+/* Charts Grid */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.chart-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-lg);
+}
+
+.chart-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-md) 0;
+}
+
+.chart-wrapper {
+  position: relative;
+  height: 220px;
+}
+
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 220px;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
 }
 
 /* Lists Grid */
@@ -403,13 +591,18 @@ const getTaskStatusLabel = (status: string): string => {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .charts-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media screen and (max-width: 768px) {
   .stats-grid {
     grid-template-columns: 1fr;
   }
-
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
   .lists-grid {
     grid-template-columns: 1fr;
   }

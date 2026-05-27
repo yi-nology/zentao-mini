@@ -33,6 +33,22 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="类型">
+          <el-select
+            v-model="filterForm.type"
+            placeholder="请选择类型"
+            clearable
+            filterable
+            style="width: 140px"
+          >
+            <el-option
+              v-for="item in typeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="时间范围">
           <el-date-picker
             v-model="filterForm.dateRange"
@@ -77,7 +93,7 @@
         <el-table-column prop="id" label="ID" width="80" align="center" />
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <a href="javascript:void(0)" @click="openZentaoLink(`https://ZENTAO_DOMAIN/bug-view-${row.id}.html`)" class="bug-title">
+            <a href="javascript:void(0)" @click="openZentaoLink(buildZentaoUrl(`bug-view-${row.id}.html`))" class="bug-title">
               {{ row.title }}
             </a>
           </template>
@@ -92,8 +108,14 @@
         <el-table-column prop="severity" label="严重程度" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="getSeverityType(row.severity)">
-              {{ row.severity }}
+              {{ getSeverityLabel(row.severity) }}
             </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="type" label="类型" width="110" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.type" type="info" size="small">{{ getTypeLabel(row.type) }}</el-tag>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="assignedTo" label="指派人" width="100" align="center">
@@ -137,10 +159,11 @@
           <el-descriptions-item label="项目">{{ (currentBug.project as unknown as { name?: string })?.name }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ getStatusLabel(currentBug.status) }}</el-descriptions-item>
           <el-descriptions-item label="严重程度">{{ currentBug.severity }}</el-descriptions-item>
+          <el-descriptions-item label="类型">{{ currentBug.type ? getTypeLabel(currentBug.type) : '-' }}</el-descriptions-item>
           <el-descriptions-item label="指派人">{{ currentBug.assignedTo?.realname || currentBug.assignedTo?.account || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDate(currentBug.openedDate) }}</el-descriptions-item>
           <el-descriptions-item label="描述" :span="2">
-            <div v-html="currentBug.steps"></div>
+            <div v-html="sanitizeHtml(currentBug.steps)"></div>
           </el-descriptions-item>
         </el-descriptions>
       </div>
@@ -152,8 +175,9 @@
 import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import * as XLSX from 'xlsx'
+import { sanitizeHtml } from '@/utils/sanitize'
 import { getBugs, getBugStatusOptions, getUsers } from '@/api/zentao'
+import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Bug, User, SelectOption } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
 
@@ -166,6 +190,7 @@ interface GlobalSelection {
 interface FilterForm {
   assignedTo: string
   status: string
+  type: string
   dateRange: [string, string] | []
   specificDate: string
 }
@@ -177,15 +202,29 @@ interface Pagination {
 }
 
 const globalSelection = inject<GlobalSelection>('globalSelection')!
+const { buildUrl: buildZentaoUrl } = useZentaoConfig()
 
 const filterForm = reactive<FilterForm>({
   assignedTo: '',
   status: '',
+  type: '',
   dateRange: [],
   specificDate: ''
 })
 
 const statusOptions = ref<SelectOption[]>(getBugStatusOptions())
+const typeOptions = computed(() => {
+  const types = new Map<string, { value: string; label: string }>()
+  bugList.value.forEach((bug: Bug) => {
+    if (bug.type && !types.has(bug.type)) {
+      types.set(bug.type, {
+        value: bug.type,
+        label: getTypeLabel(bug.type)
+      })
+    }
+  })
+  return Array.from(types.values()).sort((a, b) => a.label.localeCompare(b.label))
+})
 const userOptions = ref<User[]>([])
 const bugList = ref<Bug[]>([])
 const loading = ref<boolean>(false)
@@ -222,6 +261,7 @@ const filteredBugList = computed(() => {
       if (account !== filterForm.assignedTo && realname !== filterForm.assignedTo) return false
     }
     if (filterForm.status && bug.status !== filterForm.status) return false
+    if (filterForm.type && bug.type !== filterForm.type) return false
     return true
   })
 })
@@ -273,11 +313,11 @@ const handleSearch = (): void => {
 const handleReset = (): void => {
   filterForm.assignedTo = ''
   filterForm.status = ''
+  filterForm.type = ''
   filterForm.dateRange = []
   filterForm.specificDate = ''
   pagination.page = 1
-  bugList.value = []
-  pagination.total = 0
+  fetchBugs()
 }
 
 const handleSizeChange = (size: number): void => {
@@ -337,6 +377,27 @@ const getSeverityType = (severity: number): string => {
   return 'info'
 }
 
+const getSeverityLabel = (severity: number): string => {
+  const labels: Record<number, string> = { 1: '致命', 2: '严重', 3: '一般', 4: '轻微', 5: '建议' }
+  return labels[severity] || String(severity)
+}
+
+const getTypeLabel = (type: string): string => {
+  const labels: Record<string, string> = {
+    codeerror: '代码错误',
+    configerror: '配置错误',
+    security: '安全问题',
+    performance: '性能问题',
+    standard: '标准规范',
+    designdefect: '设计缺陷',
+    ui: '界面问题',
+    install: '安装部署',
+    automation: '自动化',
+    other: '其他'
+  }
+  return labels[type] || type
+}
+
 const formatDate = (dateStr: string): string => {
   if (!dateStr) return '-'
   const date = new Date(dateStr)
@@ -369,16 +430,18 @@ const handleViewDetail = (row: Bug): void => {
   detailDialogVisible.value = true
 }
 
-const handleExport = (): void => {
-  if (selectedBugs.value.length > 0) {
-    const exportData = selectedBugs.value.map((bug: Bug) => ({
+const handleExport = async (): Promise<void> => {
+  if (selectedBugs.value.length === 0) return
+  const XLSX = await import('xlsx')
+  const exportData = selectedBugs.value.map((bug: Bug) => ({
       ID: bug.id,
       标题: bug.title,
-      链接地址: `https://ZENTAO_DOMAIN/bug-view-${bug.id}.html`,
+      链接地址: buildZentaoUrl(`bug-view-${bug.id}.html`),
       产品: (bug.product as unknown as { name?: string })?.name || '',
       项目: (bug.project as unknown as { name?: string })?.name || '',
       状态: getStatusLabel(bug.status),
-      严重程度: bug.severity,
+      严重程度: getSeverityLabel(bug.severity),
+      类型: getTypeLabel(bug.type),
       指派人: bug.assignedTo?.realname || bug.assignedTo?.account || '',
       创建时间: formatDate(bug.openedDate),
       描述: bug.steps || ''
@@ -409,7 +472,6 @@ const handleExport = (): void => {
       console.error('导出失败:', error)
       ElMessage.error('导出失败，请重试')
     }
-  }
 }
 
 const openZentaoLink = (url: string): void => {

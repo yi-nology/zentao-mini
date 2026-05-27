@@ -3,6 +3,9 @@ import type {
   SchedulerTask,
   TaskExecutionLog,
   WebhookResult,
+  RequirementReport,
+  TaskProgressReport,
+  BugReport,
 } from '@/types/scheduler'
 
 interface ApiResponse<T> {
@@ -37,3 +40,17 @@ export const getAllLogs = (): Promise<ApiResponse<TaskExecutionLog[]>> =>
 
 export const testWebhook = (url: string): Promise<ApiResponse<WebhookResult>> =>
   api.post('/scheduler/test-webhook', { url })
+
+export interface PreviewParams {
+  reportType: string
+  productId: number
+  projectId: number
+  projectName: string
+  productName: string
+  statusFilter: string
+  keyword: string
+  externalInfo: string
+}
+
+export const previewReport = (params: PreviewParams): Promise<ApiResponse<RequirementReport | TaskProgressReport | BugReport>> =>
+  api.post('/scheduler/preview', params)
