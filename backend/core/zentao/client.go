@@ -1100,21 +1100,33 @@ func (c *Client) GetAllBugsByProject(projectID int) ([]zentao.Bug, error) {
 }
 
 // GetAllBugsByProjectWithProduct 获取项目全部 Bug（指定产品ID）
+// 注意：先获取全量 bug，再在客户端过滤 projectID，避免 SDK 分页过滤导致数据丢失
 func (c *Client) GetAllBugsByProjectWithProduct(productID int, projectID int) ([]zentao.Bug, error) {
-	var all []zentao.Bug
+	var allBugs []zentao.Bug
 	page := 1
 	for {
-		bugs, err := c.GetBugsByProject(productID, projectID, page, 100)
+		bugs, err := c.GetBugs(productID, page, 500)
 		if err != nil {
-			return all, err
+			return allBugs, err
 		}
-		all = append(all, bugs...)
-		if len(bugs) < 100 {
+		allBugs = append(allBugs, bugs...)
+		if len(bugs) < 500 {
 			break
 		}
 		page++
 	}
-	return all, nil
+
+	// 客户端过滤 projectID
+	if projectID <= 0 {
+		return allBugs, nil
+	}
+	filtered := make([]zentao.Bug, 0, len(allBugs))
+	for _, bug := range allBugs {
+		if bug.Project == projectID {
+			filtered = append(filtered, bug)
+		}
+	}
+	return filtered, nil
 }
 
 // GetAllStories 获取产品全部需求（自动翻页）

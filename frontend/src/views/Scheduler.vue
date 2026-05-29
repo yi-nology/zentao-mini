@@ -87,7 +87,7 @@
               </span>
             </td>
             <td><code class="cron-code">{{ task.cronExpr }}</code></td>
-            <td>{{ task.projectName || task.projectId }}</td>
+            <td>{{ task.projectName || task.productName || task.projectId || '-' }}</td>
             <td>
               <span v-for="wh in task.webhooks" :key="wh.id" class="webhook-tag" :class="{ disabled: !wh.enabled }">
                 {{ wh.name || wh.platform || 'webhook' }}
@@ -128,6 +128,8 @@
             <th>耗时</th>
             <th>状态</th>
             <th>数量</th>
+            <th>高级别</th>
+            <th>指派人</th>
             <th>Webhook结果</th>
             <th>错误信息</th>
           </tr>
@@ -138,7 +140,9 @@
             <td class="text-sm">{{ formatTime(log.startedAt) }}</td>
             <td class="text-sm">{{ log.finishedAt ? calcDuration(log.startedAt, log.finishedAt) : '-' }}</td>
             <td><span class="run-status" :class="'run-' + log.status">{{ runStatusLabel(log.status) }}</span></td>
-            <td>{{ log.bugTotal }}</td>
+            <td>{{ log.bugTotal || 0 }}</td>
+            <td>{{ log.highSeverity || 0 }}</td>
+            <td>{{ log.assigneeCount || 0 }}</td>
             <td>
               <span v-for="wr in log.webhookResults || []" :key="wr.webhookId" class="wh-result" :class="wr.success ? 'wh-ok' : 'wh-fail'" :title="wr.webhookName + ': ' + (wr.error || 'OK')">
                 {{ wr.success ? '✓' : '✗' }} {{ wr.webhookName }}

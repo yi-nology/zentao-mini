@@ -213,7 +213,11 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask) *models.TaskE
 	logger.Info("开始执行定时任务",
 		zap.String("taskID", task.ID),
 		zap.String("taskName", task.Name),
-		zap.String("reportType", task.ReportType))
+		zap.String("reportType", task.ReportType),
+		zap.Int("productID", task.ProductID),
+		zap.Int("projectID", task.ProjectID),
+		zap.String("projectName", task.ProjectName),
+		zap.String("statusFilter", task.StatusFilter))
 
 	reportType := task.ReportType
 	if reportType == "" {
