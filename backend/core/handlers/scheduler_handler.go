@@ -161,15 +161,17 @@ func (h *SchedulerHandler) GetAllLogs(c *gin.Context) {
 
 func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 	var req struct {
-		ReportType   string `json:"reportType"`
-		ProductID    int    `json:"productId"`
-		ProjectID    int    `json:"projectId"`
-		ProjectName  string `json:"projectName"`
-		ProductName  string `json:"productName"`
-		StatusFilter string `json:"statusFilter"`
-		AgingDays    int    `json:"agingDays"`
-		Keyword      string `json:"keyword"`
-		ExternalInfo string `json:"externalInfo"`
+		ReportType        string   `json:"reportType"`
+		ProductID         int      `json:"productId"`
+		ProjectID         int      `json:"projectId"`
+		ProjectName       string   `json:"projectName"`
+		ProductName       string   `json:"productName"`
+		StatusFilter      string   `json:"statusFilter"`
+		AgingDays         int      `json:"agingDays"`
+		Keyword           string   `json:"keyword"`
+		ExternalInfo      string   `json:"externalInfo"`
+		MessageHeader     string   `json:"messageHeader"`
+		PriorityAssignees []string `json:"priorityAssignees"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		errors.BadRequest(c, "请求参数格式错误")
@@ -187,14 +189,14 @@ func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 
 	switch reportType {
 	case "requirement":
-		report, err := h.reportService.GenerateRequirementReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo)
+		report, err := h.reportService.GenerateRequirementReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return
 		}
 		errors.Success(c, report)
 	case "task":
-		report, err := h.reportService.GenerateTaskReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo)
+		report, err := h.reportService.GenerateTaskReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return
@@ -205,14 +207,14 @@ func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 		if agingDays <= 0 {
 			agingDays = 7
 		}
-		report, err := h.reportService.GenerateBugAgingReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, agingDays, req.Keyword, req.ExternalInfo)
+		report, err := h.reportService.GenerateBugAgingReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, agingDays, req.Keyword, req.ExternalInfo, req.PriorityAssignees, req.MessageHeader)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return
 		}
 		errors.Success(c, report)
 	default:
-		report, err := h.reportService.GenerateBugReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, req.Keyword, req.ExternalInfo)
+		report, err := h.reportService.GenerateBugReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, req.Keyword, req.ExternalInfo, req.MessageHeader)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return

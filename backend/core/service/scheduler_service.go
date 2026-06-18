@@ -293,7 +293,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 
 	switch reportType {
 	case "requirement":
-		report, err := s.report.GenerateRequirementReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo)
+		report, err := s.report.GenerateRequirementReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader)
 		if err != nil {
 			reportErr = err
 		} else {
@@ -301,7 +301,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 			logEntry.BugTotal = report.Total
 		}
 	case "task":
-		report, err := s.report.GenerateTaskReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo)
+		report, err := s.report.GenerateTaskReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader)
 		if err != nil {
 			reportErr = err
 		} else {
@@ -315,7 +315,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 		if agingDays <= 0 {
 			agingDays = 7
 		}
-		report, err := s.report.GenerateBugAgingReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, agingDays, task.Keyword, task.ExternalInfo)
+		report, err := s.report.GenerateBugAgingReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, agingDays, task.Keyword, task.ExternalInfo, task.PriorityAssignees, task.MessageHeader)
 		if err != nil {
 			reportErr = err
 		} else {
@@ -324,7 +324,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 			logEntry.AssigneeCount = len(report.Details)
 		}
 	default: // "bug"
-		report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword, task.ExternalInfo)
+		report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword, task.ExternalInfo, task.MessageHeader)
 		if err != nil {
 			reportErr = err
 		} else {

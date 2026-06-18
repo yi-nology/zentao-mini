@@ -21,6 +21,8 @@ export interface SchedulerTask {
   statusFilter: string
   reportType: string
   agingDays: number
+  priorityAssignees: string[]
+  messageHeader: string
   keyword: string
   externalInfo: string
   lastRunAt: string | null

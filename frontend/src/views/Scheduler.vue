@@ -234,6 +234,38 @@
               <div class="hint-text">填写后消息开头会自动加上【关键词】</div>
             </div>
             <div class="form-group form-half">
+              <label>消息头备注</label>
+              <input v-model="form.messageHeader" class="form-input" placeholder="如：详情查看 https://..." />
+              <div class="hint-text">会显示在消息标题下方，所有报告类型通用</div>
+            </div>
+          </div>
+
+          <div class="form-row" v-if="form.reportType === 'bug-aging'">
+            <div class="form-group">
+              <label>优先人员</label>
+              <div class="priority-hint">输入账号，按回车添加，优先展示在消息前面</div>
+              <div class="priority-tags">
+                <span v-for="(name, idx) in form.priorityAssignees" :key="idx" class="priority-tag">
+                  {{ name }}
+                  <button class="tag-remove" @click="form.priorityAssignees.splice(idx, 1)">✕</button>
+                </span>
+              </div>
+              <input
+                class="form-input"
+                placeholder="输入账号后按回车添加"
+                @keydown.enter.prevent="(e) => {
+                  const val = (e.target as HTMLInputElement).value.trim()
+                  if (val && !form.priorityAssignees.includes(val)) {
+                    form.priorityAssignees.push(val)
+                  }
+                  (e.target as HTMLInputElement).value = ''
+                }"
+              />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
               <label>外部信息</label>
               <textarea v-model="form.externalInfo" class="form-input form-textarea" placeholder="附加信息，会展示在消息中" rows="2"></textarea>
             </div>
@@ -383,6 +415,8 @@ const form = reactive<{
   statusFilter: string
   reportType: string
   agingDays: number
+  priorityAssignees: string[]
+  messageHeader: string
   keyword: string
   externalInfo: string
   webhooks: WebhookConfig[]
@@ -397,6 +431,8 @@ const form = reactive<{
   statusFilter: 'active',
   reportType: 'bug',
   agingDays: 7,
+  priorityAssignees: [],
+  messageHeader: '',
   keyword: '提醒',
   externalInfo: '',
   webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }],
@@ -479,6 +515,8 @@ const resetForm = () => {
   form.statusFilter = 'active'
   form.reportType = 'bug'
   form.agingDays = 7
+  form.priorityAssignees = []
+  form.messageHeader = ''
   form.keyword = '提醒'
   form.externalInfo = ''
   form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }]
@@ -505,6 +543,8 @@ const openEditDialog = (task: SchedulerTask) => {
   form.statusFilter = task.statusFilter
   form.reportType = task.reportType || 'bug'
   form.agingDays = task.agingDays || 7
+  form.priorityAssignees = task.priorityAssignees || []
+  form.messageHeader = task.messageHeader || ''
   form.externalInfo = task.externalInfo || ''
   form.webhooks = task.webhooks.map(w => ({ ...w }))
   testResult.value = null
@@ -529,6 +569,8 @@ const handleSubmit = async () => {
       statusFilter: form.statusFilter,
       reportType: form.reportType || 'bug',
       agingDays: form.agingDays || 7,
+      priorityAssignees: form.priorityAssignees || [],
+      messageHeader: form.messageHeader || '',
       keyword: form.keyword,
       externalInfo: form.externalInfo,
       webhooks: form.webhooks.filter(w => w.url).map(w => ({
@@ -606,6 +648,8 @@ const handlePreview = async () => {
       agingDays: form.agingDays || 7,
       keyword: form.keyword,
       externalInfo: form.externalInfo,
+      messageHeader: form.messageHeader || '',
+      priorityAssignees: form.priorityAssignees || [],
     }
     const res = await previewReport(params)
     previewResult.value = res.data
@@ -1090,4 +1134,28 @@ watch(() => activeTab.value, (tab) => {
   .data-table { font-size: 12px; }
   .data-table th, .data-table td { padding: 8px 10px; }
 }
+
+/* Priority tags */
+.priority-hint { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 6px; }
+.priority-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.priority-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #dbeafe;
+  color: #2563eb;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.tag-remove {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+.tag-remove:hover { color: #dc2626; }
 </style>

@@ -99,7 +99,7 @@ func TestBuildBugAgingMessage(t *testing.T) {
 		},
 	}
 
-	msg := buildBugAgingMessage("Bug 停留超时提醒 - 测试项目", now, 3, 7, details, "提醒", "")
+	msg := buildBugAgingMessage("Bug 停留超时提醒 - 测试项目", now, 3, 7, details, "提醒", "", "")
 
 	if !strings.Contains(msg, "【提醒】") {
 		t.Error("消息应包含关键词【提醒】")

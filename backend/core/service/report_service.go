@@ -37,7 +37,7 @@ func severityInt(v interface{}) int {
 	}
 }
 
-func (s *ReportService) GenerateBugReport(productID int, projectID int, projectName string, statusFilter string, keyword string, externalInfo string) (*models.BugReport, error) {
+func (s *ReportService) GenerateBugReport(productID int, projectID int, projectName string, statusFilter string, keyword string, externalInfo string, messageHeader string) (*models.BugReport, error) {
 	bugs, err := s.client.GetAllBugsByProjectWithProduct(productID, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("获取Bug列表失败: %w", err)
@@ -115,7 +115,7 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 
 	now := time.Now()
 	title := fmt.Sprintf("Bug 分布报告 - %s", projectName)
-	message := buildMessage(title, now, len(filtered), totalHigh, details, statusBreakdown, keyword, externalInfo)
+	message := buildMessage(title, now, len(filtered), totalHigh, details, statusBreakdown, keyword, externalInfo, messageHeader)
 
 	return &models.BugReport{
 		Title:           title,
@@ -129,7 +129,7 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 	}, nil
 }
 
-func buildMessage(title string, t time.Time, total, highSeverity int, details []models.AssigneeBugStats, statusBreakdown map[string]int, keyword string, externalInfo string) string {
+func buildMessage(title string, t time.Time, total, highSeverity int, details []models.AssigneeBugStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string) string {
 	var sb strings.Builder
 	kw := ""
 	if keyword != "" {
@@ -137,6 +137,9 @@ func buildMessage(title string, t time.Time, total, highSeverity int, details []
 	}
 	sb.WriteString(fmt.Sprintf("%s🔴 %s\n", kw, title))
 	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
+	if messageHeader != "" {
+		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
+	}
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
 	sb.WriteString(fmt.Sprintf("📊 剩余 Bug：%d个（高级别 %d个）\n\n", total, highSeverity))
 
@@ -159,7 +162,7 @@ func buildMessage(title string, t time.Time, total, highSeverity int, details []
 	return sb.String()
 }
 
-func (s *ReportService) GenerateRequirementReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string) (*models.RequirementReport, error) {
+func (s *ReportService) GenerateRequirementReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string, messageHeader string) (*models.RequirementReport, error) {
 	var stories []zentao.Story
 	var err error
 
@@ -230,7 +233,7 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 
 	now := time.Now()
 	title := fmt.Sprintf("需求进度报告 - %s", projectName)
-	message := buildRequirementMessage(title, now, len(stories), details, statusBreakdown, keyword, externalInfo)
+	message := buildRequirementMessage(title, now, len(stories), details, statusBreakdown, keyword, externalInfo, messageHeader)
 
 	return &models.RequirementReport{
 		Title:           title,
@@ -244,7 +247,7 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 	}, nil
 }
 
-func buildRequirementMessage(title string, t time.Time, total int, details []models.AssigneeStoryStats, statusBreakdown map[string]int, keyword string, externalInfo string) string {
+func buildRequirementMessage(title string, t time.Time, total int, details []models.AssigneeStoryStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string) string {
 	var sb strings.Builder
 	kw := ""
 	if keyword != "" {
@@ -252,6 +255,9 @@ func buildRequirementMessage(title string, t time.Time, total int, details []mod
 	}
 	sb.WriteString(fmt.Sprintf("%s📋 %s\n", kw, title))
 	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
+	if messageHeader != "" {
+		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
+	}
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
 	sb.WriteString(fmt.Sprintf("📊 需求总数：%d个\n\n", total))
 
@@ -272,7 +278,7 @@ func buildRequirementMessage(title string, t time.Time, total int, details []mod
 	return sb.String()
 }
 
-func (s *ReportService) GenerateTaskReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string) (*models.TaskProgressReport, error) {
+func (s *ReportService) GenerateTaskReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string, messageHeader string) (*models.TaskProgressReport, error) {
 	var tasks []zentao.Task
 	var err error
 
@@ -366,7 +372,7 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 
 	now := time.Now()
 	title := fmt.Sprintf("任务进度报告 - %s", projectName)
-	message := buildTaskMessage(title, now, len(tasks), totalEstimate, totalConsumed, overallProgress, details, statusBreakdown, keyword, externalInfo)
+	message := buildTaskMessage(title, now, len(tasks), totalEstimate, totalConsumed, overallProgress, details, statusBreakdown, keyword, externalInfo, messageHeader)
 
 	return &models.TaskProgressReport{
 		Title:           title,
@@ -383,7 +389,7 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 	}, nil
 }
 
-func buildTaskMessage(title string, t time.Time, total int, totalEstimate, totalConsumed, overallProgress float64, details []models.TaskProgressStats, statusBreakdown map[string]int, keyword string, externalInfo string) string {
+func buildTaskMessage(title string, t time.Time, total int, totalEstimate, totalConsumed, overallProgress float64, details []models.TaskProgressStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string) string {
 	var sb strings.Builder
 	kw := ""
 	if keyword != "" {
@@ -391,6 +397,9 @@ func buildTaskMessage(title string, t time.Time, total int, totalEstimate, total
 	}
 	sb.WriteString(fmt.Sprintf("%s✅ %s\n", kw, title))
 	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
+	if messageHeader != "" {
+		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
+	}
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
 	sb.WriteString(fmt.Sprintf("📊 任务总数：%d个 | 整体进度：%.0f%%\n", total, overallProgress))
 	sb.WriteString(fmt.Sprintf("⏱ 预估工时：%.1fh | 已消耗：%.1fh\n\n", totalEstimate, totalConsumed))
@@ -411,7 +420,7 @@ func buildTaskMessage(title string, t time.Time, total int, totalEstimate, total
 	return sb.String()
 }
 
-func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, projectName string, statusFilter string, agingDays int, keyword string, externalInfo string) (*models.BugAgingReport, error) {
+func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, projectName string, statusFilter string, agingDays int, keyword string, externalInfo string, priorityAssignees []string, messageHeader string) (*models.BugAgingReport, error) {
 	bugs, err := s.client.GetAllBugsByProjectWithProduct(productID, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("获取Bug列表失败: %w", err)
@@ -499,7 +508,20 @@ func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, pro
 		})
 		details = append(details, *stat)
 	}
+
+	// 构建优先人员集合
+	prioritySet := make(map[string]bool)
+	for _, name := range priorityAssignees {
+		prioritySet[name] = true
+	}
+
+	// 排序：优先人员排前面，然后按 Bug 数量降序
 	sort.Slice(details, func(i, j int) bool {
+		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
+		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
+		if iPriority != jPriority {
+			return iPriority
+		}
 		return details[i].Total > details[j].Total
 	})
 
@@ -509,7 +531,7 @@ func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, pro
 	}
 
 	title := fmt.Sprintf("Bug 停留超时提醒 - %s", projectName)
-	message := buildBugAgingMessage(title, now, total, agingDays, details, keyword, externalInfo)
+	message := buildBugAgingMessage(title, now, total, agingDays, details, keyword, externalInfo, messageHeader)
 
 	return &models.BugAgingReport{
 		Title:       title,
@@ -548,7 +570,7 @@ func severityName(sev int) string {
 	}
 }
 
-func buildBugAgingMessage(title string, t time.Time, total, agingDays int, details []models.AssigneeBugAgingStats, keyword string, externalInfo string) string {
+func buildBugAgingMessage(title string, t time.Time, total, agingDays int, details []models.AssigneeBugAgingStats, keyword string, externalInfo string, messageHeader string) string {
 	var sb strings.Builder
 	kw := ""
 	if keyword != "" {
@@ -556,6 +578,9 @@ func buildBugAgingMessage(title string, t time.Time, total, agingDays int, detai
 	}
 	sb.WriteString(fmt.Sprintf("%s⏰ %s\n", kw, title))
 	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
+	if messageHeader != "" {
+		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
+	}
 	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
 	sb.WriteString(fmt.Sprintf("📊 超时 Bug：%d个（阈值：%d天）\n\n", total, agingDays))
 

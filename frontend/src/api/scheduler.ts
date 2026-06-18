@@ -52,6 +52,8 @@ export interface PreviewParams {
   agingDays?: number
   keyword: string
   externalInfo: string
+  messageHeader?: string
+  priorityAssignees?: string[]
 }
 
 export const previewReport = (params: PreviewParams): Promise<ApiResponse<RequirementReport | TaskProgressReport | BugReport | BugAgingReport>> =>

@@ -23,8 +23,10 @@ type SchedulerTask struct {
 	ProjectName   string          `json:"projectName"`
 	ProductName   string          `json:"productName"`
 	StatusFilter  string          `json:"statusFilter"`
-	ReportType    string          `json:"reportType"` // bug | requirement | task | bug-aging
-	AgingDays     int             `json:"agingDays"`  // bug-aging 超时天数阈值，默认 7
+	ReportType        string          `json:"reportType"` // bug | requirement | task | bug-aging
+	AgingDays         int             `json:"agingDays"`  // bug-aging 超时天数阈值，默认 7
+	PriorityAssignees []string        `json:"priorityAssignees"` // 优先展示的人员账号列表
+	MessageHeader     string          `json:"messageHeader"` // 消息头备注，如"详情查看 xxxx"
 	Keyword       string          `json:"keyword"`
 	ExternalInfo  string          `json:"externalInfo"`
 	LastRunAt     *time.Time      `json:"lastRunAt"`
