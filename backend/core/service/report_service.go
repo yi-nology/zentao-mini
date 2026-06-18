@@ -446,11 +446,14 @@ func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, pro
 		if openedStr == "" {
 			continue
 		}
-		openedTime, err := time.ParseInLocation("2006-01-02 15:04:05", openedStr, time.Local)
+		openedTime, err := time.ParseInLocation("2006-01-02T15:04:05Z", openedStr, time.UTC)
 		if err != nil {
-			openedTime, err = time.ParseInLocation("2006-01-02", openedStr, time.Local)
+			openedTime, err = time.ParseInLocation("2006-01-02 15:04:05", openedStr, time.Local)
 			if err != nil {
-				continue
+				openedTime, err = time.ParseInLocation("2006-01-02", openedStr, time.Local)
+				if err != nil {
+					continue
+				}
 			}
 		}
 		daysOpen := int(now.Sub(openedTime).Hours() / 24)
