@@ -310,7 +310,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 			logEntry.HighSeverity = 0
 			logEntry.AssigneeCount = len(report.Details)
 		}
-	case "aging":
+	case "bug-aging":
 		agingDays := task.AgingDays
 		if agingDays <= 0 {
 			agingDays = 7

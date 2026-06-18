@@ -200,7 +200,7 @@ func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 			return
 		}
 		errors.Success(c, report)
-	case "aging":
+	case "bug-aging":
 		agingDays := req.AgingDays
 		if agingDays <= 0 {
 			agingDays = 7
