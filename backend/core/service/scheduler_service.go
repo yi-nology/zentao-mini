@@ -149,6 +149,9 @@ func (s *SchedulerService) CreateTask(task *models.SchedulerTask) error {
 	if task.ReportType == "" {
 		task.ReportType = "bug"
 	}
+	if task.ReportType == "bug-aging" && task.AgingDays <= 0 {
+		task.AgingDays = 7
+	}
 	for i := range task.Webhooks {
 		if task.Webhooks[i].ID == "" {
 			task.Webhooks[i].ID = uuid.New().String()
@@ -178,6 +181,9 @@ func (s *SchedulerService) UpdateTask(task *models.SchedulerTask) error {
 	task.UpdatedAt = time.Now()
 	if task.ReportType == "" {
 		task.ReportType = "bug"
+	}
+	if task.ReportType == "bug-aging" && task.AgingDays <= 0 {
+		task.AgingDays = 7
 	}
 	for i := range task.Webhooks {
 		if task.Webhooks[i].ID == "" {
@@ -302,6 +308,19 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 			message = report.Message
 			logEntry.BugTotal = report.Total
 			logEntry.HighSeverity = 0
+			logEntry.AssigneeCount = len(report.Details)
+		}
+	case "aging":
+		agingDays := task.AgingDays
+		if agingDays <= 0 {
+			agingDays = 7
+		}
+		report, err := s.report.GenerateBugAgingReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, agingDays, task.Keyword, task.ExternalInfo)
+		if err != nil {
+			reportErr = err
+		} else {
+			message = report.Message
+			logEntry.BugTotal = report.Total
 			logEntry.AssigneeCount = len(report.Details)
 		}
 	default: // "bug"

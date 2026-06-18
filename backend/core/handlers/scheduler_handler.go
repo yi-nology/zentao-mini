@@ -161,13 +161,14 @@ func (h *SchedulerHandler) GetAllLogs(c *gin.Context) {
 
 func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 	var req struct {
-		ReportType  string `json:"reportType"`
-		ProductID   int    `json:"productId"`
-		ProjectID   int    `json:"projectId"`
-		ProjectName string `json:"projectName"`
-		ProductName string `json:"productName"`
+		ReportType   string `json:"reportType"`
+		ProductID    int    `json:"productId"`
+		ProjectID    int    `json:"projectId"`
+		ProjectName  string `json:"projectName"`
+		ProductName  string `json:"productName"`
 		StatusFilter string `json:"statusFilter"`
-		Keyword     string `json:"keyword"`
+		AgingDays    int    `json:"agingDays"`
+		Keyword      string `json:"keyword"`
 		ExternalInfo string `json:"externalInfo"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -194,6 +195,17 @@ func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 		errors.Success(c, report)
 	case "task":
 		report, err := h.reportService.GenerateTaskReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo)
+		if err != nil {
+			errors.Error(c, errors.ExternalError("禅道API", err))
+			return
+		}
+		errors.Success(c, report)
+	case "aging":
+		agingDays := req.AgingDays
+		if agingDays <= 0 {
+			agingDays = 7
+		}
+		report, err := h.reportService.GenerateBugAgingReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, agingDays, req.Keyword, req.ExternalInfo)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return

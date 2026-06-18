@@ -20,6 +20,7 @@ export interface SchedulerTask {
   productName: string
   statusFilter: string
   reportType: string
+  agingDays: number
   keyword: string
   externalInfo: string
   lastRunAt: string | null
@@ -73,10 +74,36 @@ export interface BugReport {
   message: string
 }
 
+export interface BugAgingItem {
+  id: number
+  title: string
+  severity: string
+  openedDate: string
+  daysOpen: number
+}
+
+export interface AssigneeBugAgingStats {
+  assignee: string
+  account: string
+  total: number
+  bugs: BugAgingItem[]
+}
+
+export interface BugAgingReport {
+  title: string
+  timestamp: string
+  projectName: string
+  total: number
+  agingDays: number
+  details: AssigneeBugAgingStats[]
+  message: string
+}
+
 export const CRON_PRESETS = [
   { label: '每天 9:00', expr: '0 9 * * *' },
   { label: '工作日 9:00', expr: '0 9 * * 1-5' },
   { label: '每周一 9:00', expr: '0 9 * * 1' },
+  { label: '每天 9+14点', expr: '0 9,14 * * *' },
   { label: '每8小时', expr: '0 */8 * * *' },
   { label: '每30分钟', expr: '*/30 * * * *' },
 ] as const
@@ -92,6 +119,15 @@ export const REPORT_TYPE_OPTIONS = [
   { label: 'Bug 分布报告', value: 'bug', icon: '🐛', color: '#EF4444' },
   { label: '需求进度播报', value: 'requirement', icon: '📋', color: '#4F6BF6' },
   { label: '任务进度播报', value: 'task', icon: '✅', color: '#22C55E' },
+  { label: 'Bug 超时提醒', value: 'bug-aging', icon: '⏰', color: '#F59E0B' },
+] as const
+
+export const AGING_DAYS_OPTIONS = [
+  { label: '3 天', value: 3 },
+  { label: '5 天', value: 5 },
+  { label: '7 天', value: 7 },
+  { label: '14 天', value: 14 },
+  { label: '30 天', value: 30 },
 ] as const
 
 export interface AssigneeStoryStats {

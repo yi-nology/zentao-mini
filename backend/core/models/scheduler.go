@@ -23,7 +23,8 @@ type SchedulerTask struct {
 	ProjectName   string          `json:"projectName"`
 	ProductName   string          `json:"productName"`
 	StatusFilter  string          `json:"statusFilter"`
-	ReportType    string          `json:"reportType"` // bug | requirement | task
+	ReportType    string          `json:"reportType"` // bug | requirement | task | bug-aging
+	AgingDays     int             `json:"agingDays"`  // bug-aging 超时天数阈值，默认 7
 	Keyword       string          `json:"keyword"`
 	ExternalInfo  string          `json:"externalInfo"`
 	LastRunAt     *time.Time      `json:"lastRunAt"`
@@ -130,4 +131,29 @@ type TaskProgressReport struct {
 	OverallProgress float64             `json:"overallProgress"`
 	Details         []TaskProgressStats `json:"details"`
 	Message         string              `json:"message"`
+}
+
+type BugAgingItem struct {
+	ID         int    `json:"id"`
+	Title      string `json:"title"`
+	Severity   string `json:"severity"`
+	OpenedDate string `json:"openedDate"`
+	DaysOpen   int    `json:"daysOpen"`
+}
+
+type AssigneeBugAgingStats struct {
+	Assignee string           `json:"assignee"`
+	Account  string           `json:"account"`
+	Total    int              `json:"total"`
+	Bugs     []BugAgingItem   `json:"bugs"`
+}
+
+type BugAgingReport struct {
+	Title       string                  `json:"title"`
+	Timestamp   string                  `json:"timestamp"`
+	ProjectName string                  `json:"projectName"`
+	Total       int                     `json:"total"`
+	AgingDays   int                     `json:"agingDays"`
+	Details     []AssigneeBugAgingStats `json:"details"`
+	Message     string                  `json:"message"`
 }

@@ -213,10 +213,16 @@
                 </button>
               </div>
             </div>
-            <div class="form-group form-half" v-if="form.reportType === 'bug'">
+            <div class="form-group form-half" v-if="form.reportType === 'bug' || form.reportType === 'bug-aging'">
               <label>Bug 状态过滤</label>
               <select v-model="form.statusFilter" class="form-input">
                 <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="form-group form-half" v-if="form.reportType === 'bug-aging'">
+              <label>超时阈值</label>
+              <select v-model="form.agingDays" class="form-input">
+                <option v-for="opt in AGING_DAYS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
           </div>
@@ -341,8 +347,8 @@ import {
 } from '@/api/scheduler'
 import type { PreviewParams } from '@/api/scheduler'
 import { getProducts, getProjects } from '@/api/zentao'
-import type { SchedulerTask, TaskExecutionLog, WebhookResult, WebhookConfig, RequirementReport, TaskProgressReport, BugReport } from '@/types/scheduler'
-import { CRON_PRESETS, STATUS_OPTIONS, REPORT_TYPE_OPTIONS } from '@/types/scheduler'
+import type { SchedulerTask, TaskExecutionLog, WebhookResult, WebhookConfig, RequirementReport, TaskProgressReport, BugReport, BugAgingReport } from '@/types/scheduler'
+import { CRON_PRESETS, STATUS_OPTIONS, REPORT_TYPE_OPTIONS, AGING_DAYS_OPTIONS } from '@/types/scheduler'
 
 interface Product { id: number; name: string }
 interface Project { id: number; name: string }
@@ -363,7 +369,7 @@ const runResultVisible = ref(false)
 const runResult = ref<TaskExecutionLog | null>(null)
 
 const previewLoading = ref(false)
-const previewResult = ref<RequirementReport | TaskProgressReport | BugReport | null>(null)
+const previewResult = ref<RequirementReport | TaskProgressReport | BugReport | BugAgingReport | null>(null)
 const previewError = ref('')
 
 const form = reactive<{
@@ -376,6 +382,7 @@ const form = reactive<{
   cronExpr: string
   statusFilter: string
   reportType: string
+  agingDays: number
   keyword: string
   externalInfo: string
   webhooks: WebhookConfig[]
@@ -389,6 +396,7 @@ const form = reactive<{
   cronExpr: '0 9 * * 1-5',
   statusFilter: 'active',
   reportType: 'bug',
+  agingDays: 7,
   keyword: '提醒',
   externalInfo: '',
   webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }],
@@ -407,6 +415,7 @@ const namePlaceholder = computed(() => {
     bug: '如：每日Bug分布报告',
     requirement: '如：需求进度播报',
     task: '如：任务进度播报',
+    'bug-aging': '如：Bug超时提醒',
   }
   return m[form.reportType] || '任务名称'
 })
@@ -469,6 +478,7 @@ const resetForm = () => {
   form.cronExpr = '0 9 * * 1-5'
   form.statusFilter = 'active'
   form.reportType = 'bug'
+  form.agingDays = 7
   form.keyword = '提醒'
   form.externalInfo = ''
   form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }]
@@ -494,6 +504,7 @@ const openEditDialog = (task: SchedulerTask) => {
   form.cronExpr = task.cronExpr
   form.statusFilter = task.statusFilter
   form.reportType = task.reportType || 'bug'
+  form.agingDays = task.agingDays || 7
   form.externalInfo = task.externalInfo || ''
   form.webhooks = task.webhooks.map(w => ({ ...w }))
   testResult.value = null
@@ -517,6 +528,7 @@ const handleSubmit = async () => {
       productName: form.productName,
       statusFilter: form.statusFilter,
       reportType: form.reportType || 'bug',
+      agingDays: form.agingDays || 7,
       keyword: form.keyword,
       externalInfo: form.externalInfo,
       webhooks: form.webhooks.filter(w => w.url).map(w => ({
@@ -591,6 +603,7 @@ const handlePreview = async () => {
       projectName: form.projectName,
       productName: form.productName,
       statusFilter: form.statusFilter,
+      agingDays: form.agingDays || 7,
       keyword: form.keyword,
       externalInfo: form.externalInfo,
     }
@@ -620,7 +633,7 @@ const runStatusLabel = (s: string) => {
 }
 
 const reportTypeLabel = (t: string) => {
-  const m: Record<string, string> = { bug: 'Bug报告', requirement: '需求播报', task: '任务播报' }
+  const m: Record<string, string> = { bug: 'Bug报告', requirement: '需求播报', task: '任务播报', 'bug-aging': '超时提醒' }
   return m[t] || t
 }
 
@@ -629,6 +642,7 @@ const reportTypeDesc = (t: string) => {
     bug: '按指派人分组的Bug分布报告，含严重级别统计',
     requirement: '需求状态分布与指派人进度播报',
     task: '任务进度与工时消耗播报，含完成率统计',
+    'bug-aging': '停留超时的Bug按责任人分组强提醒，含具体停留天数',
   }
   return m[t] || ''
 }

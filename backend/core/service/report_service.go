@@ -410,3 +410,167 @@ func buildTaskMessage(title string, t time.Time, total int, totalEstimate, total
 		statusBreakdown["wait"], statusBreakdown["doing"], statusBreakdown["done"], statusBreakdown["pause"]))
 	return sb.String()
 }
+
+func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, projectName string, statusFilter string, agingDays int, keyword string, externalInfo string) (*models.BugAgingReport, error) {
+	bugs, err := s.client.GetAllBugsByProjectWithProduct(productID, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("获取Bug列表失败: %w", err)
+	}
+
+	if agingDays <= 0 {
+		agingDays = 7
+	}
+
+	logger.Info("获取Bug列表(超时分析)",
+		zap.Int("productID", productID),
+		zap.Int("projectID", projectID),
+		zap.Int("bugCount", len(bugs)),
+		zap.Int("agingDays", agingDays))
+
+	if statusFilter == "" {
+		statusFilter = "active"
+	}
+
+	now := time.Now()
+	assigneeMap := make(map[string]*models.AssigneeBugAgingStats)
+
+	for _, b := range bugs {
+		if b.Status != "active" && b.Status != "resolved" {
+			continue
+		}
+		if statusFilter != "all" && b.Status != statusFilter && statusFilter != "active-resolved" {
+			continue
+		}
+
+		openedStr := parseDateField(b.OpenedDate)
+		if openedStr == "" {
+			continue
+		}
+		openedTime, err := time.ParseInLocation("2006-01-02 15:04:05", openedStr, time.Local)
+		if err != nil {
+			openedTime, err = time.ParseInLocation("2006-01-02", openedStr, time.Local)
+			if err != nil {
+				continue
+			}
+		}
+		daysOpen := int(now.Sub(openedTime).Hours() / 24)
+		if daysOpen < agingDays {
+			continue
+		}
+
+		name := b.AssignedTo.Realname
+		if name == "" {
+			name = b.AssignedTo.Account
+		}
+		if name == "" {
+			name = "未指派"
+		}
+
+		stat, ok := assigneeMap[name]
+		if !ok {
+			stat = &models.AssigneeBugAgingStats{
+				Assignee: name,
+				Account:  b.AssignedTo.Account,
+				Bugs:     []models.BugAgingItem{},
+			}
+			assigneeMap[name] = stat
+		}
+
+		sev := severityInt(b.Severity)
+		sevName := severityName(sev)
+
+		stat.Total++
+		stat.Bugs = append(stat.Bugs, models.BugAgingItem{
+			ID:         b.ID,
+			Title:      b.Title,
+			Severity:   sevName,
+			OpenedDate: openedStr,
+			DaysOpen:   daysOpen,
+		})
+	}
+
+	details := make([]models.AssigneeBugAgingStats, 0, len(assigneeMap))
+	for _, stat := range assigneeMap {
+		sort.Slice(stat.Bugs, func(i, j int) bool {
+			return stat.Bugs[i].DaysOpen > stat.Bugs[j].DaysOpen
+		})
+		details = append(details, *stat)
+	}
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].Total > details[j].Total
+	})
+
+	total := 0
+	for _, d := range details {
+		total += d.Total
+	}
+
+	title := fmt.Sprintf("Bug 停留超时提醒 - %s", projectName)
+	message := buildBugAgingMessage(title, now, total, agingDays, details, keyword, externalInfo)
+
+	return &models.BugAgingReport{
+		Title:       title,
+		Timestamp:   now.Format(time.RFC3339),
+		ProjectName: projectName,
+		Total:       total,
+		AgingDays:   agingDays,
+		Details:     details,
+		Message:     message,
+	}, nil
+}
+
+func parseDateField(v interface{}) string {
+	switch d := v.(type) {
+	case string:
+		return d
+	case time.Time:
+		return d.Format("2006-01-02 15:04:05")
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+func severityName(sev int) string {
+	switch sev {
+	case 1:
+		return "致命"
+	case 2:
+		return "严重"
+	case 3:
+		return "一般"
+	case 4:
+		return "轻微"
+	default:
+		return "未知"
+	}
+}
+
+func buildBugAgingMessage(title string, t time.Time, total, agingDays int, details []models.AssigneeBugAgingStats, keyword string, externalInfo string) string {
+	var sb strings.Builder
+	kw := ""
+	if keyword != "" {
+		kw = fmt.Sprintf("【%s】", keyword)
+	}
+	sb.WriteString(fmt.Sprintf("%s⏰ %s\n", kw, title))
+	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	sb.WriteString(fmt.Sprintf("📊 超时 Bug：%d个（阈值：%d天）\n\n", total, agingDays))
+
+	for _, d := range details {
+		sb.WriteString(fmt.Sprintf("👤 %s  %d个超时Bug\n", d.Assignee, d.Total))
+		for _, bug := range d.Bugs {
+			titleStr := bug.Title
+			if len([]rune(titleStr)) > 20 {
+				titleStr = string([]rune(titleStr)[:20]) + "..."
+			}
+			sb.WriteString(fmt.Sprintf("   └ #%d [%s] %s 已停留 %d天\n", bug.ID, bug.Severity, titleStr, bug.DaysOpen))
+		}
+	}
+
+	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
+	if externalInfo != "" {
+		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
+	}
+	sb.WriteString(fmt.Sprintf("⚠️ 以上 Bug 已超过 %d 天未解决，请尽快处理！", agingDays))
+	return sb.String()
+}

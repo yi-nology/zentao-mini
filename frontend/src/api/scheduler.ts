@@ -6,6 +6,7 @@ import type {
   RequirementReport,
   TaskProgressReport,
   BugReport,
+  BugAgingReport,
 } from '@/types/scheduler'
 
 interface ApiResponse<T> {
@@ -48,9 +49,10 @@ export interface PreviewParams {
   projectName: string
   productName: string
   statusFilter: string
+  agingDays?: number
   keyword: string
   externalInfo: string
 }
 
-export const previewReport = (params: PreviewParams): Promise<ApiResponse<RequirementReport | TaskProgressReport | BugReport>> =>
+export const previewReport = (params: PreviewParams): Promise<ApiResponse<RequirementReport | TaskProgressReport | BugReport | BugAgingReport>> =>
   api.post('/scheduler/preview', params)
