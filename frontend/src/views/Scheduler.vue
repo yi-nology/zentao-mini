@@ -240,7 +240,7 @@
             </div>
           </div>
 
-          <div class="form-row" v-if="form.reportType === 'bug-aging'">
+          <div class="form-row">
             <div class="form-group">
               <label>优先人员</label>
               <div class="priority-hint">输入账号，按回车添加，优先展示在消息前面</div>

@@ -293,7 +293,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 
 	switch reportType {
 	case "requirement":
-		report, err := s.report.GenerateRequirementReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader)
+		report, err := s.report.GenerateRequirementReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees)
 		if err != nil {
 			reportErr = err
 		} else {
@@ -301,7 +301,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 			logEntry.BugTotal = report.Total
 		}
 	case "task":
-		report, err := s.report.GenerateTaskReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader)
+		report, err := s.report.GenerateTaskReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees)
 		if err != nil {
 			reportErr = err
 		} else {
@@ -324,7 +324,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 			logEntry.AssigneeCount = len(report.Details)
 		}
 	default: // "bug"
-		report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword, task.ExternalInfo, task.MessageHeader)
+		report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees)
 		if err != nil {
 			reportErr = err
 		} else {

@@ -189,14 +189,14 @@ func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 
 	switch reportType {
 	case "requirement":
-		report, err := h.reportService.GenerateRequirementReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader)
+		report, err := h.reportService.GenerateRequirementReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return
 		}
 		errors.Success(c, report)
 	case "task":
-		report, err := h.reportService.GenerateTaskReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader)
+		report, err := h.reportService.GenerateTaskReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return
@@ -214,7 +214,7 @@ func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 		}
 		errors.Success(c, report)
 	default:
-		report, err := h.reportService.GenerateBugReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, req.Keyword, req.ExternalInfo, req.MessageHeader)
+		report, err := h.reportService.GenerateBugReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return

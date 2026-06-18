@@ -37,7 +37,7 @@ func severityInt(v interface{}) int {
 	}
 }
 
-func (s *ReportService) GenerateBugReport(productID int, projectID int, projectName string, statusFilter string, keyword string, externalInfo string, messageHeader string) (*models.BugReport, error) {
+func (s *ReportService) GenerateBugReport(productID int, projectID int, projectName string, statusFilter string, keyword string, externalInfo string, messageHeader string, priorityAssignees []string) (*models.BugReport, error) {
 	bugs, err := s.client.GetAllBugsByProjectWithProduct(productID, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("获取Bug列表失败: %w", err)
@@ -104,7 +104,20 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 	for _, stat := range assigneeMap {
 		details = append(details, *stat)
 	}
+
+	// 构建优先人员集合
+	prioritySet := make(map[string]bool)
+	for _, name := range priorityAssignees {
+		prioritySet[name] = true
+	}
+
+	// 排序：优先人员排前面，然后按 Bug 数量降序
 	sort.Slice(details, func(i, j int) bool {
+		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
+		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
+		if iPriority != jPriority {
+			return iPriority
+		}
 		return details[i].Total > details[j].Total
 	})
 
@@ -162,7 +175,7 @@ func buildMessage(title string, t time.Time, total, highSeverity int, details []
 	return sb.String()
 }
 
-func (s *ReportService) GenerateRequirementReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string, messageHeader string) (*models.RequirementReport, error) {
+func (s *ReportService) GenerateRequirementReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string, messageHeader string, priorityAssignees []string) (*models.RequirementReport, error) {
 	var stories []zentao.Story
 	var err error
 
@@ -227,7 +240,20 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 	for _, stat := range assigneeMap {
 		details = append(details, *stat)
 	}
+
+	// 构建优先人员集合
+	prioritySet := make(map[string]bool)
+	for _, name := range priorityAssignees {
+		prioritySet[name] = true
+	}
+
+	// 排序：优先人员排前面，然后按需求数量降序
 	sort.Slice(details, func(i, j int) bool {
+		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
+		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
+		if iPriority != jPriority {
+			return iPriority
+		}
 		return details[i].Total > details[j].Total
 	})
 
@@ -278,7 +304,7 @@ func buildRequirementMessage(title string, t time.Time, total int, details []mod
 	return sb.String()
 }
 
-func (s *ReportService) GenerateTaskReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string, messageHeader string) (*models.TaskProgressReport, error) {
+func (s *ReportService) GenerateTaskReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string, messageHeader string, priorityAssignees []string) (*models.TaskProgressReport, error) {
 	var tasks []zentao.Task
 	var err error
 
@@ -366,7 +392,20 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 	for _, stat := range assigneeMap {
 		details = append(details, *stat)
 	}
+
+	// 构建优先人员集合
+	prioritySet := make(map[string]bool)
+	for _, name := range priorityAssignees {
+		prioritySet[name] = true
+	}
+
+	// 排序：优先人员排前面，然后按任务数量降序
 	sort.Slice(details, func(i, j int) bool {
+		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
+		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
+		if iPriority != jPriority {
+			return iPriority
+		}
 		return details[i].Total > details[j].Total
 	})
 
