@@ -4,33 +4,28 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
-	"time"
+	"sync"
 
 	"github.com/yi-nology/zentao-mini/backend/core/config"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/metrics"
 	"github.com/yi-nology/zentao-mini/backend/core/routes"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
-// WailsApp Wails桌面应用
-// 实现Application接口，提供Wails桌面应用模式
-// 该应用在Wails框架下运行，同时启动HTTP服务器提供API服务
 type WailsApp struct {
 	config *AppConfig
 	deps   *Dependencies
-	server *http.Server
-	router *gin.Engine
+	hertz  *server.Hertz
+	mu     sync.Mutex
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// NewWailsApp 创建Wails应用实例
 func NewWailsApp(config *AppConfig, deps *Dependencies) *WailsApp {
 	return &WailsApp{
 		config: config,
@@ -38,62 +33,32 @@ func NewWailsApp(config *AppConfig, deps *Dependencies) *WailsApp {
 	}
 }
 
-// Start 启动Wails应用（由Wails框架调用）
 func (a *WailsApp) Start(ctx context.Context) error {
 	a.ctx = ctx
 
-	// 创建可取消的上下文
 	ctxWithCancel, cancel := context.WithCancel(ctx)
 	a.cancel = cancel
 
-	// 加载环境变量
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: .env file not found, using environment variables")
 	}
 
-	// 初始化配置
 	if err := config.Init("", "ZENTAO_MINI"); err != nil {
 		log.Printf("Warning: failed to initialize config: %v", err)
 	}
 	cfg := config.Get()
 
-	// 初始化日志
 	if err := logger.Init(&cfg.Log); err != nil {
 		log.Printf("Warning: failed to initialize logger: %v", err)
 	}
 
-	// 初始化定时任务调度器（logger初始化之后）
 	a.deps.Handlers.InitScheduler(a.deps.ConfigStore)
 
-	// 初始化性能监控
 	if err := metrics.Init(); err != nil {
 		logger.Error("Failed to initialize metrics", zap.Error(err))
 	}
 
-	// 在goroutine中启动后端服务
 	go func() {
-		// 设置路由
-		a.router = routes.SetupRouterWithHandlers(
-			a.deps.InitService,
-			a.deps.ZentaoClient,
-			a.deps.Handlers,
-		)
-
-		// 前端路由处理 - 所有非API请求都返回index.html
-		a.router.NoRoute(func(c *gin.Context) {
-			// 尝试从文件系统加载index.html
-			indexPath := "./frontend/dist/index.html"
-			if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-				// 如果dist目录不存在，使用public目录作为备选
-				indexPath = "./frontend/public/index.html"
-			}
-			c.File(indexPath)
-		})
-
-		// 静态文件服务 - 提供前端资源
-		a.router.Static("/assets", "./frontend/dist/assets")
-
-		// 获取端口
 		port := a.config.Port
 		if port == "" {
 			port = os.Getenv("PORT")
@@ -102,13 +67,12 @@ func (a *WailsApp) Start(ctx context.Context) error {
 			}
 		}
 
-		// 创建HTTP服务器
-		a.server = &http.Server{
-			Addr:         ":" + port,
-			Handler:      a.router,
-			ReadTimeout:  120 * time.Second,
-			WriteTimeout: 120 * time.Second,
-		}
+		a.hertz = routes.SetupRouterWithHandlers(
+			a.deps.InitService,
+			a.deps.ZentaoClient,
+			a.deps.Handlers,
+			":"+port,
+		)
 
 		logger.Info("Wails backend starting",
 			zap.String("name", a.Name()),
@@ -116,23 +80,22 @@ func (a *WailsApp) Start(ctx context.Context) error {
 			zap.String("zentao_server", a.config.ZentaoServer),
 		)
 
-		// 启动MCP服务
 		a.deps.Handlers.GetMCPHandler().Start()
 
-		// 在goroutine中启动服务器
 		go func() {
-			if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				logger.Fatal("Failed to start server", zap.Error(err))
-			}
+			a.hertz.Spin()
 		}()
 
-		// 等待上下文取消
 		<-ctxWithCancel.Done()
 		logger.Info("Wails backend shutting down", zap.String("name", a.Name()))
 
-		// 优雅关闭服务器
-		if err := a.server.Shutdown(context.Background()); err != nil {
-			logger.Error("Server forced to shutdown", zap.Error(err))
+		a.mu.Lock()
+		hertz := a.hertz
+		a.mu.Unlock()
+		if hertz != nil {
+			if err := hertz.Shutdown(context.Background()); err != nil {
+				logger.Error("Server forced to shutdown", zap.Error(err))
+			}
 		}
 
 		logger.Info("Wails backend stopped", zap.String("name", a.Name()))
@@ -141,7 +104,6 @@ func (a *WailsApp) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop 停止Wails应用
 func (a *WailsApp) Stop(ctx context.Context) error {
 	a.deps.Handlers.StopScheduler()
 	if a.cancel != nil {
@@ -151,12 +113,10 @@ func (a *WailsApp) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Name 返回应用名称
 func (a *WailsApp) Name() string {
 	return "Wails-Desktop"
 }
 
-// Greet 示例方法 - Wails绑定方法
 func (a *WailsApp) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
 }

@@ -1,65 +1,55 @@
 package middleware
 
 import (
+	"context"
 	"time"
 
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/metrics"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
-// TraceIDMiddleware 请求追踪ID中间件
-// 为每个请求生成唯一的追踪ID，便于日志追踪和问题排查
-func TraceIDMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// 尝试从请求头获取trace ID
-		traceID := c.GetHeader("X-Trace-ID")
+func TraceIDMiddleware() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		traceID := string(c.GetHeader("X-Trace-ID"))
 		if traceID == "" {
-			// 如果请求头没有，生成新的trace ID
 			traceID = uuid.New().String()
 		}
 
-		// 将trace ID存入context
 		c.Set(string(logger.TraceIDKey), traceID)
 
-		// 将trace ID添加到响应头
 		c.Header("X-Trace-ID", traceID)
 
-		c.Next()
+		c.Next(ctx)
 	}
 }
 
-// LoggerMiddleware 日志中间件
-// 记录请求日志，包括请求方法、路径、状态码、耗时等信息
-func LoggerMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func LoggerMiddleware() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
 		start := time.Now()
-		path := c.Request.URL.Path
-		method := c.Request.Method
+		path := string(c.Request.URI().Path())
+		method := string(c.Request.Method())
 
-		// 处理请求
-		c.Next()
+		c.Next(ctx)
 
-		// 计算请求耗时
 		latency := time.Since(start)
-		statusCode := c.Writer.Status()
-		traceID := c.GetString(string(logger.TraceIDKey))
+		statusCode := c.Response.StatusCode()
+		traceID, _ := c.Get(string(logger.TraceIDKey))
+		traceIDStr, _ := traceID.(string)
 
-		// 记录请求日志
 		fields := []zap.Field{
 			zap.String("method", method),
 			zap.String("path", path),
 			zap.Int("status", statusCode),
 			zap.Duration("latency", latency),
 			zap.String("client_ip", c.ClientIP()),
-			zap.String("trace_id", traceID),
+			zap.String("trace_id", traceIDStr),
 		}
 
-		// 根据状态码选择日志级别
 		if statusCode >= 500 {
 			logger.Error("HTTP Request", fields...)
 		} else if statusCode >= 400 {
@@ -70,30 +60,25 @@ func LoggerMiddleware() gin.HandlerFunc {
 	}
 }
 
-// MetricsMiddleware 性能监控中间件
-// 收集HTTP请求的性能指标
-func MetricsMiddleware() gin.HandlerFunc {
+func MetricsMiddleware() app.HandlerFunc {
 	return metrics.Middleware()
 }
 
-// RecoveryMiddleware 恢复中间件
-// 捕获panic并记录日志，返回统一错误格式
-func RecoveryMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func RecoveryMiddleware() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
 		defer func() {
 			if err := recover(); err != nil {
-				traceID := c.GetString(string(logger.TraceIDKey))
+				traceID, _ := c.Get(string(logger.TraceIDKey))
+				traceIDStr, _ := traceID.(string)
 
-				// 记录panic日志
 				logger.Error("Panic recovered",
 					zap.Any("error", err),
-					zap.String("trace_id", traceID),
-					zap.String("method", c.Request.Method),
-					zap.String("path", c.Request.URL.Path),
+					zap.String("trace_id", traceIDStr),
+					zap.String("method", string(c.Request.Method())),
+					zap.String("path", string(c.Request.URI().Path())),
 					zap.Stack("stack"),
 				)
 
-				// 返回统一错误格式
 				c.AbortWithStatusJSON(500, errors.Response{
 					Code:    errors.CodeInternalError,
 					Message: "服务器内部错误",
@@ -102,6 +87,6 @@ func RecoveryMiddleware() gin.HandlerFunc {
 			}
 		}()
 
-		c.Next()
+		c.Next(ctx)
 	}
 }

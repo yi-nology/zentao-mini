@@ -19,5 +19,8 @@ func (dto *StoryQueryDTO) Validate() error {
 	if dto.PageSize <= 0 {
 		dto.PageSize = 20
 	}
+	if dto.PageSize > MaxPageSize {
+		dto.PageSize = MaxPageSize
+	}
 	return nil
 }

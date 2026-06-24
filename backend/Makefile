@@ -1,4 +1,4 @@
-# Makefile for chandao-mini backend
+# Makefile for zentao-mini backend
 
 .PHONY: all build run clean test test-coverage test-coverage-html lint fmt help
 

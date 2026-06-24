@@ -190,8 +190,8 @@ const (
 // 应用相关常量
 const (
 	// AppName 应用名称
-	AppName = "chandao-mini"
+	AppName = "zentao-mini"
 
 	// DefaultPort 默认HTTP端口
-	DefaultPort = 8080
+	DefaultPort = 12345
 )

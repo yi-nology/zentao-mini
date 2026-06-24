@@ -163,8 +163,8 @@ const barWidth = (c: CheckItem) => {
 const runCheck = async () => {
   loading.value = true
   try {
-    const res = await api.get('/healthz')
-    data.value = (res as unknown as { data: HealthData }).data
+    const res = await api.get('/healthz') as any
+    data.value = res.data
     lastCheckTime.value = new Date().toLocaleString('zh-CN')
   } catch (e) { console.error('健康检查失败', e) }
   finally { loading.value = false }

@@ -17,6 +17,11 @@ auth.json
 # Database files
 auth.db
 backend/cron.db
+cron.db
+
+# Test coverage files
+coverage.out
+backend/coverage.out
 
 # Environment files
 backend/.env

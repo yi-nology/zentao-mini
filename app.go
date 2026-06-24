@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"github.com/yi-nology/zentao-mini/backend/core/app"
 
@@ -22,39 +23,31 @@ func NewApp() *App {
 // startup is called when the app starts. The context is saved
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
-	// 加载环境变量
 	if err := godotenv.Load(); err != nil {
-		// log.Println("Warning: .env file not found, using environment variables")
+		log.Println("Warning: .env file not found, using environment variables")
 	}
 
-	// 创建应用配置
 	config := &app.AppConfig{
 		Type:          "wails",
-		Port:          "", // 将从环境变量读取
-		AuthDBPath:    "", // 将从环境变量读取
-		EncryptionKey: "", // 将从环境变量读取
+		Port:          "",
+		AuthDBPath:    "",
+		EncryptionKey: "",
 	}
 
-	// 使用依赖注入初始化Wails应用
 	application, err := app.InitializeWailsApp(config)
 	if err != nil {
-		// log.Fatalf("Failed to initialize application: %v", err)
-		return
+		log.Fatalf("Failed to initialize application: %v", err)
 	}
 
-	// 类型断言获取WailsApp
 	wailsApp, ok := application.(*app.WailsApp)
 	if !ok {
-		// log.Fatalf("Expected WailsApp, got %T", application)
-		return
+		log.Fatalf("Expected WailsApp, got %T", application)
 	}
 
 	a.wailsApp = wailsApp
 
-	// 启动应用
 	if err := wailsApp.Start(ctx); err != nil {
-		// log.Printf("Failed to start application: %v", err)
-		return
+		log.Fatalf("Failed to start application: %v", err)
 	}
 }
 
@@ -69,6 +62,8 @@ func (a *App) Greet(name string) string {
 // shutdown is called when the app exits
 func (a *App) shutdown(ctx context.Context) {
 	if a.wailsApp != nil {
-		_ = a.wailsApp.Stop(ctx)
+		if err := a.wailsApp.Stop(ctx); err != nil {
+			log.Printf("Failed to stop application: %v", err)
+		}
 	}
 }

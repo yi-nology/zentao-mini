@@ -20,7 +20,7 @@ echo "交叉编译为 Linux arm64..."
 mkdir -p build/linux-arm64
 
 # 使用 go build 直接交叉编译，添加 Wails 构建标签，禁用 CGO 以避免交叉编译问题
-GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags wails -o build/linux-arm64/chandao-mini .
+GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags wails -o build/linux-arm64/zentao-mini .
 if [ $? -ne 0 ]; then
     echo "错误: 交叉编译失败"
     exit 1
@@ -30,5 +30,5 @@ fi
 cp .env.wails build/linux-arm64/.env
 
 echo "交叉编译完成!"
-echo "可执行文件位置: build/linux-arm64/chandao-mini"
+echo "可执行文件位置: build/linux-arm64/zentao-mini"
 echo "环境变量文件已复制: build/linux-arm64/.env"

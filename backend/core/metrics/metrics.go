@@ -1,46 +1,40 @@
 package metrics
 
 import (
+	"context"
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Metrics 性能指标收集器
 type Metrics struct {
-	// HTTP请求相关指标
 	RequestsTotal    *prometheus.CounterVec
 	RequestDuration  *prometheus.HistogramVec
 	RequestsInFlight *prometheus.GaugeVec
 
-	// 缓存相关指标
 	CacheHits    *prometheus.CounterVec
 	CacheMisses  *prometheus.CounterVec
 	CacheLatency *prometheus.HistogramVec
 
-	// 禅道API相关指标
 	ZentaoAPIRequests    *prometheus.CounterVec
 	ZentaoAPIDuration    *prometheus.HistogramVec
 	ZentaoAPIErrors      *prometheus.CounterVec
 	ZentaoTokenRefreshes prometheus.Counter
 
-	// 业务指标
-	BugsTotal       *prometheus.GaugeVec
-	StoriesTotal    *prometheus.GaugeVec
-	TasksTotal      *prometheus.GaugeVec
-	TimelogTotal    *prometheus.CounterVec
+	BugsTotal    *prometheus.GaugeVec
+	StoriesTotal *prometheus.GaugeVec
+	TasksTotal   *prometheus.GaugeVec
+	TimelogTotal *prometheus.CounterVec
 }
 
-// 全局metrics实例
 var globalMetrics *Metrics
 
-// Init 初始化性能指标收集器
 func Init() error {
 	m := &Metrics{
-		// HTTP请求指标
 		RequestsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "http_requests_total",
@@ -64,7 +58,6 @@ func Init() error {
 			[]string{"method"},
 		),
 
-		// 缓存指标
 		CacheHits: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "cache_hits_total",
@@ -88,7 +81,6 @@ func Init() error {
 			[]string{"cache_type", "operation"},
 		),
 
-		// 禅道API指标
 		ZentaoAPIRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "zentao_api_requests_total",
@@ -118,7 +110,6 @@ func Init() error {
 			},
 		),
 
-		// 业务指标
 		BugsTotal: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "bugs_total",
@@ -149,7 +140,6 @@ func Init() error {
 		),
 	}
 
-	// 注册所有指标
 	prometheus.MustRegister(
 		m.RequestsTotal,
 		m.RequestDuration,
@@ -171,7 +161,6 @@ func Init() error {
 	return nil
 }
 
-// Get 获取全局metrics实例
 func Get() *Metrics {
 	if globalMetrics == nil {
 		panic("metrics not initialized, please call Init() first")
@@ -179,59 +168,49 @@ func Get() *Metrics {
 	return globalMetrics
 }
 
-// Middleware Gin中间件，用于收集HTTP请求指标
-func Middleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if c.Request.URL.Path == "/metrics" {
-			c.Next()
+func Middleware() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		if string(c.Request.URI().Path()) == "/metrics" {
+			c.Next(ctx)
 			return
 		}
 
 		start := time.Now()
-		path := c.FullPath()
-		if path == "" {
-			path = c.Request.URL.Path
-		}
+		path := string(c.Request.URI().Path())
 
-		// 增加正在处理的请求数
-		Get().RequestsInFlight.WithLabelValues(c.Request.Method).Inc()
-		defer Get().RequestsInFlight.WithLabelValues(c.Request.Method).Dec()
+		Get().RequestsInFlight.WithLabelValues(string(c.Request.Method())).Inc()
+		defer Get().RequestsInFlight.WithLabelValues(string(c.Request.Method())).Dec()
 
-		// 处理请求
-		c.Next()
+		c.Next(ctx)
 
-		// 记录请求指标
 		duration := time.Since(start).Seconds()
-		status := strconv.Itoa(c.Writer.Status())
+		status := strconv.Itoa(c.Response.StatusCode())
 
-		Get().RequestsTotal.WithLabelValues(c.Request.Method, path, status).Inc()
-		Get().RequestDuration.WithLabelValues(c.Request.Method, path).Observe(duration)
+		Get().RequestsTotal.WithLabelValues(string(c.Request.Method()), path, status).Inc()
+		Get().RequestDuration.WithLabelValues(string(c.Request.Method()), path).Observe(duration)
 	}
 }
 
-// Handler 返回Prometheus metrics handler
-func Handler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		promhttp.Handler().ServeHTTP(c.Writer, c.Request)
+func Handler() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		stdReq, _ := adaptor.GetCompatRequest(&c.Request)
+		stdResp := adaptor.GetCompatResponseWriter(&c.Response)
+		promhttp.Handler().ServeHTTP(stdResp, stdReq)
 	}
 }
 
-// RecordCacheHit 记录缓存命中
 func RecordCacheHit(cacheType string) {
 	Get().CacheHits.WithLabelValues(cacheType).Inc()
 }
 
-// RecordCacheMiss 记录缓存未命中
 func RecordCacheMiss(cacheType string) {
 	Get().CacheMisses.WithLabelValues(cacheType).Inc()
 }
 
-// RecordCacheOperation 记录缓存操作耗时
 func RecordCacheOperation(cacheType, operation string, duration time.Duration) {
 	Get().CacheLatency.WithLabelValues(cacheType, operation).Observe(duration.Seconds())
 }
 
-// RecordZentaoAPIRequest 记录禅道API请求
 func RecordZentaoAPIRequest(endpoint, method string, duration time.Duration, err error) {
 	m := Get()
 	m.ZentaoAPIRequests.WithLabelValues(endpoint, method).Inc()
@@ -246,34 +225,26 @@ func RecordZentaoAPIRequest(endpoint, method string, duration time.Duration, err
 	}
 }
 
-// RecordTokenRefresh 记录Token刷新
 func RecordTokenRefresh() {
 	Get().ZentaoTokenRefreshes.Inc()
 }
 
-// UpdateBugsTotal 更新Bug总数
 func UpdateBugsTotal(product, project, status string, count float64) {
 	Get().BugsTotal.WithLabelValues(product, project, status).Set(count)
 }
 
-// UpdateStoriesTotal 更新需求总数
 func UpdateStoriesTotal(product, project, status string, count float64) {
 	Get().StoriesTotal.WithLabelValues(product, project, status).Set(count)
 }
 
-// UpdateTasksTotal 更新任务总数
 func UpdateTasksTotal(project, execution, status string, count float64) {
 	Get().TasksTotal.WithLabelValues(project, execution, status).Set(count)
 }
 
-// RecordTimelog 记录工时
 func RecordTimelog(user, project string, hours float64) {
 	Get().TimelogTotal.WithLabelValues(user, project).Add(hours)
 }
 
-// GetCacheHitRate 计算缓存命中率
 func GetCacheHitRate(cacheType string) float64 {
-	// 注意：这需要从Counter中获取值，Prometheus客户端库不直接支持读取Counter值
-	// 这个函数主要用于演示，实际使用时应该通过Prometheus查询
 	return 0.0
 }

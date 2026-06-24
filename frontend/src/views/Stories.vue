@@ -96,12 +96,15 @@ import { getStories, getUsers, getStoryStatusOptions } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Story, User } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
+import { useRoute, useRouter } from 'vue-router'
 
 interface GlobalSelection { product: number | null; project: number | null; execution: number | null }
 interface FilterForm { assignedTo: string; status: string; dateRange: [string, string] | []; specificDate: string }
 interface Pagination { page: number; pageSize: number; total: number }
 
 const globalSelection = inject<GlobalSelection>('globalSelection')!
+const route = useRoute()
+const router = useRouter()
 const { buildUrl: buildZentaoUrl } = useZentaoConfig()
 const filterForm = reactive<FilterForm>({ assignedTo: '', status: '', dateRange: [], specificDate: '' })
 const userOptions = ref<User[]>([])
@@ -142,11 +145,23 @@ const filteredStoryList = computed(() => {
 
 const handleSearch = (): void => {
   if (!globalSelection.product && !globalSelection.project) { ElMessage.warning('请先在顶部选择产品或项目'); return }
-  pagination.page = 1; fetchStories()
+  pagination.page = 1; syncRoute(); fetchStories()
 }
-const handleReset = (): void => { filterForm.assignedTo = ''; filterForm.status = ''; filterForm.dateRange = []; filterForm.specificDate = ''; pagination.page = 1; fetchStories() }
-const handleSizeChange = (size: number): void => { pagination.pageSize = size; pagination.page = 1; fetchStories() }
-const handlePageChange = (page: number): void => { pagination.page = page; fetchStories() }
+const handleReset = (): void => { filterForm.assignedTo = ''; filterForm.status = ''; filterForm.dateRange = []; filterForm.specificDate = ''; pagination.page = 1; syncRoute(); fetchStories() }
+const handleSizeChange = (size: number): void => { pagination.pageSize = size; pagination.page = 1; syncRoute(); fetchStories() }
+const handlePageChange = (page: number): void => { pagination.page = page; syncRoute(); fetchStories() }
+
+const syncRoute = (): void => {
+  const q: Record<string, string> = {}
+  if (filterForm.assignedTo) q.assignedTo = filterForm.assignedTo
+  if (filterForm.status) q.status = filterForm.status
+  if (filterForm.dateRange[0]) q.startDate = filterForm.dateRange[0]
+  if (filterForm.dateRange[1]) q.endDate = filterForm.dateRange[1]
+  if (filterForm.specificDate) q.specificDate = filterForm.specificDate
+  if (pagination.page > 1) q.page = String(pagination.page)
+  if (pagination.pageSize !== 20) q.pageSize = String(pagination.pageSize)
+  router.replace({ query: q })
+}
 const getStatusType = (status: string): string => ({ draft: 'info', active: 'success', changed: 'warning', closed: 'info' }[status] || 'info')
 const getStatusLabel = (status: string): string => ({ draft: '草稿', active: '激活', changed: '已变更', closed: '已关闭' }[status] || status)
 const getPriorityType = (pri: number): string => (pri === 1 ? 'danger' : pri === 2 ? 'warning' : pri === 3 ? 'primary' : 'info')
@@ -187,7 +202,17 @@ const openZentaoLink = (url: string): void => {
   try { const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }; if (w.runtime && w.runtime.BrowserOpenURL) { runtime.BrowserOpenURL(url) } else { window.open(url, '_blank', 'noopener,noreferrer') } } catch { window.open(url, '_blank', 'noopener,noreferrer') }
 }
 
-onMounted(() => { fetchUsers() })
+onMounted(() => {
+  const q = route.query
+  if (q.assignedTo) filterForm.assignedTo = String(q.assignedTo)
+  if (q.status) filterForm.status = String(q.status)
+  if (q.startDate || q.endDate) filterForm.dateRange = [String(q.startDate || ''), String(q.endDate || '')] as [string, string]
+  if (q.specificDate) filterForm.specificDate = String(q.specificDate)
+  if (q.page) pagination.page = Number(q.page) || 1
+  if (q.pageSize) pagination.pageSize = Number(q.pageSize) || 20
+
+  fetchUsers()
+})
 </script>
 
 <style scoped>

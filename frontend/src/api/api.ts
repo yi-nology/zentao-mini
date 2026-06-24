@@ -1,7 +1,6 @@
 import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { ElMessage } from 'element-plus'
 
-// baseURL: Wails 桌面端通过 VITE_API_BASE_URL 注入 http://localhost:12345/api
-// Web 部署时用相对路径 /api，浏览器自动基于当前页面 origin 解析
 const api: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 150000,
@@ -19,12 +18,39 @@ api.interceptors.request.use(
   }
 )
 
+let isRedirecting = false
+
+function redirectToInit(message: string) {
+  if (isRedirecting) return
+  isRedirecting = true
+  ElMessage.error(message)
+  setTimeout(() => {
+    window.location.href = '/init-guide'
+  }, 1500)
+}
+
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     return response.data
   },
   (error) => {
-    console.error('API Error:', error)
+    if (!error.response) {
+      redirectToInit('无法连接到服务器，请检查后端服务是否运行')
+      return Promise.reject(error)
+    }
+
+    const { status, data } = error.response
+    const message: string = data?.message || error.message || '请求失败'
+
+    if (status === 401 || status === 403) {
+      redirectToInit('认证失败，请重新配置')
+      return Promise.reject(error)
+    }
+
+    if (status >= 500) {
+      ElMessage.error(message)
+    }
+
     return Promise.reject(error)
   }
 )

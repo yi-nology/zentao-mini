@@ -110,6 +110,7 @@ import Chart from 'chart.js/auto'
 import type { Chart as ChartType } from 'chart.js/auto'
 import { getTimelogDashboard, getTimelogEfforts, getTimelogExecutions, getUsers } from '../api/zentao'
 import type { Execution, User, TimelogAnalysis, TimelogEffort } from '../types/api'
+import { useRoute, useRouter } from 'vue-router'
 
 interface QuickRange { label: string; value: string }
 interface Filters { executionId: string; assignedTo: string; dateFrom: string; dateTo: string }
@@ -118,6 +119,8 @@ interface GlobalSelection { product: string; project: string }
 interface SortParams { prop: string; order: string | null }
 
 const globalSelection = inject<GlobalSelection>('globalSelection') as GlobalSelection
+const route = useRoute()
+const router = useRouter()
 const loading: Ref<boolean> = ref(false)
 const showResult: Ref<boolean> = ref(false)
 const selectedRange: Ref<string> = ref('thisMonth')
@@ -155,6 +158,7 @@ const setQuickRange = (range: string): void => {
 const queryTimelog = async (): Promise<void> => {
   if (!globalSelection.product) { ElMessage.warning('请先在顶部选择产品'); return }
   if (!filters.value.dateFrom || !filters.value.dateTo) { ElMessage.warning('请选择时间范围'); return }
+  syncRoute()
   loading.value = true
   try {
     const dashRes = await getTimelogDashboard({ productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
@@ -162,6 +166,16 @@ const queryTimelog = async (): Promise<void> => {
     analysisData.value = { ...dashRes.data, efforts: effortRes.data }; showResult.value = true
     await nextTick(); renderCharts()
   } catch (error) { console.error('查询工时统计失败:', error); ElMessage.error('查询失败') } finally { loading.value = false }
+}
+
+const syncRoute = (): void => {
+  const q: Record<string, string> = {}
+  if (filters.value.executionId) q.executionId = filters.value.executionId
+  if (filters.value.assignedTo) q.assignedTo = filters.value.assignedTo
+  if (filters.value.dateFrom) q.dateFrom = filters.value.dateFrom
+  if (filters.value.dateTo) q.dateTo = filters.value.dateTo
+  if (selectedRange.value !== 'thisMonth') q.range = selectedRange.value
+  router.replace({ query: q })
 }
 
 const renderCharts = (): void => { renderDailyChart(); renderProjectChart(); renderTypeChart() }
@@ -218,9 +232,24 @@ watch(() => globalSelection.product, (newProduct) => {
 }, { immediate: true })
 
 onMounted(async () => {
+  const q = route.query
+  if (q.executionId) filters.value.executionId = String(q.executionId)
+  if (q.assignedTo) filters.value.assignedTo = String(q.assignedTo)
+
+  const hasDateParams = q.dateFrom && q.dateTo
+  const rangeParam = q.range ? String(q.range) : 'thisMonth'
+  selectedRange.value = rangeParam
+  if (hasDateParams) {
+    filters.value.dateFrom = String(q.dateFrom)
+    filters.value.dateTo = String(q.dateTo)
+  } else {
+    setQuickRange(rangeParam)
+  }
+
   if (globalSelection.product) onProductChange()
   try { users.value = (await getUsers()) || [] } catch { console.error('加载数据失败') }
-  setQuickRange('thisMonth')
+
+  if (hasDateParams) queryTimelog()
 })
 </script>
 

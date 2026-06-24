@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"log"
+
 	"github.com/yi-nology/zentao-mini/backend/core/initialization"
 	"github.com/yi-nology/zentao-mini/backend/core/service"
 	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
@@ -101,7 +103,9 @@ func (r *HandlerRegistry) InitScheduler(store *initialization.ConfigStore) {
 	r.schedulerService = service.NewSchedulerService(store, r.reportService, r.webhookService)
 	r.schedulerHandler = NewSchedulerHandler(r.schedulerService, r.webhookService, r.reportService)
 	r.healthHandler.schedulerService = r.schedulerService
-	_ = r.schedulerService.Start()
+	if err := r.schedulerService.Start(); err != nil {
+		log.Printf("Failed to start scheduler: %v", err)
+	}
 }
 
 func (r *HandlerRegistry) StopScheduler() {

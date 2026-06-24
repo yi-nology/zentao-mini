@@ -29,7 +29,7 @@ ARG TARGETARCH
 ARG VERSION=dev
 ARG GIT_COMMIT=unknown
 RUN cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
-    go build -ldflags="-s -w -X chandao-mini/backend/core/version.Version=${VERSION} -X chandao-mini/backend/core/version.BuildTime=$(date -u '+%Y-%m-%dT%H:%M:%SZ') -X chandao-mini/backend/core/version.GitCommit=${GIT_COMMIT}" -o /app/zentao-mini ./cmd/app/main.go
+    go build -ldflags="-s -w -X github.com/yi-nology/zentao-mini/backend/core/version.Version=${VERSION} -X github.com/yi-nology/zentao-mini/backend/core/version.BuildTime=$(date -u '+%Y-%m-%dT%H:%M:%SZ') -X github.com/yi-nology/zentao-mini/backend/core/version.GitCommit=${GIT_COMMIT}" -o /app/zentao-mini ./cmd/app/main.go
 
 # ========================
 # Stage 3: Production
@@ -46,7 +46,6 @@ COPY --from=backend-builder /app/zentao-mini /app/zentao-mini
 RUN mkdir -p /app/data
 
 ENV TZ=Asia/Shanghai
-ENV GIN_MODE=release
 ENV PORT=12345
 
 EXPOSE 12345

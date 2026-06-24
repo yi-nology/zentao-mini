@@ -1,18 +1,18 @@
 package mcp
 
 import (
+	"context"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server"
 )
 
-// MCPRequest HTTP MCP 请求结构
 type MCPRequest struct {
 	Action string                 `json:"action" binding:"required"`
 	Params map[string]interface{} `json:"params"`
 }
 
-// MCPResponse HTTP MCP 响应结构
 type MCPResponse struct {
 	Status  string      `json:"status"`
 	Message string      `json:"message"`
@@ -20,18 +20,33 @@ type MCPResponse struct {
 	Version string      `json:"version,omitempty"`
 }
 
-// HTTPTransport HTTP 传输层
 type HTTPTransport struct {
 	server *MCPServer
 }
 
-// NewHTTPTransport 创建 HTTP 传输层
 func NewHTTPTransport(server *MCPServer) *HTTPTransport {
 	return &HTTPTransport{server: server}
 }
 
-// respond 辅助：统一返回格式
-func respond(c *gin.Context, result interface{}, err error) {
+func (t *HTTPTransport) Server() *MCPServer {
+	return t.server
+}
+
+func (t *HTTPTransport) HandleActionByName(ctx context.Context, action string, c *app.RequestContext) {
+	result, err := t.server.HandleAction(action, collectQueryParams(c))
+	respond(c, result, err)
+}
+
+func (t *HTTPTransport) HandleActionByNameWithParams(ctx context.Context, action string, params map[string]interface{}, c *app.RequestContext) {
+	result, err := t.server.HandleAction(action, params)
+	respond(c, result, err)
+}
+
+func Respond(c *app.RequestContext, result interface{}, err error) {
+	respond(c, result, err)
+}
+
+func respond(c *app.RequestContext, result interface{}, err error) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, MCPResponse{
 			Status:  "error",
@@ -49,8 +64,11 @@ func respond(c *gin.Context, result interface{}, err error) {
 	})
 }
 
-// collectQueryParams 从 URL query 收集已知参数
-func collectQueryParams(c *gin.Context) map[string]interface{} {
+func CollectQueryParams(c *app.RequestContext) map[string]interface{} {
+	return collectQueryParams(c)
+}
+
+func collectQueryParams(c *app.RequestContext) map[string]interface{} {
 	params := make(map[string]interface{})
 	for _, key := range []string{"productId", "projectId", "executionId", "status", "assignedTo", "dateFrom", "dateTo", "page", "pageSize"} {
 		if val := c.Query(key); val != "" {
@@ -60,10 +78,9 @@ func collectQueryParams(c *gin.Context) map[string]interface{} {
 	return params
 }
 
-// HandleAction POST /mcp — 统一 JSON 入口
-func (t *HTTPTransport) HandleAction(c *gin.Context) {
+func (t *HTTPTransport) HandleAction(ctx context.Context, c *app.RequestContext) {
 	var req MCPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.BindAndValidate(&req); err != nil {
 		c.JSON(http.StatusBadRequest, MCPResponse{
 			Status:  "error",
 			Message: "Invalid request: expecting JSON {\"action\":\"...\",\"params\":{...}}",
@@ -74,8 +91,7 @@ func (t *HTTPTransport) HandleAction(c *gin.Context) {
 	respond(c, result, err)
 }
 
-// HandleActionGet GET /mcp?action=xxx — 查询参数方式
-func (t *HTTPTransport) HandleActionGet(c *gin.Context) {
+func (t *HTTPTransport) HandleActionGet(ctx context.Context, c *app.RequestContext) {
 	action := c.Query("action")
 	if action == "" {
 		c.JSON(http.StatusBadRequest, MCPResponse{
@@ -88,17 +104,15 @@ func (t *HTTPTransport) HandleActionGet(c *gin.Context) {
 	respond(c, result, err)
 }
 
-// HandleListTools GET /mcp/tools — 列出所有可用 tools
-func (t *HTTPTransport) HandleListTools(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+func (t *HTTPTransport) HandleListTools(ctx context.Context, c *app.RequestContext) {
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"status": "ok",
 		"count":  len(Tools),
 		"tools":  Tools,
 	})
 }
 
-// HandleGetTool GET /mcp/tools/:name — 获取单个 tool 详情
-func (t *HTTPTransport) HandleGetTool(c *gin.Context) {
+func (t *HTTPTransport) HandleGetTool(ctx context.Context, c *app.RequestContext) {
 	name := c.Param("name")
 	tool := GetToolByName(name)
 	if tool == nil {
@@ -108,21 +122,13 @@ func (t *HTTPTransport) HandleGetTool(c *gin.Context) {
 		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"status": "ok",
 		"tool":   tool,
 	})
 }
 
-// RegisterRoutes 注册所有 MCP HTTP 路由到 gin.Engine
-// 注意：必须先注册具体路径，再注册通配路径
-func (t *HTTPTransport) RegisterRoutes(r *gin.Engine) {
-	// ===== Tools 发现端点（最具体，优先匹配） =====
-	r.GET("/mcp/tools", t.HandleListTools)
-	r.GET("/mcp/tools/:name", t.HandleGetTool)
-
-	// ===== 便捷端点：GET /mcp/<action> =====
-	// 路径名 → action 名的映射
+func (t *HTTPTransport) RegisterRoutes(r *server.Hertz) {
 	actionMap := map[string]string{
 		"ping":       "ping",
 		"products":   "get_products",
@@ -134,17 +140,19 @@ func (t *HTTPTransport) RegisterRoutes(r *gin.Engine) {
 		"users":      "get_users",
 		"timelog":    "get_timelog",
 	}
+
+	r.GET("/mcp/tools", t.HandleListTools)
+	r.GET("/mcp/tools/:name", t.HandleGetTool)
+
 	for path, action := range actionMap {
-		act := action // capture
-		// GET /mcp/<path>?param=value
-		r.GET("/mcp/"+path, func(c *gin.Context) {
+		act := action
+		r.GET("/mcp/"+path, func(ctx context.Context, c *app.RequestContext) {
 			result, err := t.server.HandleAction(act, collectQueryParams(c))
 			respond(c, result, err)
 		})
-		// POST /mcp/<path> — 支持 JSON body 或无 body
-		r.POST("/mcp/"+path, func(c *gin.Context) {
+		r.POST("/mcp/"+path, func(ctx context.Context, c *app.RequestContext) {
 			var req MCPRequest
-			if err := c.ShouldBindJSON(&req); err == nil && req.Action != "" {
+			if err := c.BindAndValidate(&req); err == nil && req.Action != "" {
 				result, err := t.server.HandleAction(req.Action, req.Params)
 				respond(c, result, err)
 			} else {
@@ -154,7 +162,6 @@ func (t *HTTPTransport) RegisterRoutes(r *gin.Engine) {
 		})
 	}
 
-	// ===== 统一入口（最后注册，优先级最低） =====
 	r.POST("/mcp", t.HandleAction)
 	r.GET("/mcp", t.HandleActionGet)
 }

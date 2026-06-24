@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -103,7 +104,7 @@ func FilterByStringField[T any](slice []T, value string, getStringFunc func(T) s
 // SortFunc 排序函数类型
 type SortFunc[T any] func(a, b T) bool
 
-// Sort 对切片进行排序（简单冒泡排序，适用于小数据量）
+// Sort 对切片进行排序
 func Sort[T any](slice []T, less SortFunc[T]) []T {
 	if len(slice) <= 1 {
 		return slice
@@ -112,13 +113,15 @@ func Sort[T any](slice []T, less SortFunc[T]) []T {
 	result := make([]T, len(slice))
 	copy(result, slice)
 
-	for i := 0; i < len(result)-1; i++ {
-		for j := 0; j < len(result)-i-1; j++ {
-			if less(result[j+1], result[j]) {
-				result[j], result[j+1] = result[j+1], result[j]
-			}
+	slices.SortFunc(result, func(a, b T) int {
+		if less(a, b) {
+			return -1
 		}
-	}
+		if less(b, a) {
+			return 1
+		}
+		return 0
+	})
 
 	return result
 }

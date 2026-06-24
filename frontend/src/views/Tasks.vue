@@ -124,12 +124,15 @@ import { getExecutions, getTasks, getTaskStatusOptions, getUsers } from '@/api/z
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Task, User, Execution, SelectOption } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
+import { useRoute, useRouter } from 'vue-router'
 
 interface GlobalSelection { product: number | null; project: number | null; execution: number | null }
 interface FilterForm { execution: number | null; assignedTo: string; status: string; dateRange: [string, string] | [] }
 interface Pagination { page: number; pageSize: number; total: number }
 
 const globalSelection = inject<GlobalSelection>('globalSelection')!
+const route = useRoute()
+const router = useRouter()
 const { buildUrl: buildZentaoUrl } = useZentaoConfig()
 const filterForm = reactive<FilterForm>({ execution: null, assignedTo: '', status: '', dateRange: [] })
 const executionOptions = ref<Execution[]>([])
@@ -181,10 +184,22 @@ const fetchTasks = async (): Promise<void> => {
   } catch (error) { console.error('获取任务列表失败:', error); ElMessage.error('获取任务列表失败') } finally { loading.value = false }
 }
 
-const handleSearch = (): void => { pagination.page = 1; fetchTasks() }
-const handleReset = (): void => { filterForm.execution = null; filterForm.assignedTo = ''; filterForm.status = ''; filterForm.dateRange = []; pagination.page = 1; fetchTasks() }
-const handleSizeChange = (size: number): void => { pagination.pageSize = size; pagination.page = 1; fetchTasks() }
-const handlePageChange = (page: number): void => { pagination.page = page; fetchTasks() }
+const handleSearch = (): void => { pagination.page = 1; syncRoute(); fetchTasks() }
+const handleReset = (): void => { filterForm.execution = null; filterForm.assignedTo = ''; filterForm.status = ''; filterForm.dateRange = []; pagination.page = 1; syncRoute(); fetchTasks() }
+const handleSizeChange = (size: number): void => { pagination.pageSize = size; pagination.page = 1; syncRoute(); fetchTasks() }
+const handlePageChange = (page: number): void => { pagination.page = page; syncRoute(); fetchTasks() }
+
+const syncRoute = (): void => {
+  const q: Record<string, string> = {}
+  if (filterForm.execution != null) q.execution = String(filterForm.execution)
+  if (filterForm.assignedTo) q.assignedTo = filterForm.assignedTo
+  if (filterForm.status) q.status = filterForm.status
+  if (filterForm.dateRange[0]) q.startDate = filterForm.dateRange[0]
+  if (filterForm.dateRange[1]) q.endDate = filterForm.dateRange[1]
+  if (pagination.page > 1) q.page = String(pagination.page)
+  if (pagination.pageSize !== 20) q.pageSize = String(pagination.pageSize)
+  router.replace({ query: q })
+}
 const getStatusType = (status: string): string => ({ wait: 'info', doing: 'primary', done: 'success', pause: 'warning', cancel: 'info', closed: 'info' }[status] || 'info')
 const getStatusLabel = (status: string): string => ({ wait: '未开始', doing: '进行中', done: '已完成', pause: '已暂停', cancel: '已取消', closed: '已关闭' }[status] || status)
 const getProgress = (estimate: number, consumed: number): number => { if (!estimate || estimate === 0) return 0; return Math.min(Math.round((consumed / estimate) * 100), 100) }
@@ -196,7 +211,19 @@ const openZentaoTask = (taskId: number): void => {
   try { const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }; if (w.runtime && w.runtime.BrowserOpenURL) { runtime.BrowserOpenURL(url) } else { window.open(url, '_blank', 'noopener,noreferrer') } } catch { window.open(url, '_blank', 'noopener,noreferrer') }
 }
 
-onMounted(() => { fetchExecutions(); fetchUsers(); fetchTasks() })
+onMounted(() => {
+  const q = route.query
+  if (q.execution) filterForm.execution = Number(q.execution)
+  if (q.assignedTo) filterForm.assignedTo = String(q.assignedTo)
+  if (q.status) filterForm.status = String(q.status)
+  if (q.startDate || q.endDate) filterForm.dateRange = [String(q.startDate || ''), String(q.endDate || '')] as [string, string]
+  if (q.page) pagination.page = Number(q.page) || 1
+  if (q.pageSize) pagination.pageSize = Number(q.pageSize) || 20
+
+  fetchExecutions()
+  fetchUsers()
+  fetchTasks()
+})
 </script>
 
 <style scoped>

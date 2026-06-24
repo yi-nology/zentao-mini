@@ -3,7 +3,7 @@ package errors
 import (
 	"fmt"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
 )
 
 type Response struct {
@@ -12,7 +12,7 @@ type Response struct {
 	Data    interface{} `json:"data"`
 }
 
-func Success(c *gin.Context, data interface{}) {
+func Success(c *app.RequestContext, data interface{}) {
 	c.JSON(200, Response{
 		Code:    CodeSuccess,
 		Message: "success",
@@ -20,7 +20,7 @@ func Success(c *gin.Context, data interface{}) {
 	})
 }
 
-func SuccessWithMessage(c *gin.Context, message string, data interface{}) {
+func SuccessWithMessage(c *app.RequestContext, message string, data interface{}) {
 	c.JSON(200, Response{
 		Code:    CodeSuccess,
 		Message: message,
@@ -28,7 +28,7 @@ func SuccessWithMessage(c *gin.Context, message string, data interface{}) {
 	})
 }
 
-func Error(c *gin.Context, err error) {
+func Error(c *app.RequestContext, err error) {
 	appErr := GetAppError(err)
 
 	c.JSON(appErr.HTTPStatus(), Response{
@@ -38,7 +38,7 @@ func Error(c *gin.Context, err error) {
 	})
 }
 
-func ErrorWithCode(c *gin.Context, code ErrorCode, message string) {
+func ErrorWithCode(c *app.RequestContext, code ErrorCode, message string) {
 	appErr := New(code, message)
 	c.JSON(appErr.HTTPStatus(), Response{
 		Code:    appErr.Code,
@@ -47,23 +47,23 @@ func ErrorWithCode(c *gin.Context, code ErrorCode, message string) {
 	})
 }
 
-func BadRequest(c *gin.Context, message string) {
+func BadRequest(c *app.RequestContext, message string) {
 	ErrorWithCode(c, CodeBadRequest, message)
 }
 
-func InvalidParam(c *gin.Context, paramName string) {
+func InvalidParam(c *app.RequestContext, paramName string) {
 	ErrorWithCode(c, CodeInvalidParam, fmt.Sprintf("参数 %s 无效", paramName))
 }
 
-func MissingParam(c *gin.Context, paramName string) {
+func MissingParam(c *app.RequestContext, paramName string) {
 	ErrorWithCode(c, CodeMissingParam, fmt.Sprintf("缺少必要参数: %s", paramName))
 }
 
-func NotFound(c *gin.Context, resource string) {
+func NotFound(c *app.RequestContext, resource string) {
 	ErrorWithCode(c, CodeNotFound, fmt.Sprintf("%s不存在", resource))
 }
 
-func InternalError(c *gin.Context, message string) {
+func InternalError(c *app.RequestContext, message string) {
 	ErrorWithCode(c, CodeInternalError, message)
 }
 
@@ -74,7 +74,7 @@ type PaginatedData struct {
 	PageSize int         `json:"pageSize"`
 }
 
-func SuccessPaginated(c *gin.Context, list interface{}, total, page, pageSize int) {
+func SuccessPaginated(c *app.RequestContext, list interface{}, total, page, pageSize int) {
 	Success(c, PaginatedData{
 		List:     list,
 		Total:    total,

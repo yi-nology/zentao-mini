@@ -49,13 +49,16 @@ func NewInitService(dbPath, encryptionKey string) *InitService {
 		}
 	}
 	if encryptionKey == "" {
-		// 从环境变量读取加密密钥，如果未设置则使用默认值（仅用于开发环境）
 		encryptionKey = os.Getenv("ZENTAO_ENCRYPTION_KEY")
 		if encryptionKey == "" {
-			// 生产环境必须设置环境变量，这里给出警告
-			log.Println("WARNING: ZENTAO_ENCRYPTION_KEY environment variable is not set. Using default key for development only.")
-			log.Println("WARNING: Please set ZENTAO_ENCRYPTION_KEY environment variable in production!")
-			encryptionKey = "Zhangyi@Kylin999-"
+			encryptionKey = os.Getenv("ZENTAO_MINI_SECURITY_ENCRYPTION_KEY")
+		}
+		if encryptionKey == "" {
+			log.Println("WARNING: ZENTAO_ENCRYPTION_KEY not set, deriving key from machine info (not for production)")
+			hostname, _ := os.Hostname()
+			homeDir, _ := os.UserHomeDir()
+			h := sha256.Sum256([]byte(hostname + ":" + homeDir + ":zentao-mini"))
+			encryptionKey = hex.EncodeToString(h[:])
 		}
 	}
 
@@ -272,49 +275,35 @@ func (s *InitService) decrypt(encryptedData, salt, iv string) (*AuthConfig, erro
 }
 
 // Encrypt 加密数据（用于测试）
-func (s *InitService) Encrypt(config *AuthConfig, salt string) (string, error) {
-	// 序列化认证配置
+// 返回 (base64密文, hex编码IV, error)
+func (s *InitService) Encrypt(config *AuthConfig, salt string) (string, string, error) {
 	configData, err := json.Marshal(config)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	// 创建密钥
 	key := []byte(s.encryptionKey + salt)
-	if len(key) < 32 {
-		// 填充密钥到32字节
-		for len(key) < 32 {
-			key = append(key, 0)
-		}
-	} else if len(key) > 32 {
-		// 截断密钥到32字节
+	if len(key) > 32 {
 		key = key[:32]
 	}
+	keyHash := sha256.Sum256(key)
+	keyBytes := keyHash[:]
 
-	// 创建AES加密块
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher(keyBytes)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	// 创建IV
 	iv := make([]byte, aes.BlockSize)
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	// 创建加密器
 	stream := cipher.NewCFBEncrypter(block, iv)
-
-	// 加密数据
 	ciphertext := make([]byte, len(configData))
 	stream.XORKeyStream(ciphertext, configData)
 
-	// 组合IV和密文
-	ciphertext = append(iv, ciphertext...)
-
-	// 编码为base64
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
+	return base64.StdEncoding.EncodeToString(ciphertext), hex.EncodeToString(iv), nil
 }
 
 // LoadZentaoConfig 加载禅道配置

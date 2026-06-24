@@ -142,7 +142,7 @@ func (p *WorkerPool) ProcessBatch(tasks []Task) []TaskResult {
 		select {
 		case <-p.ctx.Done():
 			results = append(results, TaskResult{Error: p.ctx.Err()})
-			break
+			return results
 		case result := <-p.resultChan:
 			results = append(results, result)
 		}

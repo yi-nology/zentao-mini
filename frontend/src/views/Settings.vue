@@ -53,7 +53,7 @@
         </div>
         <div class="info-row">
           <span class="info-label">后端框架</span>
-          <span class="info-value">Go + Gin</span>
+          <span class="info-value">Go + Hertz</span>
         </div>
       </div>
     </div>
@@ -63,6 +63,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getAccountInfo, testZentaoConnection } from '@/api/zentao'
+import api from '@/api/api'
 
 interface AccountInfo {
   domain: string
@@ -79,8 +80,8 @@ const darkMode = ref(false)
 const fetchAccountInfo = async () => {
   loading.value = true
   try {
-    const res = await getAccountInfo() as unknown as { code: number; data: AccountInfo }
-    if (res.code === 0 && res.data) {
+    const res = await getAccountInfo()
+    if (res.code === 200 && res.data) {
       accountInfo.value = res.data
     }
   } catch { /* ignore */ }
@@ -92,9 +93,8 @@ const fetchAccountInfo = async () => {
   } catch { latency.value = -1 }
 
   try {
-    const res = await fetch('/api/version')
-    const json = await res.json()
-    if (json.data?.version) appVersion.value = json.data.version
+    const res = await api.get('/version') as any
+    if (res?.data?.version) appVersion.value = res.data.version
   } catch { /* ignore */ }
 
   loading.value = false

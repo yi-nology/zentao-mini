@@ -180,6 +180,7 @@ import { getBugs, getBugStatusOptions, getUsers } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Bug, User, SelectOption } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
+import { useRoute, useRouter } from 'vue-router'
 
 interface GlobalSelection {
   product: number | null
@@ -202,6 +203,8 @@ interface Pagination {
 }
 
 const globalSelection = inject<GlobalSelection>('globalSelection')!
+const route = useRoute()
+const router = useRouter()
 const { buildUrl: buildZentaoUrl } = useZentaoConfig()
 
 const filterForm = reactive<FilterForm>({
@@ -307,6 +310,7 @@ const handleSearch = (): void => {
     return
   }
   pagination.page = 1
+  syncRoute()
   fetchBugs()
 }
 
@@ -317,6 +321,7 @@ const handleReset = (): void => {
   filterForm.dateRange = []
   filterForm.specificDate = ''
   pagination.page = 1
+  syncRoute()
   fetchBugs()
 }
 
@@ -324,13 +329,28 @@ const handleSizeChange = (size: number): void => {
   if (!globalSelection.product) return
   pagination.pageSize = size
   pagination.page = 1
+  syncRoute()
   fetchBugs()
 }
 
 const handlePageChange = (page: number): void => {
   if (!globalSelection.product) return
   pagination.page = page
+  syncRoute()
   fetchBugs()
+}
+
+const syncRoute = (): void => {
+  const q: Record<string, string> = {}
+  if (filterForm.assignedTo) q.assignedTo = filterForm.assignedTo
+  if (filterForm.status) q.status = filterForm.status
+  if (filterForm.type) q.type = filterForm.type
+  if (filterForm.dateRange[0]) q.startDate = filterForm.dateRange[0]
+  if (filterForm.dateRange[1]) q.endDate = filterForm.dateRange[1]
+  if (filterForm.specificDate) q.specificDate = filterForm.specificDate
+  if (pagination.page > 1) q.page = String(pagination.page)
+  if (pagination.pageSize !== 20) q.pageSize = String(pagination.pageSize)
+  router.replace({ query: q })
 }
 
 watch(() => globalSelection.product, (newProduct: number | null) => {
@@ -489,6 +509,15 @@ const openZentaoLink = (url: string): void => {
 }
 
 onMounted(() => {
+  const q = route.query
+  if (q.assignedTo) filterForm.assignedTo = String(q.assignedTo)
+  if (q.status) filterForm.status = String(q.status)
+  if (q.type) filterForm.type = String(q.type)
+  if (q.startDate || q.endDate) filterForm.dateRange = [String(q.startDate || ''), String(q.endDate || '')] as [string, string]
+  if (q.specificDate) filterForm.specificDate = String(q.specificDate)
+  if (q.page) pagination.page = Number(q.page) || 1
+  if (q.pageSize) pagination.pageSize = Number(q.pageSize) || 20
+
   fetchUsers()
 })
 </script>

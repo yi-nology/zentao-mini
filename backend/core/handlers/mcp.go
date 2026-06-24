@@ -1,9 +1,5 @@
 package handlers
 
-// Deprecated: 此文件中的 MCPHandler 已被 backend/core/mcp/ 包替代
-// 新代码请使用 mcp.MCPServer + mcp.HTTPTransport / mcp.StdioTransport
-// 保留此文件仅为向后兼容
-
 import (
 	"encoding/json"
 	"fmt"
@@ -13,26 +9,23 @@ import (
 
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
 )
 
-// MCPHandler 处理MCP协议相关请求
-// 支持两种模式：stdio（标准输入输出）和 HTTP
 type MCPHandler struct {
-	productHandler  *ProductHandler
-	projectHandler  *ProjectHandler
+	productHandler   *ProductHandler
+	projectHandler   *ProjectHandler
 	executionHandler *ExecutionHandler
-	bugHandler      *BugHandler
-	storyHandler    *StoryHandler
-	taskHandler     *TaskHandler
-	userHandler     *UserHandler
-	timelogHandler  *TimelogHandler
-	stdin           io.Reader
-	stdout          io.Writer
-	mutex           sync.Mutex
+	bugHandler       *BugHandler
+	storyHandler     *StoryHandler
+	taskHandler      *TaskHandler
+	userHandler      *UserHandler
+	timelogHandler   *TimelogHandler
+	stdin            io.Reader
+	stdout           io.Writer
+	mutex            sync.Mutex
 }
 
-// NewMCPHandler 创建新的MCP处理器
 func NewMCPHandler(
 	productHandler *ProductHandler,
 	projectHandler *ProjectHandler,
@@ -44,25 +37,23 @@ func NewMCPHandler(
 	timelogHandler *TimelogHandler,
 ) *MCPHandler {
 	return &MCPHandler{
-		productHandler:  productHandler,
-		projectHandler:  projectHandler,
+		productHandler:   productHandler,
+		projectHandler:   projectHandler,
 		executionHandler: executionHandler,
-		bugHandler:      bugHandler,
-		storyHandler:    storyHandler,
-		taskHandler:     taskHandler,
-		userHandler:     userHandler,
-		timelogHandler:  timelogHandler,
-		stdin:           os.Stdin,
-		stdout:          os.Stdout,
+		bugHandler:       bugHandler,
+		storyHandler:     storyHandler,
+		taskHandler:      taskHandler,
+		userHandler:      userHandler,
+		timelogHandler:   timelogHandler,
+		stdin:            os.Stdin,
+		stdout:           os.Stdout,
 	}
 }
 
-// Start 启动MCP服务（stdio模式）
 func (h *MCPHandler) Start() {
 	go h.handleStdioRequests()
 }
 
-// handleStdioRequests 处理MCP stdio请求
 func (h *MCPHandler) handleStdioRequests() {
 	decoder := json.NewDecoder(h.stdin)
 	encoder := json.NewEncoder(h.stdout)
@@ -81,7 +72,6 @@ func (h *MCPHandler) handleStdioRequests() {
 	}
 }
 
-// handleRequest 处理单个MCP请求（stdio模式）
 func (h *MCPHandler) handleRequest(encoder *json.Encoder, request map[string]interface{}) {
 	action, ok := request["action"].(string)
 	if !ok {
@@ -115,17 +105,11 @@ func (h *MCPHandler) handleRequest(encoder *json.Encoder, request map[string]int
 	}
 }
 
-// ============================================
-// HTTP 模式处理方法
-// ============================================
-
-// MCPRequest HTTP MCP 请求结构
 type MCPRequest struct {
 	Action string                 `json:"action" binding:"required"`
 	Params map[string]interface{} `json:"params"`
 }
 
-// MCPResponse HTTP MCP 响应结构
 type MCPResponse struct {
 	Status  string      `json:"status"`
 	Message string      `json:"message"`
@@ -133,10 +117,9 @@ type MCPResponse struct {
 	Version string      `json:"version,omitempty"`
 }
 
-// HandleMCPAction 处理MCP HTTP请求（统一入口）
-func (h *MCPHandler) HandleMCPAction(c *gin.Context) {
+func (h *MCPHandler) HandleMCPAction(c *app.RequestContext) {
 	var req MCPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
@@ -144,20 +127,18 @@ func (h *MCPHandler) HandleMCPAction(c *gin.Context) {
 	resp := h.processAction(req.Action, req.Params)
 	if resp.Status == "error" {
 		errors.ErrorWithCode(c, errors.CodeInternalError, resp.Message)
-		} else {
+	} else {
 		errors.Success(c, resp.Data)
 	}
 }
 
-// HandleMCPActionGet 处理MCP HTTP GET请求（用于简单查询）
-func (h *MCPHandler) HandleMCPActionGet(c *gin.Context) {
+func (h *MCPHandler) HandleMCPActionGet(c *app.RequestContext) {
 	action := c.Query("action")
 	if action == "" {
 		errors.BadRequest(c, "Missing 'action' query parameter")
 		return
 	}
 
-	// 从查询参数构建 params
 	params := make(map[string]interface{})
 	for _, key := range []string{"productId", "projectId", "executionId", "status", "assignedTo", "dateFrom", "dateTo", "page", "pageSize"} {
 		if val := c.Query(key); val != "" {
@@ -173,7 +154,6 @@ func (h *MCPHandler) HandleMCPActionGet(c *gin.Context) {
 	}
 }
 
-// processAction 处理MCP action（HTTP模式共用）
 func (h *MCPHandler) processAction(action string, params map[string]interface{}) MCPResponse {
 	switch action {
 	case "ping":
@@ -205,10 +185,6 @@ func (h *MCPHandler) processAction(action string, params map[string]interface{})
 		}
 	}
 }
-
-// ============================================
-// 具体 action 处理方法
-// ============================================
 
 func (h *MCPHandler) processGetProducts(params map[string]interface{}) MCPResponse {
 	result, err := h.productHandler.GetProductsHTTP()
@@ -317,10 +293,6 @@ func (h *MCPHandler) processGetTimelog(params map[string]interface{}) MCPRespons
 	}
 	return MCPResponse{Status: "ok", Message: "Timelog retrieved successfully", Data: result}
 }
-
-// ============================================
-// stdio 模式具体处理方法
-// ============================================
 
 func (h *MCPHandler) handleGetProducts(encoder *json.Encoder, params map[string]interface{}) {
 	result, err := h.productHandler.GetProductsHTTP()
@@ -478,7 +450,6 @@ func (h *MCPHandler) handlePing(encoder *json.Encoder) {
 	})
 }
 
-// sendResponse 发送成功响应
 func (h *MCPHandler) sendResponse(encoder *json.Encoder, data map[string]interface{}) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
@@ -488,7 +459,6 @@ func (h *MCPHandler) sendResponse(encoder *json.Encoder, data map[string]interfa
 	}
 }
 
-// sendErrorResponse 发送错误响应
 func (h *MCPHandler) sendErrorResponse(encoder *json.Encoder, errorMsg string) {
 	h.sendResponse(encoder, map[string]interface{}{
 		"status":  "error",

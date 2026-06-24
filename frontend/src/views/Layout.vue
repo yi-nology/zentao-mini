@@ -113,6 +113,7 @@ import { computed, provide, reactive, ref, onMounted, onBeforeUnmount, watch } f
 import { useRoute, useRouter } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
 import { search, getAccountInfo } from '@/api/zentao'
+import api from '@/api/api'
 import type { SearchItem } from '@/types/api'
 
 interface GlobalSelection {
@@ -160,15 +161,19 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 onMounted(async () => {
   document.addEventListener('keydown', onGlobalKeydown)
 
+  const qProduct = route.query.product
+  const qProject = route.query.project
+  if (qProduct) globalSelection.product = String(qProduct)
+  if (qProject) globalSelection.project = String(qProject)
+
   try {
-    const res = await fetch('/api/version')
-    const json = await res.json()
-    if (json.data?.version) appVersion.value = json.data.version
+    const res = await api.get('/version') as any
+    if (res?.data?.version) appVersion.value = res.data.version
   } catch { appVersion.value = 'dev' }
 
   try {
-    const res = await getAccountInfo() as unknown as { code: number; data: { domain: string; account: string; connected: boolean } }
-    if (res.code === 0 && res.data) {
+    const res = await getAccountInfo()
+    if (res.code === 200 && res.data) {
       accountInfo.value = res.data
     }
   } catch { /* ignore */ }
@@ -317,6 +322,16 @@ const handleSelectionChange = (selection: SelectionChangePayload): void => {
   globalSelection.product = selection.product
   globalSelection.project = selection.project
 }
+
+watch(() => [globalSelection.product, globalSelection.project], () => {
+  const childQuery = { ...route.query }
+  delete childQuery.product
+  delete childQuery.project
+  const merged = { ...childQuery } as Record<string, string | string[]>
+  if (globalSelection.product) merged.product = globalSelection.product
+  if (globalSelection.project) merged.project = globalSelection.project
+  router.replace({ query: merged })
+})
 
 provide<GlobalSelection>('globalSelection', globalSelection)
 </script>

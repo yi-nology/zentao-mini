@@ -20,6 +20,9 @@ func (dto *TaskQueryDTO) Validate() error {
 	if dto.PageSize <= 0 {
 		dto.PageSize = 20
 	}
+	if dto.PageSize > MaxPageSize {
+		dto.PageSize = MaxPageSize
+	}
 	if dto.ProductID <= 0 {
 		return fmt.Errorf("需要选择产品")
 	}

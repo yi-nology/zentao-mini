@@ -255,8 +255,7 @@ const fetchData = async (): Promise<void> => {
   error.value = ''
   try {
     const res = await getDashboard(pid)
-    const raw = res as unknown as { data: DashboardData }
-    data.value = raw.data
+    data.value = res.data
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '未知错误'
     console.error('获取仪表盘数据失败:', e)

@@ -1,28 +1,29 @@
 package handlers
 
 import (
+	"context"
+
+	"github.com/cloudwego/hertz/pkg/app"
+
 	"github.com/yi-nology/zentao-mini/backend/core/dto"
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
-	"github.com/yi-nology/zentao-mini/backend/core/service"
-	"github.com/gin-gonic/gin"
 )
 
 type DashboardHandler struct {
-	dashboardService *service.DashboardService
+	dashboardService DashboardServicer
 }
 
-func NewDashboardHandler(ds *service.DashboardService) *DashboardHandler {
+func NewDashboardHandler(ds DashboardServicer) *DashboardHandler {
 	return &DashboardHandler{dashboardService: ds}
 }
 
-// GetDashboard 获取仪表盘数据
-func (h *DashboardHandler) GetDashboard(c *gin.Context) {
+func (h *DashboardHandler) GetDashboard(ctx context.Context, c *app.RequestContext) {
 	var query dto.DashboardQuery
-	if err := c.ShouldBindQuery(&query); err != nil {
+	if err := c.BindAndValidate(&query); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
 	}
-	result, err := h.dashboardService.GetDashboardContext(c.Request.Context(), query.ProductID)
+	result, err := h.dashboardService.GetDashboardContext(ctx, query.ProductID)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return
@@ -30,14 +31,13 @@ func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 	errors.Success(c, result)
 }
 
-// GetProjectOverview 获取项目概览
-func (h *DashboardHandler) GetProjectOverview(c *gin.Context) {
+func (h *DashboardHandler) GetProjectOverview(ctx context.Context, c *app.RequestContext) {
 	var query dto.ProjectOverviewQuery
-	if err := c.ShouldBindQuery(&query); err != nil {
+	if err := c.BindAndValidate(&query); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
 	}
-	result, err := h.dashboardService.GetProjectOverviewContext(c.Request.Context(), query.ProjectID)
+	result, err := h.dashboardService.GetProjectOverviewContext(ctx, query.ProjectID)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return
@@ -45,14 +45,13 @@ func (h *DashboardHandler) GetProjectOverview(c *gin.Context) {
 	errors.Success(c, result)
 }
 
-// GetPersonalTimelog 获取个人工时报表
-func (h *DashboardHandler) GetPersonalTimelog(c *gin.Context) {
+func (h *DashboardHandler) GetPersonalTimelog(ctx context.Context, c *app.RequestContext) {
 	var query dto.PersonalTimelogQuery
-	if err := c.ShouldBindQuery(&query); err != nil {
+	if err := c.BindAndValidate(&query); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
 	}
-	result, err := h.dashboardService.GetPersonalTimelogContext(c.Request.Context(), query.Account, query.ProductID, query.DateFrom, query.DateTo, query.GroupBy)
+	result, err := h.dashboardService.GetPersonalTimelogContext(ctx, query.Account, query.ProductID, query.DateFrom, query.DateTo, query.GroupBy)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return
@@ -60,10 +59,9 @@ func (h *DashboardHandler) GetPersonalTimelog(c *gin.Context) {
 	errors.Success(c, result)
 }
 
-// Search 全局搜索
-func (h *DashboardHandler) Search(c *gin.Context) {
+func (h *DashboardHandler) Search(ctx context.Context, c *app.RequestContext) {
 	var query dto.SearchQuery
-	if err := c.ShouldBindQuery(&query); err != nil {
+	if err := c.BindAndValidate(&query); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
 	}
@@ -71,7 +69,7 @@ func (h *DashboardHandler) Search(c *gin.Context) {
 		errors.Error(c, err)
 		return
 	}
-	result, err := h.dashboardService.SearchContext(c.Request.Context(), query.Keyword, query.ProductID, query.Page, query.PageSize)
+	result, err := h.dashboardService.SearchContext(ctx, query.Keyword, query.ProductID, query.Page, query.PageSize)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return

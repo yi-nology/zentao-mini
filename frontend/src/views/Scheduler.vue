@@ -482,7 +482,7 @@ const loadLogs = async () => {
 const loadProducts = async () => {
   try {
     const res = await getProducts()
-    products.value = (res.data as unknown as Product[]) || []
+    products.value = res.data || []
   } catch { products.value = [] }
 }
 
@@ -492,8 +492,7 @@ const onProductChange = async () => {
   if (!form.productId) return
   try {
     const res = await getProjects({ productId: Number(form.productId) })
-    const data = res as unknown as { data: Project[] }
-    projects.value = data.data || (Array.isArray(data) ? data as unknown as Project[] : [])
+    projects.value = res.data || []
   } catch { projects.value = [] }
 }
 

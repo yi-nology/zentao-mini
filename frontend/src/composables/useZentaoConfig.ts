@@ -12,8 +12,8 @@ async function fetchDomain(): Promise<string> {
 
   fetchPromise = (async () => {
     try {
-      const res = await getAccountInfo() as unknown as { code: number; data: { domain: string } }
-      if (res.code === 0 && res.data?.domain) {
+      const res = await getAccountInfo()
+      if (res.code === 200 && res.data?.domain) {
         cachedDomain = res.data.domain.replace(/\/$/, '')
         domain.value = cachedDomain
         return cachedDomain

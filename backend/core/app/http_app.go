@@ -4,31 +4,25 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/yi-nology/zentao-mini/backend/core/config"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/routes"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app/server"
 	"go.uber.org/zap"
 )
 
-// HTTPApp HTTP服务器应用
-// 实现Application接口，提供独立的HTTP服务器模式
 type HTTPApp struct {
 	config    *AppConfig
 	deps      *Dependencies
-	server    *http.Server
-	router    *gin.Engine
+	hertz     *server.Hertz
 	ctx       context.Context
 	cancel    context.CancelFunc
-	embedMode bool // 是否使用嵌入的静态资源
+	embedMode bool
 }
 
-// NewHTTPApp 创建HTTP应用实例
 func NewHTTPApp(config *AppConfig, deps *Dependencies) *HTTPApp {
 	return &HTTPApp{
 		config:    config,
@@ -37,32 +31,20 @@ func NewHTTPApp(config *AppConfig, deps *Dependencies) *HTTPApp {
 	}
 }
 
-// Start 启动HTTP服务器
 func (a *HTTPApp) Start(ctx context.Context) error {
 	a.ctx, a.cancel = context.WithCancel(ctx)
 
-	// 初始化配置
 	if err := config.Init("", "ZENTAO_MINI"); err != nil {
 		log.Printf("Warning: failed to initialize config: %v", err)
 	}
 	cfg := config.Get()
 
-	// 初始化日志
 	if err := logger.Init(&cfg.Log); err != nil {
 		log.Printf("Warning: failed to initialize logger: %v", err)
 	}
 
-	// 初始化定时任务调度器（logger初始化之后）
 	a.deps.Handlers.InitScheduler(a.deps.ConfigStore)
 
-	// 设置路由
-	a.router = routes.SetupRouterWithHandlers(
-		a.deps.InitService,
-		a.deps.ZentaoClient,
-		a.deps.Handlers,
-	)
-
-	// 获取端口
 	port := a.config.Port
 	if port == "" {
 		port = os.Getenv("PORT")
@@ -71,18 +53,15 @@ func (a *HTTPApp) Start(ctx context.Context) error {
 		}
 	}
 
-	// 创建HTTP服务器
-	a.server = &http.Server{
-		Addr:         ":" + port,
-		Handler:      a.router,
-		ReadTimeout:  a.getReadTimeout(),
-		WriteTimeout: a.getWriteTimeout(),
-	}
+	a.hertz = routes.SetupRouterWithHandlers(
+		a.deps.InitService,
+		a.deps.ZentaoClient,
+		a.deps.Handlers,
+		":"+port,
+	)
 
-	// 启动MCP服务
 	a.deps.Handlers.GetMCPHandler().Start()
 
-	// 在goroutine中启动服务器
 	go func() {
 		logger.Info("HTTP server starting",
 			zap.String("name", a.Name()),
@@ -90,27 +69,12 @@ func (a *HTTPApp) Start(ctx context.Context) error {
 			zap.String("zentao_server", a.config.ZentaoServer),
 		)
 
-		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start server", zap.Error(err))
-		}
+		a.hertz.Spin()
 	}()
 
 	return nil
 }
 
-// getReadTimeout 获取读超时时间
-func (a *HTTPApp) getReadTimeout() time.Duration {
-	// 默认120秒
-	return 120 * time.Second
-}
-
-// getWriteTimeout 获取写超时时间
-func (a *HTTPApp) getWriteTimeout() time.Duration {
-	// 默认120秒
-	return 120 * time.Second
-}
-
-// Stop 停止HTTP服务器
 func (a *HTTPApp) Stop(ctx context.Context) error {
 	if a.cancel != nil {
 		a.cancel()
@@ -118,10 +82,12 @@ func (a *HTTPApp) Stop(ctx context.Context) error {
 
 	a.deps.Handlers.StopScheduler()
 
-	if a.server != nil {
+	if a.hertz != nil {
 		logger.Info("HTTP server shutting down", zap.String("name", a.Name()))
-		if err := a.server.Shutdown(ctx); err != nil {
-			return fmt.Errorf("failed to shutdown server: %w", err)
+		if err := a.hertz.Shutdown(ctx); err != nil {
+			if err.Error() != "engine is not running" {
+				return fmt.Errorf("failed to shutdown server: %w", err)
+			}
 		}
 		logger.Info("HTTP server stopped", zap.String("name", a.Name()))
 	}
@@ -129,12 +95,10 @@ func (a *HTTPApp) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Name 返回应用名称
 func (a *HTTPApp) Name() string {
 	return "HTTP-Server"
 }
 
-// GetRouter 获取路由器（用于外部访问）
-func (a *HTTPApp) GetRouter() *gin.Engine {
-	return a.router
+func (a *HTTPApp) GetRouter() *server.Hertz {
+	return a.hertz
 }

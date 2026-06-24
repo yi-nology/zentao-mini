@@ -1,9 +1,10 @@
 package utils
 
 import (
+	"context"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
 )
@@ -19,7 +20,7 @@ type PaginationParams struct {
 	PageSize int `json:"pageSize"`
 }
 
-func ParsePagination(c *gin.Context) PaginationParams {
+func ParsePagination(c *app.RequestContext) PaginationParams {
 	pageStr := c.DefaultQuery("page", strconv.Itoa(DefaultPage))
 	pageSizeStr := c.DefaultQuery("pageSize", strconv.Itoa(DefaultPageSize))
 
@@ -39,7 +40,7 @@ func ParsePagination(c *gin.Context) PaginationParams {
 	}
 }
 
-func ParsePaginationWithMax(c *gin.Context, maxPageSize int) PaginationParams {
+func ParsePaginationWithMax(c *app.RequestContext, maxPageSize int) PaginationParams {
 	params := ParsePagination(c)
 	if params.PageSize > maxPageSize {
 		params.PageSize = maxPageSize
@@ -76,15 +77,15 @@ func PaginateSlice[T any](slice []T, page, pageSize int) []T {
 	return slice[start:end]
 }
 
-func PaginationMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func PaginationMiddleware() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
 		params := ParsePagination(c)
 		c.Set("pagination", params)
-		c.Next()
+		c.Next(ctx)
 	}
 }
 
-func GetPagination(c *gin.Context) PaginationParams {
+func GetPagination(c *app.RequestContext) PaginationParams {
 	if params, exists := c.Get("pagination"); exists {
 		return params.(PaginationParams)
 	}
@@ -94,7 +95,7 @@ func GetPagination(c *gin.Context) PaginationParams {
 	}
 }
 
-func ParseIntParam(c *gin.Context, paramName string) (int, error) {
+func ParseIntParam(c *app.RequestContext, paramName string) (int, error) {
 	valueStr := c.Query(paramName)
 	if valueStr == "" {
 		return 0, errors.NewMissingParam(paramName)
@@ -108,7 +109,7 @@ func ParseIntParam(c *gin.Context, paramName string) (int, error) {
 	return value, nil
 }
 
-func ParseOptionalIntParam(c *gin.Context, paramName string) (int, error) {
+func ParseOptionalIntParam(c *app.RequestContext, paramName string) (int, error) {
 	valueStr := c.Query(paramName)
 	if valueStr == "" {
 		return 0, nil
@@ -122,7 +123,7 @@ func ParseOptionalIntParam(c *gin.Context, paramName string) (int, error) {
 	return value, nil
 }
 
-func ParseRequiredIntParam(c *gin.Context, paramName string, displayName string) (int, error) {
+func ParseRequiredIntParam(c *app.RequestContext, paramName string, displayName string) (int, error) {
 	valueStr := c.Query(paramName)
 	if valueStr == "" {
 		return 0, errors.NewMissingParam(paramName)

@@ -2,8 +2,9 @@ package handlers
 
 import (
 	"bufio"
+	"context"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
 	"go.uber.org/zap"
 
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
@@ -24,7 +25,7 @@ func NewInitHandler(initService *initialization.InitService, zentaoClient *zenta
 	}
 }
 
-func (h *InitHandler) UploadConfig(c *gin.Context) {
+func (h *InitHandler) UploadConfig(ctx context.Context, c *app.RequestContext) {
 	file, err := c.FormFile("configFile")
 	if err != nil {
 		errors.BadRequest(c, "请选择要上传的文件")
@@ -62,7 +63,7 @@ func (h *InitHandler) UploadConfig(c *gin.Context) {
 	errors.SuccessWithMessage(c, "配置已保存，正在后台连接禅道...", nil)
 }
 
-func (h *InitHandler) GetInitStatus(c *gin.Context) {
+func (h *InitHandler) GetInitStatus(ctx context.Context, c *app.RequestContext) {
 	status := h.initService.GetInitStatus()
 
 	logger.Info("初始化状态检查",
@@ -71,19 +72,19 @@ func (h *InitHandler) GetInitStatus(c *gin.Context) {
 		zap.String("message", status.Message),
 	)
 
-	errors.Success(c, gin.H{
+	errors.Success(c, map[string]interface{}{
 		"isFirstStart": status.IsFirstStart,
 		"hasConfig":    status.HasConfig,
 		"message":      status.Message,
 	})
 }
 
-func (h *InitHandler) GetAccountInfo(c *gin.Context) {
+func (h *InitHandler) GetAccountInfo(ctx context.Context, c *app.RequestContext) {
 	domain := h.zentaoClient.GetServer()
 	account := h.zentaoClient.GetAccount()
 	connected := h.zentaoClient.IsConnected()
 
-	errors.Success(c, gin.H{
+	errors.Success(c, map[string]interface{}{
 		"domain":    domain,
 		"account":   account,
 		"connected": connected,

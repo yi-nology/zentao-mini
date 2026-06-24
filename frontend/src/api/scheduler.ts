@@ -1,4 +1,5 @@
 import api from './api'
+import type { ApiResponse } from '@/types/api'
 import type {
   SchedulerTask,
   TaskExecutionLog,
@@ -8,12 +9,6 @@ import type {
   BugReport,
   BugAgingReport,
 } from '@/types/scheduler'
-
-interface ApiResponse<T> {
-  code: number
-  message: string
-  data: T
-}
 
 export const listTasks = (): Promise<ApiResponse<SchedulerTask[]>> =>
   api.get('/scheduler/tasks')

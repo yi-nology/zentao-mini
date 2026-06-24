@@ -34,5 +34,8 @@ func (q *SearchQuery) Validate() error {
 	if q.PageSize <= 0 {
 		q.PageSize = 20
 	}
+	if q.PageSize > MaxPageSize {
+		q.PageSize = MaxPageSize
+	}
 	return nil
 }

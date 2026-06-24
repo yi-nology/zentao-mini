@@ -1,4 +1,3 @@
-import type { AxiosPromise } from 'axios'
 import type {
   Product,
   Project,
@@ -38,7 +37,7 @@ interface StoryParams {
 }
 
 interface TaskParams {
-    productId?: number
+  productId?: number
   executionId?: number
   assignedTo?: string
   status?: string
@@ -68,19 +67,19 @@ interface UserCache {
   get: <T>(key: string) => T | null
 }
 
-export const getProducts = (): AxiosPromise<Product[]> => {
+export const getProducts = (): Promise<ApiResponse<Product[]>> => {
   return api.get('/products')
 }
 
-export const getProjects = (params: Record<string, unknown> = {}): AxiosPromise<Project[]> => {
+export const getProjects = (params: Record<string, unknown> = {}): Promise<ApiResponse<Project[]>> => {
   return api.get('/projects', { params })
 }
 
-export const getExecutions = (params: Record<string, unknown> = {}): AxiosPromise<Execution[]> => {
+export const getExecutions = (params: Record<string, unknown> = {}): Promise<ApiResponse<Execution[]>> => {
   return api.get('/executions', { params })
 }
 
-export const getBugs = (params: BugParams = {}): AxiosPromise<PaginatedResponse<Bug>> => {
+export const getBugs = (params: BugParams = {}): Promise<ApiResponse<PaginatedResponse<Bug>>> => {
   const apiParams: Record<string, unknown> = {}
   if (params.productId) apiParams.productId = params.productId
   if (params.projectId) apiParams.projectId = params.projectId
@@ -91,7 +90,7 @@ export const getBugs = (params: BugParams = {}): AxiosPromise<PaginatedResponse<
   return api.get('/bugs', { params: apiParams })
 }
 
-export const getStories = (params: StoryParams = {}): AxiosPromise<PaginatedResponse<Story>> => {
+export const getStories = (params: StoryParams = {}): Promise<ApiResponse<PaginatedResponse<Story>>> => {
   const apiParams: Record<string, unknown> = {}
   if (params.productId) apiParams.productId = params.productId
   if (params.projectId) apiParams.projectId = params.projectId
@@ -103,9 +102,9 @@ export const getStories = (params: StoryParams = {}): AxiosPromise<PaginatedResp
   return api.get('/stories', { params: apiParams })
 }
 
-export const getTasks = (params: TaskParams = {}): AxiosPromise<PaginatedResponse<Task>> => {
+export const getTasks = (params: TaskParams = {}): Promise<ApiResponse<PaginatedResponse<Task>>> => {
   const apiParams: Record<string, unknown> = {}
-    if (params.productId) apiParams.productId = params.productId
+  if (params.productId) apiParams.productId = params.productId
   if (params.executionId) apiParams.executionId = params.executionId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.status) apiParams.status = params.status
@@ -190,21 +189,20 @@ const userCache: UserCache = {
 
 export const getUsers = (_params: Record<string, unknown> = {}): Promise<User[]> => {
   const cacheKey = 'users_all'
-  
+
   const cachedData = userCache.get<User[]>(cacheKey)
   if (cachedData) {
     return Promise.resolve(cachedData)
   }
-  
-  return api.get<ApiResponse<{ users: User[]; total: number }>>('/users/all').then((response) => {
-    const apiResponse = response as unknown as ApiResponse<{ users: User[]; total: number }>
-    const users = apiResponse.data.users || []
+
+  return api.get('/users/all').then((response: any) => {
+    const users: User[] = response?.data?.users || []
     userCache.set(cacheKey, users)
     return users
   })
 }
 
-export const getTimelogAnalysis = (params: TimelogParams = {}): AxiosPromise<TimelogAnalysis> => {
+export const getTimelogAnalysis = (params: TimelogParams = {}): Promise<ApiResponse<TimelogAnalysis>> => {
   const apiParams: Record<string, unknown> = {}
   if (params.productId) apiParams.productId = params.productId
   if (params.projectId) apiParams.projectId = params.projectId
@@ -215,7 +213,7 @@ export const getTimelogAnalysis = (params: TimelogParams = {}): AxiosPromise<Tim
   return api.get('/timelog/analysis', { params: apiParams })
 }
 
-export const getTimelogDashboard = (params: TimelogParams = {}): AxiosPromise<TimelogDashboard> => {
+export const getTimelogDashboard = (params: TimelogParams = {}): Promise<ApiResponse<TimelogDashboard>> => {
   const apiParams: Record<string, unknown> = {}
   if (params.productId) apiParams.productId = params.productId
   if (params.projectId) apiParams.projectId = params.projectId
@@ -226,7 +224,7 @@ export const getTimelogDashboard = (params: TimelogParams = {}): AxiosPromise<Ti
   return api.get('/timelog/dashboard', { params: apiParams })
 }
 
-export const getTimelogEfforts = (params: TimelogParams = {}): AxiosPromise<TimelogEffort[]> => {
+export const getTimelogEfforts = (params: TimelogParams = {}): Promise<ApiResponse<TimelogEffort[]>> => {
   const apiParams: Record<string, unknown> = {}
   if (params.productId) apiParams.productId = params.productId
   if (params.projectId) apiParams.projectId = params.projectId
@@ -237,11 +235,11 @@ export const getTimelogEfforts = (params: TimelogParams = {}): AxiosPromise<Time
   return api.get('/timelog/efforts', { params: apiParams })
 }
 
-export const getTimelogExecutions = (params: Record<string, unknown> = {}): AxiosPromise<Execution[]> => {
+export const getTimelogExecutions = (params: Record<string, unknown> = {}): Promise<ApiResponse<Execution[]>> => {
   return api.get('/executions', { params })
 }
 
-export const uploadInitConfig = (formData: FormData): AxiosPromise<unknown> => {
+export const uploadInitConfig = (formData: FormData): Promise<ApiResponse<unknown>> => {
   return api.post('/init/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
@@ -249,19 +247,31 @@ export const uploadInitConfig = (formData: FormData): AxiosPromise<unknown> => {
   })
 }
 
-export const testZentaoConnection = (): AxiosPromise<unknown> => {
+export const testZentaoConnection = (): Promise<ApiResponse<unknown>> => {
   return api.get('/users/current')
 }
 
-export const getDashboard = (productId: number): AxiosPromise<ApiResponse<DashboardData>> => {
+export const getDashboard = (productId: number): Promise<ApiResponse<DashboardData>> => {
   return api.get('/dashboard', { params: { productId } })
 }
 
-export const getInitStatus = (): AxiosPromise<unknown> => {
+export interface InitStatusData {
+  isFirstStart: boolean
+  hasConfig: boolean
+  message: string
+}
+
+export const getInitStatus = (): Promise<ApiResponse<InitStatusData>> => {
   return api.get('/init/status')
 }
 
-export const getAccountInfo = (): AxiosPromise<unknown> => {
+export interface AccountInfo {
+  domain: string
+  account: string
+  connected: boolean
+}
+
+export const getAccountInfo = (): Promise<ApiResponse<AccountInfo>> => {
   return api.get('/init/account')
 }
 
@@ -270,7 +280,7 @@ export const search = (params: {
   productId?: number
   page?: number
   pageSize?: number
-}): AxiosPromise<SearchResult> => {
+}): Promise<ApiResponse<SearchResult>> => {
   const apiParams: Record<string, unknown> = { keyword: params.keyword }
   if (params.productId) apiParams.productId = params.productId
   if (params.page) apiParams.page = params.page

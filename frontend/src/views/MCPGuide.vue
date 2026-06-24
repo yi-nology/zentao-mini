@@ -399,6 +399,7 @@ curl http://localhost:12345/health</code></pre>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import api from '@/api/api'
 
 const activeTab = ref('claude')
 
@@ -412,9 +413,8 @@ onMounted(async () => {
   connectionUrl.value = window.location.origin
 
   try {
-    const res = await fetch('/api/version')
-    const json = await res.json()
-    if (json.data) versionInfo.value = json.data
+    const res = await api.get('/version') as any
+    if (res?.data) versionInfo.value = res.data
   } catch {}
 
   try {

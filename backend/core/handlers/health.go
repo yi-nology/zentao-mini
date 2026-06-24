@@ -1,10 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/yi-nology/zentao-mini/backend/core/dto"
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
@@ -14,23 +15,23 @@ import (
 
 type HealthHandler struct {
 	zentaoClient     *zentao.Client
-	productService   *service.ProductService
-	projectService   *service.ProjectService
-	bugService       *service.BugService
-	storyService     *service.StoryService
-	taskService      *service.TaskService
-	userService      *service.UserService
+	productService   ProductServicer
+	projectService   ProjectServicer
+	bugService       BugServicer
+	storyService     StoryServicer
+	taskService      TaskServicer
+	userService      UserServicer
 	schedulerService *service.SchedulerService
 }
 
 func NewHealthHandler(
 	zentaoClient *zentao.Client,
-	productService *service.ProductService,
-	projectService *service.ProjectService,
-	bugService *service.BugService,
-	storyService *service.StoryService,
-	taskService *service.TaskService,
-	userService *service.UserService,
+	productService ProductServicer,
+	projectService ProjectServicer,
+	bugService BugServicer,
+	storyService StoryServicer,
+	taskService TaskServicer,
+	userService UserServicer,
 	schedulerService *service.SchedulerService,
 ) *HealthHandler {
 	return &HealthHandler{
@@ -67,7 +68,7 @@ type SummaryInfo struct {
 	Healthy bool `json:"healthy"`
 }
 
-func (h *HealthHandler) Check(c *gin.Context) {
+func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 	start := time.Now()
 	resp := HealthCheckResponse{
 		Timestamp: start.Format(time.RFC3339),

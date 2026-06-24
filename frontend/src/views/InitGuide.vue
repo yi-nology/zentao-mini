@@ -60,7 +60,6 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { uploadInitConfig, testZentaoConnection } from '@/api/zentao'
-import type { ApiResponse } from '@/types/api'
 
 const router = useRouter()
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -102,8 +101,8 @@ const submitForm = async (): Promise<void> => {
   loading.value = true; error.value = ''; success.value = ''
   try {
     const formData = new FormData(); formData.append('configFile', selectedFile.value)
-    const response = await uploadInitConfig(formData); const result = response as unknown as ApiResponse
-    if (result.code !== 200) throw new Error(result.message || '初始化失败')
+    const response = await uploadInitConfig(formData)
+    if (response.code !== 200) throw new Error(response.message || '初始化失败')
     success.value = '初始化成功！系统已准备就绪，即将跳转到主页...'
     setTimeout(() => { router.push('/') }, 2000)
   } catch (err) {
@@ -115,9 +114,9 @@ const submitForm = async (): Promise<void> => {
 const testZentao = async (): Promise<void> => {
   testing.value = true; testResult.value = ''
   try {
-    const response = await testZentaoConnection(); const result = response as unknown as ApiResponse
-    if (result.code !== 200) throw new Error(result.message || '测试失败')
-    testResult.value = JSON.stringify(result, null, 2)
+    const response = await testZentaoConnection()
+    if (response.code !== 200) throw new Error(response.message || '测试失败')
+    testResult.value = JSON.stringify(response, null, 2)
   } catch (err) { testResult.value = '测试失败: ' + (err instanceof Error ? err.message : String(err)) } finally { testing.value = false }
 }
 </script>

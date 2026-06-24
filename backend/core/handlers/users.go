@@ -1,34 +1,24 @@
 package handlers
 
 import (
+	"context"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
 	"github.com/yi-nology/zentao-mini/backend/core/service"
 )
 
 type UserHandler struct {
-	userService *service.UserService
+	userService UserServicer
 }
 
-func NewUserHandler(userService *service.UserService) *UserHandler {
+func NewUserHandler(userService UserServicer) *UserHandler {
 	return &UserHandler{userService: userService}
 }
 
-// GetUsers 获取用户列表（支持分页）
-// @Summary 获取用户列表
-// @Description 获取禅道系统中的用户列表，支持分页
-// @Tags 用户
-// @Accept json
-// @Produce json
-// @Param page query int false "页码，默认1"
-// @Param pageSize query int false "每页数量，默认20"
-// @Success 200 {object} errors.Response{data=vo.PaginatedVO{list=[]vo.UserVO}}
-// @Failure 500 {object} errors.Response
-// @Router /api/v1/users [get]
-func (h *UserHandler) GetUsers(c *gin.Context) {
+func (h *UserHandler) GetUsers(ctx context.Context, c *app.RequestContext) {
 	page := 1
 	pageSize := 20
 
@@ -53,16 +43,7 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 	errors.Success(c, result)
 }
 
-// GetUsersAll 获取所有用户列表
-// @Summary 获取所有用户列表
-// @Description 获取禅道系统中的所有用户列表，缓存24小时
-// @Tags 用户
-// @Accept json
-// @Produce json
-// @Success 200 {object} errors.Response{data=map[string]interface{}}
-// @Failure 500 {object} errors.Response
-// @Router /api/v1/users/all [get]
-func (h *UserHandler) GetUsersAll(c *gin.Context) {
+func (h *UserHandler) GetUsersAll(ctx context.Context, c *app.RequestContext) {
 	users, err := h.userService.GetUsersAll()
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
@@ -75,16 +56,7 @@ func (h *UserHandler) GetUsersAll(c *gin.Context) {
 	})
 }
 
-// GetCurrentUser 获取当前登录用户信息
-// @Summary 获取当前登录用户信息
-// @Description 获取当前登录用户的详细信息
-// @Tags 用户
-// @Accept json
-// @Produce json
-// @Success 200 {object} errors.Response{data=map[string]interface{}}
-// @Failure 500 {object} errors.Response
-// @Router /api/v1/users/current [get]
-func (h *UserHandler) GetCurrentUser(c *gin.Context) {
+func (h *UserHandler) GetCurrentUser(ctx context.Context, c *app.RequestContext) {
 	user, err := h.userService.GetCurrentUser()
 	if err != nil {
 		if _, ok := err.(*service.ValidationError); ok {

@@ -1,7 +1,9 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
+	"context"
+
+	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
 	"github.com/yi-nology/zentao-mini/backend/core/models"
@@ -22,7 +24,7 @@ func NewSchedulerHandler(schedulerService *service.SchedulerService, webhookServ
 	}
 }
 
-func (h *SchedulerHandler) ListTasks(c *gin.Context) {
+func (h *SchedulerHandler) ListTasks(ctx context.Context, c *app.RequestContext) {
 	tasks, err := h.schedulerService.ListTasks()
 	if err != nil {
 		errors.Error(c, errors.ExternalError("调度器", err))
@@ -31,9 +33,9 @@ func (h *SchedulerHandler) ListTasks(c *gin.Context) {
 	errors.Success(c, tasks)
 }
 
-func (h *SchedulerHandler) CreateTask(c *gin.Context) {
+func (h *SchedulerHandler) CreateTask(ctx context.Context, c *app.RequestContext) {
 	var task models.SchedulerTask
-	if err := c.ShouldBindJSON(&task); err != nil {
+	if err := c.BindAndValidate(&task); err != nil {
 		errors.BadRequest(c, "请求参数格式错误")
 		return
 	}
@@ -56,14 +58,14 @@ func (h *SchedulerHandler) CreateTask(c *gin.Context) {
 	errors.Success(c, task)
 }
 
-func (h *SchedulerHandler) UpdateTask(c *gin.Context) {
+func (h *SchedulerHandler) UpdateTask(ctx context.Context, c *app.RequestContext) {
 	id := c.Param("id")
 	if id == "" {
 		errors.MissingParam(c, "id")
 		return
 	}
 	var task models.SchedulerTask
-	if err := c.ShouldBindJSON(&task); err != nil {
+	if err := c.BindAndValidate(&task); err != nil {
 		errors.BadRequest(c, "请求参数格式错误")
 		return
 	}
@@ -75,7 +77,7 @@ func (h *SchedulerHandler) UpdateTask(c *gin.Context) {
 	errors.Success(c, task)
 }
 
-func (h *SchedulerHandler) DeleteTask(c *gin.Context) {
+func (h *SchedulerHandler) DeleteTask(ctx context.Context, c *app.RequestContext) {
 	id := c.Param("id")
 	if id == "" {
 		errors.MissingParam(c, "id")
@@ -88,7 +90,7 @@ func (h *SchedulerHandler) DeleteTask(c *gin.Context) {
 	errors.Success(c, nil)
 }
 
-func (h *SchedulerHandler) ToggleTask(c *gin.Context) {
+func (h *SchedulerHandler) ToggleTask(ctx context.Context, c *app.RequestContext) {
 	id := c.Param("id")
 	if id == "" {
 		errors.MissingParam(c, "id")
@@ -102,7 +104,7 @@ func (h *SchedulerHandler) ToggleTask(c *gin.Context) {
 	errors.Success(c, task)
 }
 
-func (h *SchedulerHandler) RunTaskNow(c *gin.Context) {
+func (h *SchedulerHandler) RunTaskNow(ctx context.Context, c *app.RequestContext) {
 	id := c.Param("id")
 	if id == "" {
 		errors.MissingParam(c, "id")
@@ -116,11 +118,11 @@ func (h *SchedulerHandler) RunTaskNow(c *gin.Context) {
 	errors.Success(c, logEntry)
 }
 
-func (h *SchedulerHandler) TestWebhook(c *gin.Context) {
+func (h *SchedulerHandler) TestWebhook(ctx context.Context, c *app.RequestContext) {
 	var req struct {
 		URL string `json:"url"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "请求参数格式错误")
 		return
 	}
@@ -136,7 +138,7 @@ func (h *SchedulerHandler) TestWebhook(c *gin.Context) {
 	errors.Success(c, result)
 }
 
-func (h *SchedulerHandler) GetTaskLogs(c *gin.Context) {
+func (h *SchedulerHandler) GetTaskLogs(ctx context.Context, c *app.RequestContext) {
 	id := c.Param("id")
 	if id == "" {
 		errors.MissingParam(c, "id")
@@ -150,7 +152,7 @@ func (h *SchedulerHandler) GetTaskLogs(c *gin.Context) {
 	errors.Success(c, logs)
 }
 
-func (h *SchedulerHandler) GetAllLogs(c *gin.Context) {
+func (h *SchedulerHandler) GetAllLogs(ctx context.Context, c *app.RequestContext) {
 	logs, err := h.schedulerService.ListLogs("", 100)
 	if err != nil {
 		errors.Error(c, errors.NewInternalError("获取执行日志失败", err))
@@ -159,7 +161,7 @@ func (h *SchedulerHandler) GetAllLogs(c *gin.Context) {
 	errors.Success(c, logs)
 }
 
-func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
+func (h *SchedulerHandler) PreviewReport(ctx context.Context, c *app.RequestContext) {
 	var req struct {
 		ReportType        string   `json:"reportType"`
 		ProductID         int      `json:"productId"`
@@ -173,7 +175,7 @@ func (h *SchedulerHandler) PreviewReport(c *gin.Context) {
 		MessageHeader     string   `json:"messageHeader"`
 		PriorityAssignees []string `json:"priorityAssignees"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "请求参数格式错误")
 		return
 	}

@@ -1,27 +1,16 @@
 package handlers
 
-// Deprecated: 此文件中的 HTTP 辅助方法已被 backend/core/mcp/handlers.go 替代
-// 新代码请使用 mcp.MCPServer 直接调用 service 层
-
 import (
-	"github.com/yi-nology/zentao-mini/backend/core/dto"
+	"context"
 	"strconv"
+
+	"github.com/yi-nology/zentao-mini/backend/core/dto"
 )
 
-// ============================================
-// ProductHandler HTTP 方法
-// ============================================
-
-// GetProductsHTTP 获取产品列表（HTTP模式）
 func (h *ProductHandler) GetProductsHTTP() (interface{}, error) {
 	return h.productService.GetProducts()
 }
 
-// ============================================
-// ProjectHandler HTTP 方法
-// ============================================
-
-// GetProjectsHTTP 获取项目列表（HTTP模式）
 func (h *ProjectHandler) GetProjectsHTTP(productId string) (interface{}, error) {
 	query := &dto.ProjectQueryDTO{}
 	if productId != "" {
@@ -32,11 +21,6 @@ func (h *ProjectHandler) GetProjectsHTTP(productId string) (interface{}, error) 
 	return h.projectService.GetProjects(query)
 }
 
-// ============================================
-// ExecutionHandler HTTP 方法
-// ============================================
-
-// GetExecutionsHTTP 获取执行列表（HTTP模式）
 func (h *ExecutionHandler) GetExecutionsHTTP(projectId, productId string) (interface{}, error) {
 	query := &dto.ExecutionQueryDTO{}
 	if projectId != "" {
@@ -52,11 +36,6 @@ func (h *ExecutionHandler) GetExecutionsHTTP(projectId, productId string) (inter
 	return h.executionService.GetExecutions(query)
 }
 
-// ============================================
-// BugHandler HTTP 方法
-// ============================================
-
-// GetBugsHTTP 获取Bug列表（HTTP模式）
 func (h *BugHandler) GetBugsHTTP(productId, status string) (interface{}, error) {
 	query := &dto.BugQueryDTO{}
 	if productId != "" {
@@ -70,11 +49,6 @@ func (h *BugHandler) GetBugsHTTP(productId, status string) (interface{}, error) 
 	return h.bugService.GetBugs(query)
 }
 
-// ============================================
-// StoryHandler HTTP 方法
-// ============================================
-
-// GetStoriesHTTP 获取需求列表（HTTP模式）
 func (h *StoryHandler) GetStoriesHTTP(productId string) (interface{}, error) {
 	query := &dto.StoryQueryDTO{}
 	if productId != "" {
@@ -87,11 +61,6 @@ func (h *StoryHandler) GetStoriesHTTP(productId string) (interface{}, error) {
 	return h.storyService.GetStories(query)
 }
 
-// ============================================
-// TaskHandler HTTP 方法
-// ============================================
-
-// GetTasksHTTP 获取任务列表（HTTP模式）
 func (h *TaskHandler) GetTasksHTTP(productId, executionId string) (interface{}, error) {
 	query := &dto.TaskQueryDTO{}
 	if productId != "" {
@@ -109,20 +78,10 @@ func (h *TaskHandler) GetTasksHTTP(productId, executionId string) (interface{}, 
 	return h.taskService.GetTasks(query)
 }
 
-// ============================================
-// UserHandler HTTP 方法
-// ============================================
-
-// GetUsersHTTP 获取用户列表（HTTP模式）
 func (h *UserHandler) GetUsersHTTP() (interface{}, error) {
 	return h.userService.GetUsers(1, 100)
 }
 
-// ============================================
-// TimelogHandler HTTP 方法
-// ============================================
-
-// GetTimelogHTTP 获取工时数据（HTTP模式）
 func (h *TimelogHandler) GetTimelogHTTP(productId, dateFrom, dateTo string) (interface{}, error) {
 	query := &dto.TimelogQueryDTO{
 		ProductID: productId,
@@ -131,3 +90,6 @@ func (h *TimelogHandler) GetTimelogHTTP(productId, dateFrom, dateTo string) (int
 	}
 	return h.timelogService.GetTimelogDashboard(query)
 }
+
+// unused but kept for interface compatibility
+var _ = context.Background

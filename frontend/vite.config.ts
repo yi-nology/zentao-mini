@@ -19,6 +19,21 @@ const config: UserConfig = {
         target: 'http://localhost:12345',
         changeOrigin: true,
         secure: false
+      },
+      '/mcp': {
+        target: 'http://localhost:12345',
+        changeOrigin: true,
+        secure: false
+      },
+      '/health': {
+        target: 'http://localhost:12345',
+        changeOrigin: true,
+        secure: false
+      },
+      '/metrics': {
+        target: 'http://localhost:12345',
+        changeOrigin: true,
+        secure: false
       }
     }
   }
