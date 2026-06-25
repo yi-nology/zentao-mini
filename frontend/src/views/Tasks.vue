@@ -208,6 +208,7 @@ const tableRowClassName = ({ row }: { row: Task }) => { if (row.estimate > 0 && 
 const openTaskDetail = (task: Task): void => { currentTask.value = task; detailDialogVisible.value = true }
 const openZentaoTask = (taskId: number): void => {
   const url = buildZentaoUrl(`task-view-${taskId}.html`)
+  if (!url) { ElMessage.warning('禅道地址未配置，请检查系统设置'); return }
   try { const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }; if (w.runtime && w.runtime.BrowserOpenURL) { runtime.BrowserOpenURL(url) } else { window.open(url, '_blank', 'noopener,noreferrer') } } catch { window.open(url, '_blank', 'noopener,noreferrer') }
 }
 

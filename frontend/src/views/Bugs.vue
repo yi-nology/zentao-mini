@@ -481,6 +481,10 @@ const handleExport = async (): Promise<void> => {
 }
 
 const openZentaoLink = (url: string): void => {
+  if (!url) {
+    ElMessage.warning('禅道地址未配置，请检查系统设置')
+    return
+  }
   try {
     const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
     if (w.runtime && w.runtime.BrowserOpenURL) {
