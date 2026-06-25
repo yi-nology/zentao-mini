@@ -73,18 +73,18 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 					return
 				}
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 
 			stat, err := f.Stat()
 			if err != nil || stat.IsDir() {
 				// For directories, try index.html
-				f.Close()
+				_ = f.Close()
 				f, err = staticFS.Open("/index.html")
 				if err != nil {
 					c.SetStatusCode(404)
 					return
 				}
-				defer f.Close()
+				defer func() { _ = f.Close() }()
 				stat, _ = f.Stat()
 			}
 
@@ -97,7 +97,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 			}
 			c.Header("Cache-Control", "public, max-age=3600")
 			c.SetStatusCode(200)
-			c.Write(data)
+			_, _ = c.Write(data)
 		})
 		logger.Info("Static file system mounted")
 	}

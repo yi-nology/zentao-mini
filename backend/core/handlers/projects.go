@@ -24,7 +24,7 @@ func (h *ProjectHandler) GetProjects(ctx context.Context, c *app.RequestContext)
 		return
 	}
 
-	query.Validate()
+	_ = query.Validate()
 
 	result, err := h.projectService.GetProjects(&query)
 	if err != nil {
@@ -50,7 +50,7 @@ func (h *ExecutionHandler) GetExecutions(ctx context.Context, c *app.RequestCont
 		return
 	}
 
-	query.Validate()
+	_ = query.Validate()
 
 	result, err := h.executionService.GetExecutions(&query)
 	if err != nil {
