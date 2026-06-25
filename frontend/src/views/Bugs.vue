@@ -155,8 +155,8 @@
         <el-descriptions :column="1" border>
           <el-descriptions-item label="ID">{{ currentBug.id }}</el-descriptions-item>
           <el-descriptions-item label="标题">{{ currentBug.title }}</el-descriptions-item>
-          <el-descriptions-item label="产品">{{ (currentBug.product as unknown as { name?: string })?.name }}</el-descriptions-item>
-          <el-descriptions-item label="项目">{{ (currentBug.project as unknown as { name?: string })?.name }}</el-descriptions-item>
+          <el-descriptions-item label="产品">{{ productMap[currentBug.product] || currentBug.product }}</el-descriptions-item>
+          <el-descriptions-item label="项目">{{ currentBug.project }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ getStatusLabel(currentBug.status) }}</el-descriptions-item>
           <el-descriptions-item label="严重程度">{{ currentBug.severity }}</el-descriptions-item>
           <el-descriptions-item label="类型">{{ currentBug.type ? getTypeLabel(currentBug.type) : '-' }}</el-descriptions-item>
@@ -176,7 +176,7 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getBugs, getBugStatusOptions, getUsers } from '@/api/zentao'
+import { getBugs, getBugStatusOptions, getUsers, getProducts } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Bug, User, SelectOption } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
@@ -216,6 +216,17 @@ const filterForm = reactive<FilterForm>({
 })
 
 const statusOptions = ref<SelectOption[]>(getBugStatusOptions())
+const productMap = ref<Record<number, string>>({})
+
+const fetchProductNames = async (): Promise<void> => {
+  try {
+    const res = await getProducts()
+    const products = res.data || []
+    const map: Record<number, string> = {}
+    products.forEach(p => { map[p.id] = p.name })
+    productMap.value = map
+  } catch { /* ignore */ }
+}
 const typeOptions = computed(() => {
   const types = new Map<string, { value: string; label: string }>()
   bugList.value.forEach((bug: Bug) => {
@@ -457,8 +468,8 @@ const handleExport = async (): Promise<void> => {
       ID: bug.id,
       标题: bug.title,
       链接地址: buildZentaoUrl(`bug-view-${bug.id}.html`),
-      产品: (bug.product as unknown as { name?: string })?.name || '',
-      项目: (bug.project as unknown as { name?: string })?.name || '',
+      产品: productMap.value[bug.product] || String(bug.product),
+      项目: String(bug.project),
       状态: getStatusLabel(bug.status),
       严重程度: getSeverityLabel(bug.severity),
       类型: getTypeLabel(bug.type),
@@ -509,6 +520,7 @@ onMounted(() => {
   if (q.pageSize) pagination.pageSize = Number(q.pageSize) || 20
 
   fetchUsers()
+  fetchProductNames()
 })
 </script>
 
