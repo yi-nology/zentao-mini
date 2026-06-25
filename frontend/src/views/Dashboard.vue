@@ -140,8 +140,8 @@ import type { Chart as ChartType } from 'chart.js/auto'
 import type { DashboardData } from '@/types/api'
 
 interface GlobalSelection {
-  product: string
-  project: string
+  product: number | null
+  project: number | null
 }
 
 const globalSelection = inject<GlobalSelection>('globalSelection')!
@@ -246,7 +246,7 @@ const renderCharts = () => {
 }
 
 const fetchData = async (): Promise<void> => {
-  const pid = Number(globalSelection.product)
+  const pid = globalSelection.product
   if (!pid) {
     data.value = null
     return
@@ -276,9 +276,8 @@ watch(() => globalSelection.product, (val) => {
 watch(data, async (newData) => {
   if (!newData) return
   await nextTick()
-  await nextTick()
   renderCharts()
-})
+}, { flush: 'post' })
 
 onBeforeUnmount(() => { destroyCharts() })
 

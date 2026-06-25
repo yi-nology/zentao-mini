@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"strconv"
 
 	"github.com/yi-nology/zentao-mini/backend/core/dto"
@@ -90,6 +89,3 @@ func (h *TimelogHandler) GetTimelogHTTP(productId, dateFrom, dateTo string) (int
 	}
 	return h.timelogService.GetTimelogDashboard(query)
 }
-
-// unused but kept for interface compatibility
-var _ = context.Background

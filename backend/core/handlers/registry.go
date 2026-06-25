@@ -102,7 +102,7 @@ func (r *HandlerRegistry) InitScheduler(store *initialization.ConfigStore) {
 	r.webhookService = service.NewWebhookService()
 	r.schedulerService = service.NewSchedulerService(store, r.reportService, r.webhookService)
 	r.schedulerHandler = NewSchedulerHandler(r.schedulerService, r.webhookService, r.reportService)
-	r.healthHandler.schedulerService = r.schedulerService
+	r.healthHandler.SetSchedulerService(r.schedulerService)
 	if err := r.schedulerService.Start(); err != nil {
 		log.Printf("Failed to start scheduler: %v", err)
 	}

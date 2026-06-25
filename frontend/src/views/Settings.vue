@@ -64,6 +64,7 @@
 import { ref, onMounted } from 'vue'
 import { getAccountInfo, testZentaoConnection } from '@/api/zentao'
 import api from '@/api/api'
+import type { ApiResponse } from '@/types/api'
 
 interface AccountInfo {
   domain: string
@@ -93,7 +94,7 @@ const fetchAccountInfo = async () => {
   } catch { latency.value = -1 }
 
   try {
-    const res = await api.get('/version') as any
+    const res = await api.get('/version') as ApiResponse<{ version: string }>
     if (res?.data?.version) appVersion.value = res.data.version
   } catch { /* ignore */ }
 

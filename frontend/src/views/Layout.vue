@@ -114,16 +114,16 @@ import { useRoute, useRouter } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
 import { search, getAccountInfo } from '@/api/zentao'
 import api from '@/api/api'
-import type { SearchItem } from '@/types/api'
+import type { SearchItem, ApiResponse } from '@/types/api'
 
 interface GlobalSelection {
-  product: string
-  project: string
+  product: number | null
+  project: number | null
 }
 
 interface SelectionChangePayload {
-  product: string
-  project: string
+  product: number | null
+  project: number | null
 }
 
 interface MenuItem {
@@ -142,7 +142,7 @@ interface ResultGroup {
 
 const route = useRoute()
 const router = useRouter()
-const globalSelection = reactive<GlobalSelection>({ product: '', project: '' })
+const globalSelection = reactive<GlobalSelection>({ product: null, project: null })
 const appVersion = ref('...')
 const accountInfo = ref<{ domain: string; account: string; connected: boolean } | null>(null)
 
@@ -163,11 +163,11 @@ onMounted(async () => {
 
   const qProduct = route.query.product
   const qProject = route.query.project
-  if (qProduct) globalSelection.product = String(qProduct)
-  if (qProject) globalSelection.project = String(qProject)
+  if (qProduct) globalSelection.product = Number(qProduct)
+  if (qProject) globalSelection.project = Number(qProject)
 
   try {
-    const res = await api.get('/version') as any
+    const res = await api.get('/version') as ApiResponse<{ version: string }>
     if (res?.data?.version) appVersion.value = res.data.version
   } catch { appVersion.value = 'dev' }
 
@@ -223,7 +223,7 @@ const doSearch = async () => {
   searchLoading.value = true
   searchOpen.value = true
   try {
-    const productId = globalSelection.product ? Number(globalSelection.product) : undefined
+    const productId = globalSelection.product ?? undefined
     const res = await search({
       keyword: kw,
       productId,
@@ -328,8 +328,8 @@ watch(() => [globalSelection.product, globalSelection.project], () => {
   delete childQuery.product
   delete childQuery.project
   const merged = { ...childQuery } as Record<string, string | string[]>
-  if (globalSelection.product) merged.product = globalSelection.product
-  if (globalSelection.project) merged.project = globalSelection.project
+  if (globalSelection.product) merged.product = String(globalSelection.product)
+  if (globalSelection.project) merged.project = String(globalSelection.project)
   router.replace({ query: merged })
 })
 

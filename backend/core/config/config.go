@@ -142,6 +142,8 @@ func Init(configPath string, envPrefix string) error {
 
 	// 验证配置
 	if err := validate(&cfg); err != nil {
+		// 验证失败时仍然设置配置，避免 Get() 返回 nil
+		globalConfig = &cfg
 		return fmt.Errorf("config validation failed: %w", err)
 	}
 
@@ -226,10 +228,15 @@ func validate(cfg *Config) error {
 	return nil
 }
 
-// Get 获取全局配置实例
+// Get 获取全局配置实例，未初始化时返回带默认值的空配置
 func Get() *Config {
 	if globalConfig == nil {
-		panic("config not initialized, please call Init() first")
+		// 未初始化时返回带默认值的配置，避免 panic
+		v := viper.New()
+		setDefaults(v)
+		var cfg Config
+		_ = v.Unmarshal(&cfg)
+		return &cfg
 	}
 	return globalConfig
 }

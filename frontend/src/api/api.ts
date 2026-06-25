@@ -35,7 +35,7 @@ api.interceptors.response.use(
   },
   (error) => {
     if (!error.response) {
-      redirectToInit('无法连接到服务器，请检查后端服务是否运行')
+      ElMessage.error('无法连接到服务器，请检查后端服务是否运行')
       return Promise.reject(error)
     }
 

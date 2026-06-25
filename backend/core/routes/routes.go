@@ -2,6 +2,9 @@ package routes
 
 import (
 	"context"
+	"net/http"
+	"path"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -22,10 +25,10 @@ import (
 
 func SetupRouter(initService *initialization.InitService, zentaoClient *zentao.Client) *server.Hertz {
 	registry := handlers.NewHandlerRegistry(zentaoClient, initService)
-	return SetupRouterWithHandlers(initService, zentaoClient, registry, ":12345")
+	return SetupRouterWithHandlers(initService, zentaoClient, registry, ":12345", nil)
 }
 
-func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClient *zentao.Client, registry *handlers.HandlerRegistry, hostPort string) *server.Hertz {
+func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClient *zentao.Client, registry *handlers.HandlerRegistry, hostPort string, staticFS http.FileSystem) *server.Hertz {
 	hertzServer := server.New(server.WithHostPorts(hostPort))
 
 	hertzServer.Use(middleware.RecoveryMiddleware())
@@ -53,6 +56,51 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	bizrouter.GeneratedRegister(hertzServer)
 
 	registerCustomRoutes(hertzServer, registry, mcpTransport)
+
+	if staticFS != nil {
+		hertzServer.NoRoute(func(ctx context.Context, c *app.RequestContext) {
+			filePath := string(c.Path())
+			if filePath == "/" {
+				filePath = "/index.html"
+			}
+
+			f, err := staticFS.Open(filePath)
+			if err != nil {
+				// SPA fallback: serve index.html for non-file routes
+				f, err = staticFS.Open("/index.html")
+				if err != nil {
+					c.SetStatusCode(404)
+					return
+				}
+			}
+			defer f.Close()
+
+			stat, err := f.Stat()
+			if err != nil || stat.IsDir() {
+				// For directories, try index.html
+				f.Close()
+				f, err = staticFS.Open("/index.html")
+				if err != nil {
+					c.SetStatusCode(404)
+					return
+				}
+				defer f.Close()
+				stat, _ = f.Stat()
+			}
+
+			data := make([]byte, stat.Size())
+			_, _ = f.Read(data)
+
+			ext := getExt(filePath)
+			if ct := getContentType(ext); ct != "" {
+				c.Header("Content-Type", ct)
+			}
+			c.Header("Cache-Control", "public, max-age=3600")
+			c.SetStatusCode(200)
+			c.Write(data)
+		})
+		logger.Info("Static file system mounted")
+	}
 
 	logger.Info("Router setup completed")
 
@@ -138,4 +186,32 @@ func registerMCPPostRoutes(r *server.Hertz, transport *mcp.HTTPTransport) {
 			transport.HandleActionByName(ctx, act, c)
 		})
 	}
+}
+
+func getExt(filePath string) string {
+	return strings.ToLower(path.Ext(filePath))
+}
+
+func getContentType(ext string) string {
+	types := map[string]string{
+		".html": "text/html; charset=utf-8",
+		".css":  "text/css; charset=utf-8",
+		".js":   "application/javascript; charset=utf-8",
+		".json": "application/json",
+		".png":  "image/png",
+		".jpg":  "image/jpeg",
+		".jpeg": "image/jpeg",
+		".gif":  "image/gif",
+		".svg":  "image/svg+xml",
+		".ico":  "image/x-icon",
+		".woff": "font/woff",
+		".woff2": "font/woff2",
+		".ttf":  "font/ttf",
+		".eot":  "application/vnd.ms-fontobject",
+		".map":  "application/json",
+	}
+	if ct, ok := types[ext]; ok {
+		return ct
+	}
+	return "application/octet-stream"
 }

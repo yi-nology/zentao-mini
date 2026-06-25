@@ -57,6 +57,7 @@ func main() {
 		ZentaoAccount:  zentaoAccount,
 		ZentaoPassword: zentaoPassword,
 		StaticPath:     "embedded",
+		StaticFS:       getFileSystem(),
 	}
 
 	application, err := app.InitializeHTTPApp(appConfig)
@@ -72,13 +73,6 @@ func main() {
 	if err := httpApp.Start(context.Background()); err != nil {
 		log.Fatalf("Failed to start application: %v", err)
 	}
-
-	router := httpApp.GetRouter()
-	if router == nil {
-		log.Fatal("Failed to get router")
-	}
-
-	_ = getFileSystem()
 
 	log.Printf("Serving frontend from embedded static file system")
 

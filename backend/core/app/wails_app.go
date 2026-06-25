@@ -72,6 +72,7 @@ func (a *WailsApp) Start(ctx context.Context) error {
 			a.deps.ZentaoClient,
 			a.deps.Handlers,
 			":"+port,
+			nil,
 		)
 
 		logger.Info("Wails backend starting",
@@ -79,8 +80,6 @@ func (a *WailsApp) Start(ctx context.Context) error {
 			zap.String("port", port),
 			zap.String("zentao_server", a.config.ZentaoServer),
 		)
-
-		a.deps.Handlers.GetMCPHandler().Start()
 
 		go func() {
 			a.hertz.Spin()

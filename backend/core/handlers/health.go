@@ -46,6 +46,11 @@ func NewHealthHandler(
 	}
 }
 
+// SetSchedulerService 设置调度器服务（延迟初始化）
+func (h *HealthHandler) SetSchedulerService(s *service.SchedulerService) {
+	h.schedulerService = s
+}
+
 type CheckItem struct {
 	Name      string `json:"name"`
 	Status    string `json:"status"`

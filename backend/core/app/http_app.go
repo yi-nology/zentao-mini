@@ -58,9 +58,8 @@ func (a *HTTPApp) Start(ctx context.Context) error {
 		a.deps.ZentaoClient,
 		a.deps.Handlers,
 		":"+port,
+		a.config.StaticFS,
 	)
-
-	a.deps.Handlers.GetMCPHandler().Start()
 
 	go func() {
 		logger.Info("HTTP server starting",

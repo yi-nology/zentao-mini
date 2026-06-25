@@ -1,5 +1,7 @@
 package dto
 
+import "strconv"
+
 // TimelogQueryDTO 工时统计查询请求参数
 // 使用驼峰命名风格（camelCase）
 type TimelogQueryDTO struct {
@@ -13,11 +15,28 @@ type TimelogQueryDTO struct {
 
 // Validate 验证参数
 func (dto *TimelogQueryDTO) Validate() error {
-	// 这里可以添加更详细的验证逻辑
 	return nil
 }
 
 // IsEmpty 检查是否为空
 func (dto *TimelogQueryDTO) IsEmpty() bool {
 	return dto.ProductID == ""
+}
+
+// GetProductIDInt 获取产品ID的整数值
+func (dto *TimelogQueryDTO) GetProductIDInt() int {
+	id, _ := strconv.Atoi(dto.ProductID)
+	return id
+}
+
+// GetProjectIDInt 获取项目ID的整数值
+func (dto *TimelogQueryDTO) GetProjectIDInt() int {
+	id, _ := strconv.Atoi(dto.ProjectID)
+	return id
+}
+
+// GetExecutionIDInt 获取执行ID的整数值
+func (dto *TimelogQueryDTO) GetExecutionIDInt() int {
+	id, _ := strconv.Atoi(dto.ExecutionID)
+	return id
 }

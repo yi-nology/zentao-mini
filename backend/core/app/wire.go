@@ -65,15 +65,24 @@ func provideZentaoClient(config *AppConfig, initService *initialization.InitServ
 		zentaoPassword = config.ZentaoPassword
 	}
 
-	// 如果仍然没有配置，从环境变量获取
+	// 如果仍然没有配置，从环境变量获取（优先 ZENTAO_MINI_ 前缀）
 	if zentaoServer == "" {
-		zentaoServer = os.Getenv("ZENTAO_SERVER")
+		zentaoServer = os.Getenv("ZENTAO_MINI_ZENTAO_SERVER")
+		if zentaoServer == "" {
+			zentaoServer = os.Getenv("ZENTAO_SERVER")
+		}
 	}
 	if zentaoAccount == "" {
-		zentaoAccount = os.Getenv("ZENTAO_ACCOUNT")
+		zentaoAccount = os.Getenv("ZENTAO_MINI_ZENTAO_ACCOUNT")
+		if zentaoAccount == "" {
+			zentaoAccount = os.Getenv("ZENTAO_ACCOUNT")
+		}
 	}
 	if zentaoPassword == "" {
-		zentaoPassword = os.Getenv("ZENTAO_PASSWORD")
+		zentaoPassword = os.Getenv("ZENTAO_MINI_ZENTAO_PASSWORD")
+		if zentaoPassword == "" {
+			zentaoPassword = os.Getenv("ZENTAO_PASSWORD")
+		}
 	}
 
 	return zentao.NewClient(zentaoServer, zentaoAccount, zentaoPassword)

@@ -20,14 +20,14 @@ echo "交叉编译为 Windows x64..."
 mkdir -p build/windows-x64
 
 # 使用 go build 直接交叉编译，添加 Wails 构建标签
-GOOS=windows GOARCH=amd64 go build -tags wails -o build/windows-x64/zentao-mini.exe .
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags wails -o build/windows-x64/zentao-mini.exe .
 if [ $? -ne 0 ]; then
     echo "错误: 交叉编译失败"
     exit 1
 fi
 
 # 复制环境变量文件
-cp .env.wails build/windows-x64/.env
+cp frontend/.env.wails build/windows-x64/.env
 
 echo "交叉编译完成!"
 echo "可执行文件位置: build/windows-x64/zentao-mini.exe"

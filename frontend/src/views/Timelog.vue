@@ -69,7 +69,7 @@
 
       <div class="table-card">
         <div class="table-header">
-          <el-input v-model="tableSearch" placeholder="搜索任务名称/工作内容..." :prefix-icon="Search" @input="filterTable" style="width: 300px" />
+          <el-input v-model="tableSearch" placeholder="搜索任务名称/工作内容..." :prefix-icon="Search" style="width: 300px" />
           <span class="table-count">{{ filteredEfforts.length }} 条</span>
         </div>
         <el-table :data="filteredEfforts" style="width: 100%" @sort-change="handleSortChange">
@@ -115,7 +115,7 @@ import { useRoute, useRouter } from 'vue-router'
 interface QuickRange { label: string; value: string }
 interface Filters { executionId: string; assignedTo: string; dateFrom: string; dateTo: string }
 interface ChartInstances { dailyChart?: ChartType<'bar'>; projectChart?: ChartType<'bar'>; typeChart?: ChartType<'doughnut'> }
-interface GlobalSelection { product: string; project: string }
+interface GlobalSelection { product: number | null; project: number | null }
 interface SortParams { prop: string; order: string | null }
 
 const globalSelection = inject<GlobalSelection>('globalSelection') as GlobalSelection
@@ -161,8 +161,8 @@ const queryTimelog = async (): Promise<void> => {
   syncRoute()
   loading.value = true
   try {
-    const dashRes = await getTimelogDashboard({ productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
-    const effortRes = await getTimelogEfforts({ productId: globalSelection.product ? parseInt(globalSelection.product, 10) : undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
+    const dashRes = await getTimelogDashboard({ productId: globalSelection.product ?? undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
+    const effortRes = await getTimelogEfforts({ productId: globalSelection.product ?? undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
     analysisData.value = { ...dashRes.data, efforts: effortRes.data }; showResult.value = true
     await nextTick(); renderCharts()
   } catch (error) { console.error('查询工时统计失败:', error); ElMessage.error('查询失败') } finally { loading.value = false }
@@ -210,10 +210,10 @@ const renderTypeChart = (): void => {
   })
 }
 
-const filterTable = (): void => {}
 const handleSortChange = (sort: SortParams): void => {
   const { prop, order } = sort; if (!prop) return
-  analysisData.value.efforts.sort((a, b) => { let va = a[prop as keyof TimelogEffort] as string | number; let vb = b[prop as keyof TimelogEffort] as string | number; if (typeof va === 'string') va = va.toLowerCase(); if (typeof vb === 'string') vb = vb.toLowerCase(); return va < vb ? (order === 'ascending' ? -1 : 1) : va > vb ? (order === 'ascending' ? 1 : -1) : 0 })
+  const sorted = [...analysisData.value.efforts].sort((a, b) => { let va = a[prop as keyof TimelogEffort] as string | number; let vb = b[prop as keyof TimelogEffort] as string | number; if (typeof va === 'string') va = va.toLowerCase(); if (typeof vb === 'string') vb = vb.toLowerCase(); return va < vb ? (order === 'ascending' ? -1 : 1) : va > vb ? (order === 'ascending' ? 1 : -1) : 0 })
+  analysisData.value.efforts = sorted
 }
 const getUserName = (account: string): string => { const user = users.value.find(u => u.account === account); return user ? (user.realname || account) : account }
 

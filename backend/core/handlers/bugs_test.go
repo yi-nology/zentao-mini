@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -52,18 +51,5 @@ func TestBugHandler_QueryParams(t *testing.T) {
 				t.Errorf("期望状态码=%d, 实际状态码=%d", tt.expectedStatus, h.Response.StatusCode())
 			}
 		})
-	}
-}
-
-func TestBugHandler_GetBugsHTTP(t *testing.T) {
-	handler := &BugHandler{
-		bugService: nil,
-	}
-
-	ctx := context.Background()
-	_ = ctx
-
-	if handler.bugService != nil {
-		t.Error("Expected nil bugService for this test")
 	}
 }

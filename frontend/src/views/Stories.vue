@@ -78,7 +78,7 @@
           <el-descriptions-item label="状态">{{ getStatusLabel(currentStory.status) }}</el-descriptions-item>
           <el-descriptions-item label="阶段">{{ getStageLabel(currentStory.stage) }}</el-descriptions-item>
           <el-descriptions-item label="优先级">{{ currentStory.pri }}</el-descriptions-item>
-          <el-descriptions-item label="指派人">{{ (currentStory.assignedTo as unknown as { realname?: string; account?: string })?.realname || (currentStory.assignedTo as unknown as { realname?: string; account?: string })?.account || currentStory.assignedTo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="指派人">{{ currentStory.assignedTo?.realname || currentStory.assignedTo?.account || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ currentStory.openedDate }}</el-descriptions-item>
           <el-descriptions-item label="描述" :span="2"><div v-html="sanitizeHtml(currentStory.spec)"></div></el-descriptions-item>
         </el-descriptions>
@@ -174,26 +174,12 @@ const handleViewDetail = (row: Story): void => { currentStory.value = row; detai
 const handleExport = async (): Promise<void> => {
   if (selectedStories.value.length === 0) return
   const XLSX = await import('xlsx')
-  const exportData = selectedStories.value.map((story: Story) => ({ ID: story.id, 标题: story.title, 状态: getStatusLabel(story.status), 阶段: getStageLabel(story.stage), 优先级: story.pri, 指派人: (story.assignedTo as unknown as { realname?: string })?.realname || '' }))
+  const exportData = selectedStories.value.map((story: Story) => ({ ID: story.id, 标题: story.title, 状态: getStatusLabel(story.status), 阶段: getStageLabel(story.stage), 优先级: story.pri, 指派人: story.assignedTo?.realname || '' }))
   const worksheet = XLSX.utils.json_to_sheet(exportData)
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, '需求列表')
   try {
-    const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
-    if (w.runtime && w.runtime.BrowserOpenURL) {
-      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
-      const blob = new Blob([wbout], { type: 'application/octet-stream' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `需求列表_${new Date().toISOString().slice(0, 10)}.xlsx`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    } else {
-      XLSX.writeFile(workbook, `需求列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
-    }
+    XLSX.writeFile(workbook, `需求列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
     ElMessage.success(`导出 ${selectedStories.value.length} 个需求成功`)
   } catch { ElMessage.error('导出失败') }
 }

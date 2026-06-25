@@ -379,6 +379,7 @@ import {
 } from '@/api/scheduler'
 import type { PreviewParams } from '@/api/scheduler'
 import { getProducts, getProjects } from '@/api/zentao'
+import { ElMessageBox } from 'element-plus'
 import type { SchedulerTask, TaskExecutionLog, WebhookResult, WebhookConfig, RequirementReport, TaskProgressReport, BugReport, BugAgingReport } from '@/types/scheduler'
 import { CRON_PRESETS, STATUS_OPTIONS, REPORT_TYPE_OPTIONS, AGING_DAYS_OPTIONS } from '@/types/scheduler'
 
@@ -419,6 +420,7 @@ const form = reactive<{
   messageHeader: string
   keyword: string
   externalInfo: string
+  enabled: boolean
   webhooks: WebhookConfig[]
 }>({
   id: '',
@@ -435,6 +437,7 @@ const form = reactive<{
   messageHeader: '',
   keyword: '提醒',
   externalInfo: '',
+  enabled: true,
   webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }],
 })
 
@@ -518,6 +521,7 @@ const resetForm = () => {
   form.messageHeader = ''
   form.keyword = '提醒'
   form.externalInfo = ''
+  form.enabled = true
   form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }]
   testResult.value = null
   previewResult.value = null
@@ -545,6 +549,8 @@ const openEditDialog = (task: SchedulerTask) => {
   form.priorityAssignees = task.priorityAssignees || []
   form.messageHeader = task.messageHeader || ''
   form.externalInfo = task.externalInfo || ''
+  form.keyword = task.keyword || '提醒'
+  form.enabled = task.enabled
   form.webhooks = task.webhooks.map(w => ({ ...w }))
   testResult.value = null
   previewResult.value = null
@@ -560,7 +566,7 @@ const handleSubmit = async () => {
     const payload = {
       name: form.name,
       cronExpr: form.cronExpr,
-      enabled: false,
+      enabled: form.enabled,
       productId: Number(form.productId) || 0,
       projectId: Number(form.projectId) || 0,
       projectName: form.projectName,
@@ -614,7 +620,15 @@ const handleRunNow = async (task: SchedulerTask) => {
 }
 
 const handleDelete = async (task: SchedulerTask) => {
-  if (!confirm(`确定删除任务「${task.name}」？`)) return
+  try {
+    await ElMessageBox.confirm(`确定删除任务「${task.name}」？`, '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
   try {
     await deleteTask(task.id)
     await loadTasks()

@@ -20,14 +20,14 @@ echo "交叉编译为 Linux x86_64..."
 mkdir -p build/linux-amd64
 
 # 使用 go build 直接交叉编译，添加 Wails 构建标签
-GOOS=linux GOARCH=amd64 go build -tags wails -o build/linux-amd64/zentao-mini .
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags wails -o build/linux-amd64/zentao-mini .
 if [ $? -ne 0 ]; then
     echo "错误: 交叉编译失败"
     exit 1
 fi
 
 # 复制环境变量文件
-cp .env.wails build/linux-amd64/.env
+cp frontend/.env.wails build/linux-amd64/.env
 
 # 验证文件是否生成
 if [ -f "build/linux-amd64/zentao-mini" ]; then

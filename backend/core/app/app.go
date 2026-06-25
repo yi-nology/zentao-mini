@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/yi-nology/zentao-mini/backend/core/handlers"
 	"github.com/yi-nology/zentao-mini/backend/core/initialization"
@@ -26,6 +27,7 @@ type AppConfig struct {
 	EncryptionKey string
 
 	StaticPath string
+	StaticFS   http.FileSystem
 }
 
 type Dependencies struct {

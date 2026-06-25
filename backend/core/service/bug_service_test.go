@@ -1,41 +1,13 @@
 package service
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/yi-nology/common/biz/zentao"
 
-	"github.com/yi-nology/zentao-mini/backend/core/dto"
-	"github.com/yi-nology/zentao-mini/backend/core/models"
+	"github.com/yi-nology/zentao-mini/backend/core/utils"
+	"github.com/yi-nology/zentao-mini/backend/core/vo"
 )
-
-type MockClient struct {
-	GetBugsFunc          func(productID int, pageSize int) ([]zentao.Bug, error)
-	GetBugsByProjectFunc func(productID, projectID int, pageSize int) ([]zentao.Bug, error)
-	SearchBugsFunc       func(params zentao.BugSearchParams) ([]zentao.Bug, error)
-}
-
-func (m *MockClient) GetBugs(productID int, pageSize int) ([]zentao.Bug, error) {
-	if m.GetBugsFunc != nil {
-		return m.GetBugsFunc(productID, pageSize)
-	}
-	return []zentao.Bug{}, nil
-}
-
-func (m *MockClient) GetBugsByProject(productID, projectID int, pageSize int) ([]zentao.Bug, error) {
-	if m.GetBugsByProjectFunc != nil {
-		return m.GetBugsByProjectFunc(productID, projectID, pageSize)
-	}
-	return []zentao.Bug{}, nil
-}
-
-func (m *MockClient) SearchBugs(params zentao.BugSearchParams) ([]zentao.Bug, error) {
-	if m.SearchBugsFunc != nil {
-		return m.SearchBugsFunc(params)
-	}
-	return []zentao.Bug{}, nil
-}
 
 func createMockBugs() []zentao.Bug {
 	return []zentao.Bug{
@@ -72,140 +44,178 @@ func createMockBugs() []zentao.Bug {
 	}
 }
 
-func TestBugService_GetBugs(t *testing.T) {
+// TestBugService_ConvertToVO tests the VO conversion logic
+func TestBugService_ConvertToVO(t *testing.T) {
+	service := &BugService{client: nil}
+
+	bugs := createMockBugs()
+	vos := service.convertToVO(bugs)
+
+	if len(vos) != 3 {
+		t.Errorf("expected 3 VOs, got %d", len(vos))
+	}
+
+	if vos[0].ID != 1 {
+		t.Errorf("expected first VO ID=1, got %d", vos[0].ID)
+	}
+	if vos[0].Title != "Bug 1" {
+		t.Errorf("expected first VO Title='Bug 1', got '%s'", vos[0].Title)
+	}
+	if vos[0].Status != "active" {
+		t.Errorf("expected first VO Status='active', got '%s'", vos[0].Status)
+	}
+}
+
+// TestBugService_ConvertToVO_Empty tests empty slice conversion
+func TestBugService_ConvertToVO_Empty(t *testing.T) {
+	service := &BugService{client: nil}
+
+	vos := service.convertToVO([]zentao.Bug{})
+
+	if len(vos) != 0 {
+		t.Errorf("expected 0 VOs, got %d", len(vos))
+	}
+}
+
+// TestBugService_DateFilterLogic tests the date filter logic used in GetBugs
+func TestBugService_DateFilterLogic(t *testing.T) {
+	bugs := createMockBugs()
+
 	tests := []struct {
 		name          string
-		query         *dto.BugQueryDTO
-		mockBugs      []zentao.Bug
-		mockError     error
-		expectedTotal int
-		expectedLen   int
-		expectError   bool
+		startDate     string
+		endDate       string
+		specificDate  string
+		expectedCount int
 	}{
 		{
-			name: "获取所有Bug",
-			query: &dto.BugQueryDTO{
-				ProductID: 100,
-				Page:      1,
-				PageSize:  20,
-			},
-			mockBugs:      createMockBugs(),
-			expectedTotal: 3,
-			expectedLen:   3,
-			expectError:   false,
+			name:          "no date filter",
+			expectedCount: 3,
 		},
 		{
-			name: "无产品ID",
-			query: &dto.BugQueryDTO{
-				Page:     1,
-				PageSize: 20,
-			},
-			mockBugs:      createMockBugs(),
-			expectedTotal: 0,
-			expectedLen:   0,
-			expectError:   false,
+			name:          "filter by date range",
+			startDate:     "2024-01-15",
+			endDate:       "2024-01-16",
+			expectedCount: 2,
 		},
 		{
-			name: "客户端错误",
-			query: &dto.BugQueryDTO{
-				ProductID: 100,
-				Page:      1,
-				PageSize:  20,
-			},
-			mockError:   errors.New("连接失败"),
-			expectError: true,
+			name:          "filter by specific date",
+			specificDate:  "2024-01-17",
+			expectedCount: 1,
+		},
+		{
+			name:          "filter with no matches",
+			startDate:     "2025-01-01",
+			endDate:       "2025-01-31",
+			expectedCount: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &MockClient{
-				GetBugsFunc: func(productID int, pageSize int) ([]zentao.Bug, error) {
-					if tt.mockError != nil {
-						return nil, tt.mockError
-					}
-					return tt.mockBugs, nil
-				},
-				SearchBugsFunc: func(params zentao.BugSearchParams) ([]zentao.Bug, error) {
-					if tt.mockError != nil {
-						return nil, tt.mockError
-					}
-					return tt.mockBugs, nil
-				},
+			chainFilter := utils.NewChainFilter(bugs)
+
+			if tt.startDate != "" || tt.endDate != "" || tt.specificDate != "" {
+				chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+					filtered := utils.FilterByDateRangeOrSpecific(
+						[]zentao.Bug{item},
+						tt.startDate,
+						tt.endDate,
+						tt.specificDate,
+						func(b zentao.Bug) string { s, _ := b.OpenedDate.(string); return s },
+					)
+					return len(filtered) > 0
+				})
 			}
 
-			service := NewBugServiceWithClient(mockClient)
-
-			result, err := service.GetBugs(tt.query)
-
-			if tt.expectError {
-				if err == nil {
-					t.Error("期望返回错误，但没有错误")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("不期望返回错误: %v", err)
-				return
-			}
-
-			if result.Total != tt.expectedTotal {
-				t.Errorf("期望 total=%d, 实际 total=%d", tt.expectedTotal, result.Total)
-			}
-
-			if len(result.List.([]zentao.Bug)) != tt.expectedLen {
-				t.Errorf("期望列表长度=%d, 实际列表长度=%d", tt.expectedLen, len(result.List.([]zentao.Bug)))
+			if chainFilter.Count() != tt.expectedCount {
+				t.Errorf("expected %d bugs, got %d", tt.expectedCount, chainFilter.Count())
 			}
 		})
 	}
 }
 
-type BugServiceWithClient struct {
-	client BugClient
-}
+// TestBugService_Pagination tests the pagination logic
+func TestBugService_Pagination(t *testing.T) {
+	bugs := createMockBugs()
 
-type BugClient interface {
-	GetBugs(productID int, pageSize int) ([]zentao.Bug, error)
-	GetBugsByProject(productID, projectID int, pageSize int) ([]zentao.Bug, error)
-	SearchBugs(params zentao.BugSearchParams) ([]zentao.Bug, error)
-}
-
-func NewBugServiceWithClient(client BugClient) *BugServiceWithClient {
-	return &BugServiceWithClient{client: client}
-}
-
-func (s *BugServiceWithClient) GetBugs(query *dto.BugQueryDTO) (*models.PaginatedResult, error) {
-	var bugs []zentao.Bug
-	var err error
-
-	if query.ProductID != 0 {
-		if query.AssignedTo != "" || query.Status != "" {
-			params := zentao.BugSearchParams{
-				ProductID:  query.ProductID,
-				Status:     query.Status,
-				AssignedTo: query.AssignedTo,
-				Limit:      1000,
-				Page:       1,
-			}
-			bugs, err = s.client.SearchBugs(params)
-		} else if query.ProjectID != 0 {
-			bugs, err = s.client.GetBugsByProject(query.ProductID, query.ProjectID, 1000)
-		} else {
-			bugs, err = s.client.GetBugs(query.ProductID, 1000)
-		}
-
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		bugs = []zentao.Bug{}
+	tests := []struct {
+		name          string
+		page          int
+		pageSize      int
+		expectedLen   int
+		expectedTotal int
+	}{
+		{
+			name:          "page 1 size 2",
+			page:          1,
+			pageSize:      2,
+			expectedLen:   2,
+			expectedTotal: 3,
+		},
+		{
+			name:          "page 2 size 2",
+			page:          2,
+			pageSize:      2,
+			expectedLen:   1,
+			expectedTotal: 3,
+		},
+		{
+			name:          "page 1 size 10",
+			page:          1,
+			pageSize:      10,
+			expectedLen:   3,
+			expectedTotal: 3,
+		},
 	}
 
-	return &models.PaginatedResult{
-		List:     bugs,
-		Total:    len(bugs),
-		Page:     query.Page,
-		PageSize: query.PageSize,
-	}, nil
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainFilter := utils.NewChainFilter(bugs)
+			total := chainFilter.Count()
+			paged := chainFilter.Paginate(tt.page, tt.pageSize).Result()
+
+			if total != tt.expectedTotal {
+				t.Errorf("expected total=%d, got %d", tt.expectedTotal, total)
+			}
+			if len(paged) != tt.expectedLen {
+				t.Errorf("expected len=%d, got %d", tt.expectedLen, len(paged))
+			}
+		})
+	}
+}
+
+// TestBugService_VOTypes tests that VO types are correctly mapped
+func TestBugService_VOTypes(t *testing.T) {
+	service := &BugService{client: nil}
+
+	bug := zentao.Bug{
+		ID:         42,
+		Project:    10,
+		Product:    100,
+		Title:      "Test Bug",
+		Status:     "active",
+		OpenedDate: "2024-01-15 10:00:00",
+		AssignedTo: zentao.UserRef{Account: "user1", Realname: "User 1"},
+		OpenedBy:   zentao.UserRef{Account: "user2", Realname: "User 2"},
+	}
+
+	vos := service.convertToVO([]zentao.Bug{bug})
+	if len(vos) != 1 {
+		t.Fatalf("expected 1 VO, got %d", len(vos))
+	}
+
+	voItem := vos[0]
+	if voItem.ID != 42 {
+		t.Errorf("expected VO ID=42, got %d", voItem.ID)
+	}
+	if voItem.Title != "Test Bug" {
+		t.Errorf("expected VO Title='Test Bug', got '%s'", voItem.Title)
+	}
+	if voItem.Status != "active" {
+		t.Errorf("expected VO Status='active', got '%s'", voItem.Status)
+	}
+
+	// Verify type assertion works
+	var _ vo.BugVO = voItem
 }

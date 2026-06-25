@@ -7,7 +7,7 @@ all: build
 
 # 构建项目
 build: 
-	go build -o server .
+	go build -o server ./cmd/server
 
 # 运行项目
 run: build
@@ -52,7 +52,7 @@ check: fmt lint test
 
 # 安装开发工具
 install-tools:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	@echo "开发工具安装完成"
 
 # 显示帮助信息

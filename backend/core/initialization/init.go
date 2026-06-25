@@ -78,18 +78,12 @@ type InitStatus struct {
 // IsFirstStart 检测是否为首次启动
 func (s *InitService) IsFirstStart() (bool, error) {
 	// 检查数据库文件是否存在
-	_, err := os.Stat(s.dbPath)
+	fileInfo, err := os.Stat(s.dbPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// 数据库文件不存在，判定为首次启动
 			return true, nil
 		}
-		return false, err
-	}
-
-	// 检查数据库文件是否为空
-	fileInfo, err := os.Stat(s.dbPath)
-	if err != nil {
 		return false, err
 	}
 
@@ -110,18 +104,12 @@ func (s *InitService) GetInitStatus() *InitStatus {
 		Message:      "首次启动，请上传配置文件",
 	}
 
-	_, err := os.Stat(s.dbPath)
+	fileInfo, err := os.Stat(s.dbPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return status
 		}
 		status.Message = fmt.Sprintf("检查配置文件状态失败: %v", err)
-		return status
-	}
-
-	fileInfo, err := os.Stat(s.dbPath)
-	if err != nil {
-		status.Message = fmt.Sprintf("获取配置文件信息失败: %v", err)
 		return status
 	}
 

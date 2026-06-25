@@ -13,7 +13,7 @@ RUN npm run build
 # ========================
 # Stage 2: Build Backend (app mode with embedded frontend)
 # ========================
-FROM golang:1.24-bookworm AS backend-builder
+FROM golang:1.25-bookworm AS backend-builder
 
 WORKDIR /app
 COPY go.mod go.sum ./

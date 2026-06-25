@@ -27,7 +27,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # 复制环境变量文件
-cp .env.wails build/linux-arm64/.env
+cp frontend/.env.wails build/linux-arm64/.env
 
 echo "交叉编译完成!"
 echo "可执行文件位置: build/linux-arm64/zentao-mini"

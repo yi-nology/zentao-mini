@@ -119,6 +119,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import api from '@/api/api'
+import type { ApiResponse } from '@/types/api'
 
 interface CheckItem {
   name: string
@@ -163,7 +164,7 @@ const barWidth = (c: CheckItem) => {
 const runCheck = async () => {
   loading.value = true
   try {
-    const res = await api.get('/healthz') as any
+    const res = await api.get('/healthz') as ApiResponse<HealthData>
     data.value = res.data
     lastCheckTime.value = new Date().toLocaleString('zh-CN')
   } catch (e) { console.error('健康检查失败', e) }

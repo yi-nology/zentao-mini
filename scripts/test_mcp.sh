@@ -1,26 +1,37 @@
 #!/bin/bash
 
-# 测试MCP服务的ping功能
-echo "Testing MCP ping..."
-echo '{"action": "ping"}' | go run main.go 2>&1 | grep -A 3 'status'
+# 测试MCP服务的HTTP端点
+# 用法: ./scripts/test_mcp.sh [base_url]
 
-echo "\nTesting MCP get_products..."
-echo '{"action": "get_products"}' | go run main.go 2>&1 | grep -A 5 'status'
+BASE_URL="${1:-http://localhost:12345}"
 
-echo "\nTesting MCP get_projects..."
-echo '{"action": "get_projects"}' | go run main.go 2>&1 | grep -A 5 'status'
+echo "Testing MCP endpoints at ${BASE_URL}..."
+echo ""
 
-echo "\nTesting MCP get_bugs..."
-echo '{"action": "get_bugs"}' | go run main.go 2>&1 | grep -A 5 'status'
+echo "=== Testing MCP ping ==="
+curl -s -X POST "${BASE_URL}/mcp/ping" -H "Content-Type: application/json" | head -c 200
+echo ""
 
-echo "\nTesting MCP get_stories..."
-echo '{"action": "get_stories"}' | go run main.go 2>&1 | grep -A 5 'status'
+echo "=== Testing MCP get_products ==="
+curl -s -X POST "${BASE_URL}/mcp/products" -H "Content-Type: application/json" | head -c 200
+echo ""
 
-echo "\nTesting MCP get_tasks..."
-echo '{"action": "get_tasks"}' | go run main.go 2>&1 | grep -A 5 'status'
+echo "=== Testing MCP get_projects ==="
+curl -s -X POST "${BASE_URL}/mcp/projects" -H "Content-Type: application/json" | head -c 200
+echo ""
 
-echo "\nTesting MCP get_users..."
-echo '{"action": "get_users"}' | go run main.go 2>&1 | grep -A 5 'status'
+echo "=== Testing MCP get_bugs ==="
+curl -s -X POST "${BASE_URL}/mcp/bugs" -H "Content-Type: application/json" | head -c 200
+echo ""
 
-echo "\nTesting MCP get_timelog..."
-echo '{"action": "get_timelog"}' | go run main.go 2>&1 | grep -A 5 'status'
+echo "=== Testing MCP get_stories ==="
+curl -s -X POST "${BASE_URL}/mcp/stories" -H "Content-Type: application/json" | head -c 200
+echo ""
+
+echo "=== Testing MCP get_tasks ==="
+curl -s -X POST "${BASE_URL}/mcp/tasks" -H "Content-Type: application/json" | head -c 200
+echo ""
+
+echo "=== Testing health endpoint ==="
+curl -s "${BASE_URL}/health" | head -c 200
+echo ""

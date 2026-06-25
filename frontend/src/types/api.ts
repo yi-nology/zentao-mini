@@ -87,9 +87,9 @@ export interface Story {
   pri: number
   estimate: number
   version: number
-  openedBy: unknown
+  openedBy: UserRef
   openedDate: string
-  assignedTo: unknown
+  assignedTo: UserRef
   assignedDate: string
   closedBy: unknown
   closedDate: string

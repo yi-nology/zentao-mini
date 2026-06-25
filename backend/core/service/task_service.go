@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"github.com/yi-nology/common/biz/zentao"
+	"go.uber.org/zap"
 
 	"github.com/yi-nology/zentao-mini/backend/core/dto"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/utils"
 	"github.com/yi-nology/zentao-mini/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
@@ -159,12 +161,18 @@ func (s *TaskService) fetchAllTasks(productId int) ([]zentao.Task, error) {
 	for _, project := range projects {
 		executions, err := s.client.GetExecutions(project.ID, 1, 1000)
 		if err != nil {
+			logger.Error("Failed to fetch executions for project",
+				zap.Int("projectID", project.ID),
+				zap.Error(err))
 			continue
 		}
 
 		for _, execution := range executions {
 			tasks, err := s.client.GetTasks(execution.ID, 1, 10000)
 			if err != nil {
+				logger.Error("Failed to fetch tasks for execution",
+					zap.Int("executionID", execution.ID),
+					zap.Error(err))
 				continue
 			}
 			allTasks = append(allTasks, tasks...)

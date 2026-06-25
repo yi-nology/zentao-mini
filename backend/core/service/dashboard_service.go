@@ -8,9 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 	"github.com/yi-nology/zentao-mini/backend/core/vo"
 	"github.com/yi-nology/common/biz/zentao"
+	"go.uber.org/zap"
 )
 
 // DashboardService 仪表盘服务
@@ -206,7 +208,11 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 			return
 		default:
 		}
-		bugs, _ = s.client.GetAllBugsContext(bgCtx, productID)
+		var err error
+		bugs, err = s.client.GetAllBugsContext(bgCtx, productID)
+		if err != nil {
+			logger.Error("Failed to fetch bugs for dashboard", zap.Error(err))
+		}
 	}()
 	go func() {
 		defer wg.Done()
@@ -215,7 +221,11 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 			return
 		default:
 		}
-		stories, _ = s.client.GetAllStoriesContext(bgCtx, productID)
+		var err error
+		stories, err = s.client.GetAllStoriesContext(bgCtx, productID)
+		if err != nil {
+			logger.Error("Failed to fetch stories for dashboard", zap.Error(err))
+		}
 	}()
 	go func() {
 		defer wg.Done()
@@ -224,7 +234,11 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 			return
 		default:
 		}
-		execCtxs, _ = s.client.GetExecutionsByProductContext(bgCtx, productID)
+		var err error
+		execCtxs, err = s.client.GetExecutionsByProductContext(bgCtx, productID)
+		if err != nil {
+			logger.Error("Failed to fetch executions for dashboard", zap.Error(err))
+		}
 	}()
 	wg.Wait()
 

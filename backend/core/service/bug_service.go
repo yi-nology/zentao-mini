@@ -61,15 +61,18 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	chainFilter := utils.NewChainFilter(bugs)
 
 	// 按时间范围或具体日期筛选
-	chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
-		return utils.FilterByDateRangeOrSpecific(
-			[]zentao.Bug{item},
-			query.StartDate,
-			query.EndDate,
-			query.SpecificDate,
-			func(b zentao.Bug) string { s, _ := b.OpenedDate.(string); return s },
-		) != nil
-	})
+	if query.StartDate != "" || query.EndDate != "" || query.SpecificDate != "" {
+		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+			filtered := utils.FilterByDateRangeOrSpecific(
+				[]zentao.Bug{item},
+				query.StartDate,
+				query.EndDate,
+				query.SpecificDate,
+				func(b zentao.Bug) string { s, _ := b.OpenedDate.(string); return s },
+			)
+			return len(filtered) > 0
+		})
+	}
 
 	// 获取总数
 	total := chainFilter.Count()

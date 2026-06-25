@@ -472,21 +472,7 @@ const handleExport = async (): Promise<void> => {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Bug列表')
 
     try {
-      const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
-      if (w.runtime && w.runtime.BrowserOpenURL) {
-        const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
-        const blob = new Blob([wbout], { type: 'application/octet-stream' })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `Bug列表_${new Date().toISOString().slice(0, 10)}.xlsx`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-      } else {
-        XLSX.writeFile(workbook, `Bug列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
-      }
+      XLSX.writeFile(workbook, `Bug列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
       ElMessage.success(`导出 ${selectedBugs.value.length} 个Bug成功`)
     } catch (error) {
       console.error('导出失败:', error)

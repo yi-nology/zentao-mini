@@ -22,6 +22,9 @@ interface BugParams {
   projectId?: number
   assignedTo?: string
   status?: string
+  startDate?: string
+  endDate?: string
+  specificDate?: string
   page?: number
   pageSize?: number
 }
@@ -85,6 +88,9 @@ export const getBugs = (params: BugParams = {}): Promise<ApiResponse<PaginatedRe
   if (params.projectId) apiParams.projectId = params.projectId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.status) apiParams.status = params.status
+  if (params.startDate) apiParams.startDate = params.startDate
+  if (params.endDate) apiParams.endDate = params.endDate
+  if (params.specificDate) apiParams.specificDate = params.specificDate
   if (params.page) apiParams.page = params.page
   if (params.pageSize) apiParams.pageSize = params.pageSize
   return api.get('/bugs', { params: apiParams })
@@ -195,8 +201,9 @@ export const getUsers = (_params: Record<string, unknown> = {}): Promise<User[]>
     return Promise.resolve(cachedData)
   }
 
-  return api.get('/users/all').then((response: any) => {
-    const users: User[] = response?.data?.users || []
+  return api.get('/users/all').then((response) => {
+    const res = response as unknown as ApiResponse<{ users: User[] }>
+    const users: User[] = res?.data?.users || []
     userCache.set(cacheKey, users)
     return users
   })

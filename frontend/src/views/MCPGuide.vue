@@ -400,6 +400,8 @@ curl http://localhost:12345/health</code></pre>
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import api from '@/api/api'
+import type { ApiResponse } from '@/types/api'
+import { ElMessageBox } from 'element-plus'
 
 const activeTab = ref('claude')
 
@@ -413,7 +415,7 @@ onMounted(async () => {
   connectionUrl.value = window.location.origin
 
   try {
-    const res = await api.get('/version') as any
+    const res = await api.get('/version') as ApiResponse<Record<string, string>>
     if (res?.data) versionInfo.value = res.data
   } catch {}
 
@@ -473,7 +475,12 @@ async function fetchTools() {
 }
 
 function showToolDetail(tool: any) {
-  alert(`${tool.name}\n\n${tool.description}\n\n参数:\n${Object.entries(tool.inputSchema?.properties || {}).map(([k, v]: any) => `  ${k}: ${v.description || v.type}`).join('\n') || '  (无参数)'}`)
+  const params = Object.entries(tool.inputSchema?.properties || {}).map(([k, v]: any) => `  ${k}: ${v.description || v.type}`).join('\n') || '  (无参数)'
+  ElMessageBox.alert(
+    `<pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px;">参数:\n${params}</pre>`,
+    tool.name,
+    { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' }
+  )
 }
 
 // 页面加载时自动测试
@@ -834,7 +841,7 @@ func main() {
   {
     name: 'Bash / cURL (HTTP 模式)',
     code: `# 先启动 HTTP 服务
-cd backend && go run cmd/server/main.cgo &
+cd backend && go run cmd/server/main.go &
 
 # 获取产品列表
 curl -s http://localhost:12345/api/products | jq .

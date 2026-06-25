@@ -40,8 +40,8 @@ import { getProducts, getProjects } from '@/api/zentao'
 import type { Product, Project } from '@/types/api'
 
 interface SelectionValue {
-  product: string
-  project: string
+  product: number | null
+  project: number | null
 }
 
 const props = defineProps<{
@@ -96,8 +96,8 @@ const handleProjectChange = (projectId: string | number): void => {
 
 const emitSelection = (): void => {
   const selection: SelectionValue = {
-    product: String(selectedProduct.value),
-    project: String(selectedProject.value)
+    product: selectedProduct.value ? Number(selectedProduct.value) : null,
+    project: selectedProject.value ? Number(selectedProject.value) : null
   }
   emit('update:modelValue', selection)
   emit('change', selection)
@@ -105,8 +105,8 @@ const emitSelection = (): void => {
 
 watch(() => props.modelValue, (newVal) => {
   if (newVal) {
-    const newProduct = newVal.product ? Number(newVal.product) || newVal.product : ''
-    const newProject = newVal.project ? Number(newVal.project) || newVal.project : ''
+    const newProduct = newVal.product ?? ''
+    const newProject = newVal.project ?? ''
 
     if (newProduct !== selectedProduct.value) {
       selectedProduct.value = newProduct
@@ -121,10 +121,10 @@ watch(() => props.modelValue, (newVal) => {
 onMounted(() => {
   fetchProducts()
   if (props.modelValue && props.modelValue.product) {
-    const productId = Number(props.modelValue.product) || props.modelValue.product
-    const projectId = Number(props.modelValue.project) || props.modelValue.project
-    selectedProduct.value = productId
-    selectedProject.value = projectId
+    const productId = props.modelValue.product
+    const projectId = props.modelValue.project
+    selectedProduct.value = productId ?? ''
+    selectedProject.value = projectId ?? ''
     if (productId) {
       fetchProjects(productId)
     }

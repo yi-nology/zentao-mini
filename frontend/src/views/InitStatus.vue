@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { getInitStatus } from '@/api/zentao'
 
 interface InitStatus {
   firstStart: boolean
@@ -57,15 +58,25 @@ const initStatus = ref<InitStatus>({
   message: ''
 })
 
-const checkInitStatus = (): void => {
-  setTimeout(() => {
-    loading.value = false
+const checkInitStatus = async (): Promise<void> => {
+  try {
+    const res = await getInitStatus()
+    if (res?.data) {
+      initStatus.value = {
+        firstStart: res.data.isFirstStart ?? true,
+        status: 'success',
+        message: res.data.message ?? ''
+      }
+    }
+  } catch (error) {
     initStatus.value = {
       firstStart: true,
-      status: 'success',
-      message: ''
+      status: 'error',
+      message: '检查初始化状态失败'
     }
-  }, 1500)
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => {
