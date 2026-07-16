@@ -18,6 +18,7 @@ type HandlerRegistry struct {
 	projectService   *service.ProjectService
 	executionService *service.ExecutionService
 	bugService       *service.BugService
+	buildService     *service.BuildService
 	storyService     *service.StoryService
 	taskService      *service.TaskService
 	userService      *service.UserService
@@ -31,6 +32,7 @@ type HandlerRegistry struct {
 	projectHandler   *ProjectHandler
 	executionHandler *ExecutionHandler
 	bugHandler       *BugHandler
+	buildHandler     *BuildHandler
 	storyHandler     *StoryHandler
 	taskHandler      *TaskHandler
 	userHandler      *UserHandler
@@ -54,6 +56,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.projectService = service.NewProjectService(client)
 	registry.executionService = service.NewExecutionService(client)
 	registry.bugService = service.NewBugService(client)
+	registry.buildService = service.NewBuildService(client)
 	registry.storyService = service.NewStoryService(client)
 	registry.taskService = service.NewTaskService(client)
 	registry.userService = service.NewUserService(client)
@@ -64,6 +67,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.projectHandler = NewProjectHandler(registry.projectService)
 	registry.executionHandler = NewExecutionHandler(registry.executionService)
 	registry.bugHandler = NewBugHandler(registry.bugService)
+	registry.buildHandler = NewBuildHandler(registry.buildService)
 	registry.storyHandler = NewStoryHandler(registry.storyService)
 	registry.taskHandler = NewTaskHandler(registry.taskService)
 	registry.userHandler = NewUserHandler(registry.userService)
@@ -134,6 +138,11 @@ func (r *HandlerRegistry) GetBugHandler() *BugHandler {
 	return r.bugHandler
 }
 
+// GetBuildHandler 获取版本 Handler
+func (r *HandlerRegistry) GetBuildHandler() *BuildHandler {
+	return r.buildHandler
+}
+
 // GetStoryHandler 获取需求Handler
 func (r *HandlerRegistry) GetStoryHandler() *StoryHandler {
 	return r.storyHandler
@@ -165,6 +174,9 @@ func (r *HandlerRegistry) GetExecutionService() *service.ExecutionService { retu
 
 // GetBugService 获取Bug Service
 func (r *HandlerRegistry) GetBugService() *service.BugService { return r.bugService }
+
+// GetBuildService 获取版本 Service
+func (r *HandlerRegistry) GetBuildService() *service.BuildService { return r.buildService }
 
 // GetStoryService 获取需求 Service
 func (r *HandlerRegistry) GetStoryService() *service.StoryService { return r.storyService }

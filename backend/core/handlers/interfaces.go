@@ -14,6 +14,10 @@ type BugServicer interface {
 	GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error)
 }
 
+type BuildServicer interface {
+	GetBuilds(query *dto.BuildQueryDTO) ([]vo.BuildVO, error)
+}
+
 type TaskServicer interface {
 	GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 }

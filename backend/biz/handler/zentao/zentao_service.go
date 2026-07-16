@@ -34,6 +34,10 @@ func GetBugs(ctx context.Context, c *app.RequestContext) {
 	bugHandler.GetBugs(ctx, c)
 }
 
+func GetBuilds(ctx context.Context, c *app.RequestContext) {
+	buildHandler.GetBuilds(ctx, c)
+}
+
 func GetStories(ctx context.Context, c *app.RequestContext) {
 	storyHandler.GetStories(ctx, c)
 }

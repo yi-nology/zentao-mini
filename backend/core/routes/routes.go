@@ -139,6 +139,7 @@ func registerDomainRoutes(g *route.RouterGroup) {
 	g.GET("/projects", bizhandler.GetProjects)
 	g.GET("/executions", bizhandler.GetExecutions)
 	g.GET("/bugs", bizhandler.GetBugs)
+	g.GET("/builds", bizhandler.GetBuilds)
 	g.GET("/stories", bizhandler.GetStories)
 	g.GET("/tasks", bizhandler.GetTasks)
 	g.GET("/users", bizhandler.GetUsers)
