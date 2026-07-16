@@ -19,40 +19,33 @@ func NewBuildService(client *myzentao.Client) *BuildService {
 func (s *BuildService) GetBuilds(query *dto.BuildQueryDTO) ([]vo.BuildVO, error) {
 	const pageSize = 100
 	var allBuilds []zentao.Build
+	var err error
 
 	if query.ProjectID > 0 {
-		allBuilds, _ = s.fetchBuildsByProject(query.ProjectID, pageSize)
+		allBuilds, err = s.fetchAllBuilds(pageSize, func(page, size int) ([]zentao.Build, error) {
+			return s.client.GetBuildsByProject(query.ProjectID, page, size)
+		})
 	} else if query.ExecutionID > 0 {
-		allBuilds, _ = s.fetchBuildsByExecution(query.ExecutionID, pageSize)
+		allBuilds, err = s.fetchAllBuilds(pageSize, func(page, size int) ([]zentao.Build, error) {
+			return s.client.GetBuildsByExecution(query.ExecutionID, page, size)
+		})
 	} else {
 		return []vo.BuildVO{}, nil
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	return s.convertToVO(allBuilds), nil
 }
 
-func (s *BuildService) fetchBuildsByProject(projectID, pageSize int) ([]zentao.Build, error) {
+// fetchAllBuilds 通用分页查询函数，复用于不同查询条件的版本列表获取
+func (s *BuildService) fetchAllBuilds(pageSize int, fetchFn func(page, pageSize int) ([]zentao.Build, error)) ([]zentao.Build, error) {
 	var allBuilds []zentao.Build
 	page := 1
 	for {
-		builds, err := s.client.GetBuildsByProject(projectID, page, pageSize)
-		if err != nil {
-			return nil, err
-		}
-		allBuilds = append(allBuilds, builds...)
-		if len(builds) < pageSize {
-			break
-		}
-		page++
-	}
-	return allBuilds, nil
-}
-
-func (s *BuildService) fetchBuildsByExecution(executionID, pageSize int) ([]zentao.Build, error) {
-	var allBuilds []zentao.Build
-	page := 1
-	for {
-		builds, err := s.client.GetBuildsByExecution(executionID, page, pageSize)
+		builds, err := fetchFn(page, pageSize)
 		if err != nil {
 			return nil, err
 		}
