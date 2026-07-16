@@ -15,7 +15,8 @@ type BugServicer interface {
 }
 
 type BuildServicer interface {
-	GetBuilds(query *dto.BuildQueryDTO) ([]vo.BuildVO, error)
+	GetBuildsByProject(projectID int) ([]vo.BuildVO, error)
+	GetBuildsByExecution(executionID int) ([]vo.BuildVO, error)
 }
 
 type TaskServicer interface {
