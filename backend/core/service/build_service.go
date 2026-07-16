@@ -17,22 +17,52 @@ func NewBuildService(client *myzentao.Client) *BuildService {
 }
 
 func (s *BuildService) GetBuilds(query *dto.BuildQueryDTO) ([]vo.BuildVO, error) {
-	var builds []zentao.Build
-	var err error
+	const pageSize = 100
+	var allBuilds []zentao.Build
 
 	if query.ProjectID > 0 {
-		builds, err = s.client.GetBuildsByProject(query.ProjectID, 1, 1000)
+		allBuilds, _ = s.fetchBuildsByProject(query.ProjectID, pageSize)
 	} else if query.ExecutionID > 0 {
-		builds, err = s.client.GetBuildsByExecution(query.ExecutionID, 1, 1000)
+		allBuilds, _ = s.fetchBuildsByExecution(query.ExecutionID, pageSize)
 	} else {
 		return []vo.BuildVO{}, nil
 	}
 
-	if err != nil {
-		return nil, err
-	}
+	return s.convertToVO(allBuilds), nil
+}
 
-	return s.convertToVO(builds), nil
+func (s *BuildService) fetchBuildsByProject(projectID, pageSize int) ([]zentao.Build, error) {
+	var allBuilds []zentao.Build
+	page := 1
+	for {
+		builds, err := s.client.GetBuildsByProject(projectID, page, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		allBuilds = append(allBuilds, builds...)
+		if len(builds) < pageSize {
+			break
+		}
+		page++
+	}
+	return allBuilds, nil
+}
+
+func (s *BuildService) fetchBuildsByExecution(executionID, pageSize int) ([]zentao.Build, error) {
+	var allBuilds []zentao.Build
+	page := 1
+	for {
+		builds, err := s.client.GetBuildsByExecution(executionID, page, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		allBuilds = append(allBuilds, builds...)
+		if len(builds) < pageSize {
+			break
+		}
+		page++
+	}
+	return allBuilds, nil
 }
 
 func (s *BuildService) convertToVO(builds []zentao.Build) []vo.BuildVO {
