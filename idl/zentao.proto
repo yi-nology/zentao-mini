@@ -32,6 +32,14 @@ service ZentaoService {
         option (api.get) = "/api/v1/bugs";
     }
 
+    rpc GetBuildsByProject(GetBuildsByProjectReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/builds/project";
+    }
+
+    rpc GetBuildsByExecution(GetBuildsByExecutionReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/builds/execution";
+    }
+
     rpc GetStories(GetStoriesReq) returns (common.ApiResponse) {
         option (api.get) = "/api/v1/stories";
     }
@@ -202,8 +210,17 @@ message GetBugsReq {
     string start_date = 5 [(api.query) = "startDate"];
     string end_date = 6 [(api.query) = "endDate"];
     string specific_date = 7 [(api.query) = "specificDate"];
-    int32 page = 8 [(api.query) = "page"];
-    int32 page_size = 9 [(api.query) = "pageSize"];
+    string version = 8 [(api.query) = "version"];
+    int32 page = 9 [(api.query) = "page"];
+    int32 page_size = 10 [(api.query) = "pageSize"];
+}
+
+message GetBuildsByProjectReq {
+    int32 project_id = 1 [(api.query) = "projectId"];
+}
+
+message GetBuildsByExecutionReq {
+    int32 execution_id = 1 [(api.query) = "executionId"];
 }
 
 message GetStoriesReq {

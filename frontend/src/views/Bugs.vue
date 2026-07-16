@@ -208,7 +208,7 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getBugs, getBuilds, getBugStatusOptions, getUsers, getProducts } from '@/api/zentao'
+import { getBugs, getBuildsByProject, getBugStatusOptions, getUsers, getProducts } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Bug, User, SelectOption } from '@/types/api'
@@ -332,7 +332,7 @@ const fetchBuilds = async (): Promise<void> => {
     return
   }
   try {
-    const res = await getBuilds({ projectId: globalSelection.project })
+    const res = await getBuildsByProject(globalSelection.project!)
     versionOptions.value = res.data || []
   } catch {
     versionOptions.value = []

@@ -111,11 +111,12 @@ export const getBugs = (params: BugParams = {}): Promise<ApiResponse<PaginatedRe
   return api.get('/bugs', { params: apiParams })
 }
 
-export const getBuilds = (params: BuildParams = {}): Promise<ApiResponse<Build[]>> => {
-  const apiParams: Record<string, unknown> = {}
-  if (params.projectId) apiParams.projectId = params.projectId
-  if (params.executionId) apiParams.executionId = params.executionId
-  return api.get('/builds', { params: apiParams })
+export const getBuildsByProject = (projectId: number): Promise<ApiResponse<Build[]>> => {
+  return api.get('/builds/project', { params: { projectId } })
+}
+
+export const getBuildsByExecution = (executionId: number): Promise<ApiResponse<Build[]>> => {
+  return api.get('/builds/execution', { params: { executionId } })
 }
 
 export const getStories = (params: StoryParams = {}): Promise<ApiResponse<PaginatedResponse<Story>>> => {
