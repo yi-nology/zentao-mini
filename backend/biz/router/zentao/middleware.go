@@ -111,6 +111,21 @@ func _getbugsMw() []app.HandlerFunc {
 	return nil
 }
 
+func _buildsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getbuildsbyprojectMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getbuildsbyexecutionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
 func _getdashboardMw() []app.HandlerFunc {
 	// your code...
 	return nil

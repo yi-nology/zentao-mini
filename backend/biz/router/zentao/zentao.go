@@ -39,6 +39,11 @@ func Register(r *server.Hertz) {
 		{
 			_v1 := _api.Group("/v1", _v1Mw()...)
 			_v1.GET("/bugs", append(_getbugsMw(), zentao.GetBugs)...)
+			{
+				_builds := _v1.Group("/builds", _buildsMw()...)
+				_builds.GET("/execution", append(_getbuildsbyexecutionMw(), zentao.GetBuildsByExecution)...)
+				_builds.GET("/project", append(_getbuildsbyprojectMw(), zentao.GetBuildsByProject)...)
+			}
 			_v1.GET("/dashboard", append(_getdashboardMw(), zentao.GetDashboard)...)
 			_v1.GET("/executions", append(_getexecutionsMw(), zentao.GetExecutions)...)
 			_v1.GET("/products", append(_getproductsMw(), zentao.GetProducts)...)

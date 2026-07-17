@@ -30,11 +30,6 @@ interface BugParams {
   pageSize?: number
 }
 
-interface BuildParams {
-  projectId?: number
-  executionId?: number
-}
-
 export interface Build {
   id: number
   project: number
