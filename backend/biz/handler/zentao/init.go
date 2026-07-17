@@ -11,6 +11,7 @@ var (
 	projectHandler    *handlers.ProjectHandler
 	executionHandler  *handlers.ExecutionHandler
 	bugHandler        *handlers.BugHandler
+	buildHandler      *handlers.BuildHandler
 	storyHandler      *handlers.StoryHandler
 	taskHandler       *handlers.TaskHandler
 	userHandler       *handlers.UserHandler
@@ -27,6 +28,7 @@ func Init(registry *handlers.HandlerRegistry, transport *coremcp.HTTPTransport) 
 	projectHandler = registry.GetProjectHandler()
 	executionHandler = registry.GetExecutionHandler()
 	bugHandler = registry.GetBugHandler()
+	buildHandler = registry.GetBuildHandler()
 	storyHandler = registry.GetStoryHandler()
 	taskHandler = registry.GetTaskHandler()
 	userHandler = registry.GetUserHandler()

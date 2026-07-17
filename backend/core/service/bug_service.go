@@ -23,7 +23,7 @@ func NewBugService(client *myzentao.Client) *BugService {
 // GetBugs 获取Bug列表
 // 业务逻辑：
 // 1. 根据产品ID查询Bug
-// 2. 应用筛选条件（状态、指派人、时间范围）
+// 2. 应用筛选条件（状态、指派人、版本、时间范围）
 // 3. 分页处理
 func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	var bugs []zentao.Bug
@@ -31,8 +31,11 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 
 	// 如果有产品ID，按产品查询
 	if query.ProductID != 0 {
-		// 优先使用SearchBugs进行多条件筛选，减少内存消耗
-		if query.AssignedTo != "" || query.Status != "" {
+		// 版本过滤需要获取所有bug（含closed），在内存中过滤
+		if query.Version != "" {
+			bugs, err = s.client.GetBugs(query.ProductID, 1, 2000)
+		} else if query.AssignedTo != "" || query.Status != "" {
+			// 优先使用SearchBugs进行多条件筛选，减少内存消耗
 			params := zentao.BugSearchParams{
 				ProductID:  query.ProductID,
 				Status:     query.Status,
@@ -59,6 +62,18 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 
 	// 使用链式过滤器进行筛选
 	chainFilter := utils.NewChainFilter(bugs)
+
+	// 按版本筛选（openedBuild 包含指定版本名称）
+	if query.Version != "" {
+		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+			for _, build := range item.OpenedBuild {
+				if build == query.Version {
+					return true
+				}
+			}
+			return false
+		})
+	}
 
 	// 按时间范围或具体日期筛选
 	if query.StartDate != "" || query.EndDate != "" || query.SpecificDate != "" {

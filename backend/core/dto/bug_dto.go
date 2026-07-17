@@ -5,6 +5,7 @@ type BugQueryDTO struct {
 	ProjectID    int    `form:"projectId" json:"projectId"`
 	Status       string `form:"status" json:"status"`
 	AssignedTo   string `form:"assignedTo" json:"assignedTo"`
+	Version      string `form:"version" json:"version"`
 	StartDate    string `form:"startDate" json:"startDate"`
 	EndDate      string `form:"endDate" json:"endDate"`
 	SpecificDate string `form:"specificDate" json:"specificDate"`

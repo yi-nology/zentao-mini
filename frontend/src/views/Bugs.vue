@@ -18,6 +18,22 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="版本">
+          <el-select
+            v-model="filterForm.version"
+            placeholder="请选择版本"
+            clearable
+            filterable
+            style="width: 160px"
+          >
+            <el-option
+              v-for="item in versionOptions"
+              :key="item.id"
+              :label="item.name"
+              :value="item.name"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="状态">
           <el-select
             v-model="filterForm.status"
@@ -98,6 +114,16 @@
             </a>
           </template>
         </el-table-column>
+        <el-table-column prop="openedBuild" label="版本" width="120" align="center" show-overflow-tooltip>
+          <template #default="{ row }">
+            <template v-if="row.openedBuild && row.openedBuild.length > 0">
+              <el-tag v-for="build in row.openedBuild" :key="build" size="small" type="info" style="margin-right: 2px;">
+                {{ build }}
+              </el-tag>
+            </template>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
@@ -157,6 +183,12 @@
           <el-descriptions-item label="标题">{{ currentBug.title }}</el-descriptions-item>
           <el-descriptions-item label="产品">{{ productMap[currentBug.product] || currentBug.product }}</el-descriptions-item>
           <el-descriptions-item label="项目">{{ currentBug.project }}</el-descriptions-item>
+          <el-descriptions-item label="版本">
+            <template v-if="currentBug.openedBuild && currentBug.openedBuild.length > 0">
+              {{ currentBug.openedBuild.join(', ') }}
+            </template>
+            <template v-else>-</template>
+          </el-descriptions-item>
           <el-descriptions-item label="状态">{{ getStatusLabel(currentBug.status) }}</el-descriptions-item>
           <el-descriptions-item label="严重程度">{{ currentBug.severity }}</el-descriptions-item>
           <el-descriptions-item label="类型">{{ currentBug.type ? getTypeLabel(currentBug.type) : '-' }}</el-descriptions-item>
@@ -176,7 +208,8 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getBugs, getBugStatusOptions, getUsers, getProducts } from '@/api/zentao'
+import { getBugs, getBuildsByProject, getBugStatusOptions, getUsers, getProducts } from '@/api/zentao'
+import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Bug, User, SelectOption } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
@@ -192,6 +225,7 @@ interface FilterForm {
   assignedTo: string
   status: string
   type: string
+  version: string
   dateRange: [string, string] | []
   specificDate: string
 }
@@ -211,6 +245,7 @@ const filterForm = reactive<FilterForm>({
   assignedTo: '',
   status: '',
   type: '',
+  version: '',
   dateRange: [],
   specificDate: ''
 })
@@ -245,6 +280,7 @@ const loading = ref<boolean>(false)
 const selectedBugs = ref<Bug[]>([])
 const detailDialogVisible = ref<boolean>(false)
 const currentBug = ref<Bug | null>(null)
+const versionOptions = ref<Build[]>([])
 
 const pagination = reactive<Pagination>({
   page: 1,
@@ -290,6 +326,19 @@ const fetchUsers = async (): Promise<void> => {
   }
 }
 
+const fetchBuilds = async (): Promise<void> => {
+  if (!globalSelection.project) {
+    versionOptions.value = []
+    return
+  }
+  try {
+    const res = await getBuildsByProject(globalSelection.project!)
+    versionOptions.value = res.data || []
+  } catch {
+    versionOptions.value = []
+  }
+}
+
 const fetchBugs = async (): Promise<void> => {
   loading.value = true
   try {
@@ -299,6 +348,7 @@ const fetchBugs = async (): Promise<void> => {
       productId: globalSelection.product ?? undefined,
       projectId: globalSelection.project ?? undefined,
       status: filterForm.status,
+      version: filterForm.version,
       startDate: filterForm.dateRange[0] || '',
       endDate: filterForm.dateRange[1] || '',
       specificDate: filterForm.specificDate
@@ -329,6 +379,7 @@ const handleReset = (): void => {
   filterForm.assignedTo = ''
   filterForm.status = ''
   filterForm.type = ''
+  filterForm.version = ''
   filterForm.dateRange = []
   filterForm.specificDate = ''
   pagination.page = 1
@@ -356,6 +407,7 @@ const syncRoute = (): void => {
   if (filterForm.assignedTo) q.assignedTo = filterForm.assignedTo
   if (filterForm.status) q.status = filterForm.status
   if (filterForm.type) q.type = filterForm.type
+  if (filterForm.version) q.version = filterForm.version
   if (filterForm.dateRange[0]) q.startDate = filterForm.dateRange[0]
   if (filterForm.dateRange[1]) q.endDate = filterForm.dateRange[1]
   if (filterForm.specificDate) q.specificDate = filterForm.specificDate
@@ -381,6 +433,7 @@ watch(() => globalSelection.project, () => {
     pagination.page = 1
     fetchBugs()
   }
+  fetchBuilds()
 })
 
 const getStatusType = (status: string): string => {
@@ -470,6 +523,7 @@ const handleExport = async (): Promise<void> => {
       链接地址: buildZentaoUrl(`bug-view-${bug.id}.html`),
       产品: productMap.value[bug.product] || String(bug.product),
       项目: String(bug.project),
+      版本: (bug.openedBuild || []).join(', '),
       状态: getStatusLabel(bug.status),
       严重程度: getSeverityLabel(bug.severity),
       类型: getTypeLabel(bug.type),
@@ -514,6 +568,7 @@ onMounted(() => {
   if (q.assignedTo) filterForm.assignedTo = String(q.assignedTo)
   if (q.status) filterForm.status = String(q.status)
   if (q.type) filterForm.type = String(q.type)
+  if (q.version) filterForm.version = String(q.version)
   if (q.startDate || q.endDate) filterForm.dateRange = [String(q.startDate || ''), String(q.endDate || '')] as [string, string]
   if (q.specificDate) filterForm.specificDate = String(q.specificDate)
   if (q.page) pagination.page = Number(q.page) || 1
@@ -521,6 +576,7 @@ onMounted(() => {
 
   fetchUsers()
   fetchProductNames()
+  fetchBuilds()
 })
 </script>
 

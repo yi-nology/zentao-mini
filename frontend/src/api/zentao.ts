@@ -22,11 +22,20 @@ interface BugParams {
   projectId?: number
   assignedTo?: string
   status?: string
+  version?: string
   startDate?: string
   endDate?: string
   specificDate?: string
   page?: number
   pageSize?: number
+}
+
+export interface Build {
+  id: number
+  project: number
+  product: number
+  name: string
+  date: string
 }
 
 interface StoryParams {
@@ -88,12 +97,21 @@ export const getBugs = (params: BugParams = {}): Promise<ApiResponse<PaginatedRe
   if (params.projectId) apiParams.projectId = params.projectId
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.status) apiParams.status = params.status
+  if (params.version) apiParams.version = params.version
   if (params.startDate) apiParams.startDate = params.startDate
   if (params.endDate) apiParams.endDate = params.endDate
   if (params.specificDate) apiParams.specificDate = params.specificDate
   if (params.page) apiParams.page = params.page
   if (params.pageSize) apiParams.pageSize = params.pageSize
   return api.get('/bugs', { params: apiParams })
+}
+
+export const getBuildsByProject = (projectId: number): Promise<ApiResponse<Build[]>> => {
+  return api.get('/builds/project', { params: { projectId } })
+}
+
+export const getBuildsByExecution = (executionId: number): Promise<ApiResponse<Build[]>> => {
+  return api.get('/builds/execution', { params: { executionId } })
 }
 
 export const getStories = (params: StoryParams = {}): Promise<ApiResponse<PaginatedResponse<Story>>> => {

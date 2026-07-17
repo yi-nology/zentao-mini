@@ -58,7 +58,7 @@ export interface Bug {
   planTime: string
   openedBy: UserRef
   openedDate: string
-  openedBuild: string
+  openedBuild: string[]
   assignedTo: UserRef
   assignedDate: string
   deadline: unknown
