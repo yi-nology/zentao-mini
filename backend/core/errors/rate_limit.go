@@ -31,14 +31,17 @@ type RateLimitConfig struct {
 }
 
 func DefaultRateLimitConfig() RateLimitConfig {
-	requestsPerMinute := 60
+	// 默认 600 次/分钟：前端单页加载会并发请求多个接口，
+	// 60 次/分钟在正常使用下极易触发，且触发后封禁 5 分钟会让应用完全不可用。
+	requestsPerMinute := 600
 	if val := os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"); val != "" {
 		if num, err := strconv.Atoi(val); err == nil && num > 0 {
 			requestsPerMinute = num
 		}
 	}
 
-	blockDuration := 5 * time.Minute
+	// 触发后封禁 1 分钟（原 5 分钟过长，相当于把用户彻底踢出）。
+	blockDuration := 1 * time.Minute
 	if val := os.Getenv("RATE_LIMIT_BLOCK_DURATION_MINUTES"); val != "" {
 		if num, err := strconv.Atoi(val); err == nil && num > 0 {
 			blockDuration = time.Duration(num) * time.Minute
@@ -125,10 +128,27 @@ func RateLimitMiddleware() app.HandlerFunc {
 	config := DefaultRateLimitConfig()
 	limiter := NewRateLimiter(config)
 
+	// 不计入限流的路径：健康检查、指标、初始化状态、版本号。
+	// 这些是基础设施端点，限流它们会导致监控/心跳把服务本身"打死"，
+	// 也会让前端路由守卫（getInitStatus）在正常浏览时被误伤。
+	exemptPaths := map[string]bool{
+		"/health":          true,
+		"/api/healthz":     true,
+		"/metrics":         true,
+		"/api/init/status": true,
+		"/api/version":     true,
+	}
+
 	log.Printf("[RATE_LIMIT] Rate limiter initialized: %d requests/minute, block duration: %v",
 		config.RequestsPerMinute, config.BlockDuration)
 
 	return func(ctx context.Context, c *app.RequestContext) {
+		path := string(c.Request.URI().Path())
+		if exemptPaths[path] {
+			c.Next(ctx)
+			return
+		}
+
 		ip := c.ClientIP()
 
 		allowed, remaining, resetTime := limiter.Allow(ip)

@@ -280,7 +280,12 @@ const loading = ref<boolean>(false)
 const selectedBugs = ref<Bug[]>([])
 const detailDialogVisible = ref<boolean>(false)
 const currentBug = ref<Bug | null>(null)
-const versionOptions = ref<Build[]>([])
+// 版本下拉：优先用 builds 接口，失败(如禅道权限403)时从 bug 列表的 openedBuild 兜底提取
+const buildVersions = ref<Build[]>([])
+const fallbackVersions = ref<Build[]>([])
+const versionOptions = computed<Build[]>(() => {
+  return buildVersions.value.length > 0 ? buildVersions.value : fallbackVersions.value
+})
 
 const pagination = reactive<Pagination>({
   page: 1,
@@ -310,8 +315,7 @@ const filteredBugList = computed(() => {
       const realname = typeof assigned === 'object' ? assigned.realname : assigned
       if (account !== filterForm.assignedTo && realname !== filterForm.assignedTo) return false
     }
-    if (filterForm.status && bug.status !== filterForm.status) return false
-    if (filterForm.type && bug.type !== filterForm.type) return false
+    // 状态、版本、类型已由后端筛选，这里不再二次过滤，以保证分页 total 准确
     return true
   })
 })
@@ -328,14 +332,15 @@ const fetchUsers = async (): Promise<void> => {
 
 const fetchBuilds = async (): Promise<void> => {
   if (!globalSelection.project) {
-    versionOptions.value = []
+    buildVersions.value = []
     return
   }
   try {
     const res = await getBuildsByProject(globalSelection.project!)
-    versionOptions.value = res.data || []
+    buildVersions.value = res.data || []
   } catch {
-    versionOptions.value = []
+    // builds 接口可能因禅道权限返回失败(403)，此时依赖 bug 列表兜底提取版本
+    buildVersions.value = []
   }
 }
 
@@ -349,6 +354,7 @@ const fetchBugs = async (): Promise<void> => {
       projectId: globalSelection.project ?? undefined,
       status: filterForm.status,
       version: filterForm.version,
+      type: filterForm.type,
       startDate: filterForm.dateRange[0] || '',
       endDate: filterForm.dateRange[1] || '',
       specificDate: filterForm.specificDate
@@ -357,6 +363,16 @@ const fetchBugs = async (): Promise<void> => {
     const paginatedData = res.data
     bugList.value = paginatedData.list || []
     pagination.total = paginatedData.total || 0
+    // 从 bug 列表提取版本作为兜底（当 builds 接口因权限不可用时）
+    const seen = new Map<string, Build>()
+    bugList.value.forEach((bug: Bug) => {
+      ;(bug.openedBuild || []).forEach((name: string) => {
+        if (name && !seen.has(name)) {
+          seen.set(name, { id: 0, project: 0, product: 0, name, date: '' })
+        }
+      })
+    })
+    fallbackVersions.value = Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name))
   } catch (error) {
     console.error('获取 Bug 列表失败:', error)
     ElMessage.error('获取 Bug 列表失败')

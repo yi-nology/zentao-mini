@@ -2,6 +2,11 @@ package zentao
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -95,6 +100,62 @@ func (c *Client) GetAllBugs(productID int) ([]zentao.Bug, error) {
 		}
 		all = append(all, bugs...)
 		if len(bugs) < 100 {
+			break
+		}
+		page++
+	}
+	return all, nil
+}
+
+// GetAllBugsIncludeClosed 获取产品全部 Bug（含 closed 状态）
+// 禅道默认 /products/{id}/bugs 接口不返回 closed bug，
+// 需显式传 status=all 才能获取全部状态。自动翻页。
+func (c *Client) GetAllBugsIncludeClosed(productID int) ([]zentao.Bug, error) {
+	token, err := c.getToken()
+	if err != nil {
+		return nil, fmt.Errorf("获取 token 失败: %w", err)
+	}
+	server := c.GetServer()
+	if server == "" {
+		return nil, fmt.Errorf("禅道服务器地址为空")
+	}
+
+	// 禅道可能使用自签名证书，跳过校验（与上游 SDK doGet 行为一致）
+	httpClient := &http.Client{
+		Timeout: 120 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	var all []zentao.Bug
+	page := 1
+	const pageSize = 200
+	for {
+		url := fmt.Sprintf("%s/api.php/v1/products/%d/bugs?page=%d&limit=%d&status=all",
+			server, productID, page, pageSize)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return all, err
+		}
+		req.Header.Set("Token", token)
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return all, fmt.Errorf("请求禅道 bug 列表失败: %w", err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return all, fmt.Errorf("获取 bug 列表失败, 状态码: %d, 响应: %s", resp.StatusCode, string(body))
+		}
+
+		var result zentao.BugListResponse
+		if err := json.Unmarshal(body, &result); err != nil {
+			return all, fmt.Errorf("解析 bug 列表失败: %w", err)
+		}
+		all = append(all, result.Bugs...)
+		if len(result.Bugs) < pageSize {
 			break
 		}
 		page++

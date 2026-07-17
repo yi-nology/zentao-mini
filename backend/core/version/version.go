@@ -11,9 +11,9 @@ var (
 // Info 返回完整的版本信息
 func Info() map[string]string {
 	return map[string]string{
-		"version":    Version,
-		"buildTime":  BuildTime,
-		"gitCommit":  GitCommit,
-		"goVersion":  GoVersion,
+		"version":   Version,
+		"buildTime": BuildTime,
+		"gitCommit": GitCommit,
+		"goVersion": GoVersion,
 	}
 }

@@ -36,6 +36,25 @@
           </span>
         </div>
         <div class="status-row">
+          <span class="status-label">MCP 服务</span>
+          <span class="status-value" :class="mcpEnabledClass">
+            <span class="status-dot"></span>
+            {{ mcpEnabledText }}
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">传输模式</span>
+          <span class="status-value mono">{{ mcpStatus.transport || '...' }}</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">只读模式</span>
+          <span class="status-value" :class="mcpStatus.readOnly ? 'error' : 'online'">{{ mcpStatus.readOnly === null ? '...' : (mcpStatus.readOnly ? '开启' : '关闭') }}</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Token 鉴权</span>
+          <span class="status-value" :class="mcpStatus.tokenSet ? 'online' : 'checking'">{{ mcpStatus.tokenSet === null ? '...' : (mcpStatus.tokenSet ? '已启用' : '未启用') }}</span>
+        </div>
+        <div class="status-row">
           <span class="status-label">连接地址</span>
           <code class="status-value connection-url">{{ connectionUrl }}/mcp</code>
         </div>
@@ -46,25 +65,28 @@
     <section class="section">
       <h2 class="section-title">MCP 模式</h2>
       <div class="protocol-cards">
-        <div class="protocol-card active">
+        <div class="protocol-card" :class="{ active: mcpStatus.transport === 'stdio' || mcpStatus.transport === 'both' }">
           <div class="protocol-badge">推荐 AI 工具</div>
           <h3>stdio 标准输入输出</h3>
-          <p>进程启动后通过 stdin/stdout 通信。AI 工具（Claude、Cursor 等）自动管理进程生命周期。</p>
+          <p>独立进程 <code>zentao-mini-mcp</code> 通过 stdin/stdout 通信。AI 工具（Claude、Cursor 等）自动管理进程生命周期，无需占用端口。</p>
           <div class="protocol-meta">
             <span class="tag">JSON Lines</span>
             <span class="tag">进程内通信</span>
             <span class="tag">无需端口</span>
           </div>
-          <pre class="code-block compact"># 启动方式（Wails 桌面应用自动启用）
-zentao-mini
+          <pre class="code-block compact"># 构建独立 stdio 入口
+cd backend && make build-mcp
 
 # 命令行测试
-echo '{"action":"ping"}' | zentao-mini</pre>
+echo '{"action":"ping"}' | ./zentao-mini-mcp
+
+# 配置 Token 后需在 params 中携带
+echo '{"action":"ping","params":{"token":"xxx"}}' | ./zentao-mini-mcp</pre>
         </div>
-        <div class="protocol-card">
+        <div class="protocol-card" :class="{ active: mcpStatus.transport === 'http' || mcpStatus.transport === 'both' }">
           <div class="protocol-badge">推荐 Web/远程</div>
           <h3>HTTP 模式</h3>
-          <p>通过 HTTP 端口通信。支持远程调用、Web 应用集成、跨机器访问。</p>
+          <p>通过 HTTP 端口通信。支持远程调用、Web 应用集成、跨机器访问。本页面所连接的后端默认即此模式。</p>
           <div class="protocol-meta">
             <span class="tag">端口 12345</span>
             <span class="tag">POST/GET</span>
@@ -75,6 +97,11 @@ cd backend && go run cmd/server/main.go
 
 # 调用示例
 curl -X POST http://localhost:12345/mcp \
+  -d '{"action":"ping"}'
+
+# 配置 Token 后需携带 Bearer 头
+curl -X POST http://localhost:12345/mcp \
+  -H "Authorization: Bearer xxx" \
   -d '{"action":"ping"}'</pre>
         </div>
       </div>
@@ -222,6 +249,61 @@ curl -X POST http://localhost:12345/mcp \
         <p class="config-desc">通过命令行直接调用：</p>
         <pre class="code-block"><code>{{ cliExample }}</code></pre>
       </div>
+    </section>
+
+    <!-- 运行时模式管理（热重载） -->
+    <section class="section">
+      <h2 class="section-title">运行时模式管理</h2>
+      <p class="section-desc">MCP 子系统支持运行时热重载，无需重启进程即可切换开关、只读模式、Token 与 action 白名单。通过以下管理 API 操作（仅 HTTP 模式可用）。</p>
+
+      <div class="api-table">
+        <div class="api-row header">
+          <span class="api-method">方法</span>
+          <span class="api-path">路径</span>
+          <span class="api-desc">说明</span>
+        </div>
+        <div class="api-row">
+          <span class="api-method get">GET</span>
+          <span class="api-path"><code>/api/v1/mcp/status</code></span>
+          <span class="api-desc">查询当前模式状态（轻量探测）</span>
+        </div>
+        <div class="api-row">
+          <span class="api-method get">GET</span>
+          <span class="api-path"><code>/api/v1/mcp/config</code></span>
+          <span class="api-desc">查询当前配置快照（Token 不返回明文）</span>
+        </div>
+        <div class="api-row">
+          <span class="api-method put">PUT</span>
+          <span class="api-path"><code>/api/v1/mcp/config</code></span>
+          <span class="api-desc">部分热重载（enabled / readOnly / token / actions）</span>
+        </div>
+      </div>
+
+      <div class="code-card">
+        <h3 class="code-title">热重载示例</h3>
+        <pre class="code-block"><code># 临时禁用 MCP 服务
+curl -X PUT http://localhost:12345/api/v1/mcp/config \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false}'
+
+# 设置 Token 鉴权（立即生效，无需重启）
+curl -X PUT http://localhost:12345/api/v1/mcp/config \
+  -H "Content-Type: application/json" \
+  -d '{"token": "your-secret-token"}'
+
+# 限制仅暴露部分 action（白名单）
+curl -X PUT http://localhost:12345/api/v1/mcp/config \
+  -H "Content-Type: application/json" \
+  -d '{"actions": ["get_bugs", "get_tasks"]}'
+
+# 关闭鉴权（token 设为空串）
+curl -X PUT http://localhost:12345/api/v1/mcp/config \
+  -H "Content-Type: application/json" \
+  -d '{"token": ""}'</code></pre>
+      </div>
+      <p class="config-desc" style="margin-top: 8px; color: #DC2626;">
+        ⚠️ 安全提示：管理 API 当前未加额外鉴权，生产环境请配合反向代理鉴权或网络隔离，避免公网裸暴露。
+      </p>
     </section>
 
     <!-- HTTP API 对接 -->
@@ -398,7 +480,7 @@ curl http://localhost:12345/health</code></pre>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
 import { ElMessageBox } from 'element-plus'
@@ -410,6 +492,53 @@ const versionInfo = ref<Record<string, string>>({})
 const httpStatus = ref('检测中...')
 const httpStatusClass = ref('checking')
 const connectionUrl = ref('')
+
+// MCP 模式状态（从 /api/v1/mcp/status 获取）
+interface MCPStatusInfo {
+  enabled: boolean | null
+  transport: string | null
+  readOnly: boolean | null
+  tokenSet: boolean | null
+  actionAll: boolean | null
+  actions: string[]
+}
+const mcpStatus = ref<MCPStatusInfo>({
+  enabled: null,
+  transport: null,
+  readOnly: null,
+  tokenSet: null,
+  actionAll: null,
+  actions: []
+})
+const mcpEnabledText = computed(() => {
+  if (mcpStatus.value.enabled === null) return '检测中...'
+  return mcpStatus.value.enabled ? '已启用' : '已禁用'
+})
+const mcpEnabledClass = computed(() => {
+  if (mcpStatus.value.enabled === null) return 'checking'
+  return mcpStatus.value.enabled ? 'online' : 'offline'
+})
+
+async function fetchMCPStatus() {
+  try {
+    const res = await fetch(`${baseUrl}/api/v1/mcp/status`)
+    const json = await res.json()
+    // 兼容 errors.Response({code,message,data}) 与裸 {status,...} 两种格式
+    const d = json.data || json
+    if (d && typeof d === 'object') {
+      mcpStatus.value = {
+        enabled: d.enabled ?? null,
+        transport: d.transport ?? null,
+        readOnly: d.readOnly ?? null,
+        tokenSet: d.tokenSet ?? null,
+        actionAll: d.actionAll ?? null,
+        actions: d.actions || []
+      }
+    }
+  } catch {
+    // 优雅降级：状态保持 null（显示 ...）
+  }
+}
 
 onMounted(async () => {
   connectionUrl.value = window.location.origin
@@ -432,6 +561,9 @@ onMounted(async () => {
     httpStatus.value = '离线'
     httpStatusClass.value = 'offline'
   }
+
+  // 拉取 MCP 模式状态
+  fetchMCPStatus()
 })
 const connTesting = ref(false)
 const connStatus = ref<string | null>(null)
@@ -503,23 +635,26 @@ const configTabs = [
 const claudeConfig = `{
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
-      "env": {}
+      "env": {
+        // 设置后所有 MCP 调用需携带此 Token（可选）
+        "ZENTAO_MINI_MCP_TOKEN": "your-secret-token"
+      }
     }
   }
 }`
 
 const claudeCodeConfig = `# 方式 1：通过 claude mcp add 命令（推荐）
-claude mcp add zentao-mini /path/to/zentao-mini
+claude mcp add zentao-mini /path/to/zentao-mini-mcp
 
 # 方式 2：手动编辑配置文件 ~/.claude/claude_desktop_config.json
 {
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
-      "env": {}
+      "env": { "ZENTAO_MINI_MCP_TOKEN": "your-secret-token" }
     }
   }
 }
@@ -528,7 +663,7 @@ claude mcp add zentao-mini /path/to/zentao-mini
 {
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
       "env": {}
     }
@@ -544,7 +679,7 @@ claude mcp remove zentao-mini`
 const cursorConfig = `{
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
       "env": {}
     }
@@ -557,7 +692,7 @@ const openCodeConfig = `# OpenCode MCP 配置
 {
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
       "env": {}
     }
@@ -573,7 +708,7 @@ const openclawConfig = `# OpenClaw MCP 配置
 {
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
       "env": {}
     }
@@ -585,7 +720,7 @@ const openclawConfig = `# OpenClaw MCP 配置
 {
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
       "env": {
         "ZENTAO_URL": "https://your-ZENTAO_DOMAIN",
@@ -601,7 +736,7 @@ const codexConfig = `# OpenAI Codex CLI MCP 配置
 {
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
       "env": {}
     }
@@ -617,7 +752,7 @@ const qoderConfig = `# Qoder MCP 配置
 {
   "mcpServers": {
     "zentao-mini": {
-      "command": "/path/to/zentao-mini",
+      "command": "/path/to/zentao-mini-mcp",
       "args": [],
       "env": {}
     }
@@ -630,7 +765,7 @@ class ZentaoPlugin {
   version = "1.0.0";
 
   async start() {
-    return this.spawn("./zentao-mini");
+    return this.spawn("./zentao-mini-mcp");
   }
 
   async call(action, params = {}) {
@@ -641,22 +776,26 @@ class ZentaoPlugin {
 const traeConfig = `{
   "name": "zentao-mini",
   "type": "stdio",
-  "command": "/path/to/zentao-mini",
-  "args": []
+  "command": "/path/to/zentao-mini-mcp",
+  "args": [],
+  "env": { "ZENTAO_MINI_MCP_TOKEN": "your-secret-token" }
 }`
 
 const cliExample = `# 发送 ping 请求
-echo '{"action": "ping"}' | /path/to/zentao-mini
+echo '{"action": "ping"}' | /path/to/zentao-mini-mcp
 
 # 获取产品列表
-echo '{"action": "get_products"}' | /path/to/zentao-mini
+echo '{"action": "get_products"}' | /path/to/zentao-mini-mcp
 
 # 获取 Bug 列表
-echo '{"action": "get_bugs", "params": {"productId": 1}}' | /path/to/zentao-mini
+echo '{"action": "get_bugs", "params": {"productId": 1}}' | /path/to/zentao-mini-mcp
+
+# 配置 Token 后需在 params 中携带
+echo '{"action": "ping", "params": {"token": "xxx"}}' | /path/to/zentao-mini-mcp
 
 # Python 调用
 import subprocess, json
-proc = subprocess.Popen(["/path/to/zentao-mini"],
+proc = subprocess.Popen(["/path/to/zentao-mini-mcp"],
     stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 proc.stdin.write(json.dumps({"action": "ping"}) + "\\n")
 proc.stdin.flush()
@@ -724,7 +863,7 @@ const languages: Language[] = [
 import json
 
 class ZentaoMCP:
-    def __init__(self, binary_path="./zentao-mini"):
+    def __init__(self, binary_path="./zentao-mini-mcp"):
         self.process = subprocess.Popen(
             [binary_path],
             stdin=subprocess.PIPE,
@@ -757,7 +896,7 @@ mcp.close()`
     code: `const { spawn } = require('child_process');
 
 class ZentaoMCP {
-  constructor(binaryPath = './zentao-mini') {
+  constructor(binaryPath = './zentao-mini-mcp') {
     this.process = spawn(binaryPath);
   }
 
@@ -816,7 +955,7 @@ type MCPResponse struct {
 }
 
 func main() {
-    cmd := exec.Command("./zentao-mini")
+    cmd := exec.Command("./zentao-mini-mcp")
     stdin, _ := cmd.StdinPipe()
     stdout, _ := cmd.StdoutPipe()
     cmd.Start()

@@ -12,6 +12,7 @@ import (
 
 	bizhandler "github.com/yi-nology/zentao-mini/backend/biz/handler/zentao"
 	bizrouter "github.com/yi-nology/zentao-mini/backend/biz/router"
+	"github.com/yi-nology/zentao-mini/backend/core/config"
 	"github.com/yi-nology/zentao-mini/backend/core/errors"
 	"github.com/yi-nology/zentao-mini/backend/core/handlers"
 	"github.com/yi-nology/zentao-mini/backend/core/initialization"
@@ -50,6 +51,17 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		registry.GetTimelogService(),
 	)
 	mcpTransport := mcp.NewHTTPTransport(mcpServer)
+
+	// 初始化 MCP 模式管理器：从配置加载，HTTP 入口标记传输模式为 http
+	mcpCfg := config.Get().MCP
+	mcp.GetMCPModeManager().InitFromConfig(mcpCfg)
+	mcp.GetMCPModeManager().SetTransport(mcp.TransportHTTP)
+
+	// both 模式：HTTP 入口额外启动后台 stdio 监听，与 HTTP 共享同一 MCPServer
+	if mcpCfg.Transport == mcp.TransportBoth {
+		mcp.NewStdioTransport(mcpServer).Start()
+		logger.Info("MCP stdio transport started in 'both' mode")
+	}
 
 	bizhandler.Init(registry, mcpTransport)
 
@@ -121,6 +133,14 @@ func registerCustomRoutes(r *server.Hertz, registry *handlers.HandlerRegistry, t
 
 	registerBackwardCompatRoutes(r, registry)
 	registerMCPPostRoutes(r, transport)
+	registerMCPAdminRoutes(r)
+}
+
+// registerMCPAdminRoutes 注册 MCP 运行时管理 API（热重载 / 状态查询）
+func registerMCPAdminRoutes(r *server.Hertz) {
+	admin := mcp.NewMCPAdminHandler()
+	api := r.Group("/api/v1")
+	admin.RegisterAdminRoutes(api)
 }
 
 func registerBackwardCompatRoutes(r *server.Hertz, registry *handlers.HandlerRegistry) {
@@ -196,21 +216,21 @@ func getExt(filePath string) string {
 
 func getContentType(ext string) string {
 	types := map[string]string{
-		".html": "text/html; charset=utf-8",
-		".css":  "text/css; charset=utf-8",
-		".js":   "application/javascript; charset=utf-8",
-		".json": "application/json",
-		".png":  "image/png",
-		".jpg":  "image/jpeg",
-		".jpeg": "image/jpeg",
-		".gif":  "image/gif",
-		".svg":  "image/svg+xml",
-		".ico":  "image/x-icon",
-		".woff": "font/woff",
+		".html":  "text/html; charset=utf-8",
+		".css":   "text/css; charset=utf-8",
+		".js":    "application/javascript; charset=utf-8",
+		".json":  "application/json",
+		".png":   "image/png",
+		".jpg":   "image/jpeg",
+		".jpeg":  "image/jpeg",
+		".gif":   "image/gif",
+		".svg":   "image/svg+xml",
+		".ico":   "image/x-icon",
+		".woff":  "font/woff",
 		".woff2": "font/woff2",
-		".ttf":  "font/ttf",
-		".eot":  "application/vnd.ms-fontobject",
-		".map":  "application/json",
+		".ttf":   "font/ttf",
+		".eot":   "application/vnd.ms-fontobject",
+		".map":   "application/json",
 	}
 	if ct, ok := types[ext]; ok {
 		return ct

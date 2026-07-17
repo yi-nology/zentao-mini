@@ -113,12 +113,12 @@ func (s *SchedulerService) unregisterTask(taskID string) {
 
 func (s *SchedulerService) saveRegisterErrorLog(task *models.SchedulerTask, err error) {
 	logEntry := &models.TaskExecutionLog{
-		ID:        uuid.New().String(),
-		TaskID:    task.ID,
-		TaskName:  task.Name,
-		StartedAt: time.Now(),
-		Status:    "failed",
-		Error:     fmt.Sprintf("任务注册失败: %v", err),
+		ID:             uuid.New().String(),
+		TaskID:         task.ID,
+		TaskName:       task.Name,
+		StartedAt:      time.Now(),
+		Status:         "failed",
+		Error:          fmt.Sprintf("任务注册失败: %v", err),
 		WebhookResults: []models.WebhookResult{},
 	}
 	now := time.Now()
@@ -178,6 +178,12 @@ func (s *SchedulerService) CreateTask(task *models.SchedulerTask) error {
 }
 
 func (s *SchedulerService) UpdateTask(task *models.SchedulerTask) error {
+	// 保留已存在的CreatedAt，避免请求体未携带时被重置为零值
+	if existing, err := s.store.GetTask(task.ID); err != nil {
+		return fmt.Errorf("查询任务失败: %w", err)
+	} else if existing != nil {
+		task.CreatedAt = existing.CreatedAt
+	}
 	task.UpdatedAt = time.Now()
 	if task.ReportType == "" {
 		task.ReportType = "bug"

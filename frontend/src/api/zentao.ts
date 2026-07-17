@@ -23,6 +23,7 @@ interface BugParams {
   assignedTo?: string
   status?: string
   version?: string
+  type?: string
   startDate?: string
   endDate?: string
   specificDate?: string
@@ -98,6 +99,7 @@ export const getBugs = (params: BugParams = {}): Promise<ApiResponse<PaginatedRe
   if (params.assignedTo) apiParams.assignedTo = params.assignedTo
   if (params.status) apiParams.status = params.status
   if (params.version) apiParams.version = params.version
+  if (params.type) apiParams.type = params.type
   if (params.startDate) apiParams.startDate = params.startDate
   if (params.endDate) apiParams.endDate = params.endDate
   if (params.specificDate) apiParams.specificDate = params.specificDate

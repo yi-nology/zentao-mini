@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"github.com/yi-nology/zentao-mini/backend/core/models"
 	"github.com/yi-nology/common/biz/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/models"
 )
 
 // Converter 数据转换器接口

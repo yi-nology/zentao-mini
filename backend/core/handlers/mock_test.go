@@ -81,11 +81,11 @@ func (m *MockExecutionService) GetExecutions(query *dto.ExecutionQueryDTO) ([]vo
 }
 
 type MockUserService struct {
-	UsersResult     *vo.PaginatedVO
-	UsersAllResult  []vo.UserVO
-	CurrentUser     *vo.UserVO
-	Err             error
-	GetUsersCalled  bool
+	UsersResult       *vo.PaginatedVO
+	UsersAllResult    []vo.UserVO
+	CurrentUser       *vo.UserVO
+	Err               error
+	GetUsersCalled    bool
 	GetUsersAllCalled bool
 }
 
@@ -123,14 +123,14 @@ func (m *MockTimelogService) GetTimelogEfforts(query *dto.TimelogQueryDTO) (inte
 }
 
 type MockDashboardService struct {
-	DashboardResult  *vo.DashboardVO
-	OverviewResult   *vo.ProjectOverviewVO
-	TimelogResult    *vo.PersonalTimelogVO
-	SearchResult     *vo.SearchVO
-	Err              error
-	DashboardCalled  bool
-	OverviewCalled   bool
-	ProductIDArg     int
+	DashboardResult *vo.DashboardVO
+	OverviewResult  *vo.ProjectOverviewVO
+	TimelogResult   *vo.PersonalTimelogVO
+	SearchResult    *vo.SearchVO
+	Err             error
+	DashboardCalled bool
+	OverviewCalled  bool
+	ProductIDArg    int
 }
 
 func (m *MockDashboardService) GetDashboardContext(ctx context.Context, productID int) (*vo.DashboardVO, error) {

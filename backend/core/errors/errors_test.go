@@ -90,7 +90,7 @@ func TestAppError_HTTPStatus(t *testing.T) {
 // TestNew 测试创建新错误
 func TestNew(t *testing.T) {
 	appErr := New(CodeBadRequest, "请求错误")
-	
+
 	if appErr.Code != CodeBadRequest {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeBadRequest, appErr.Code)
 	}
@@ -106,7 +106,7 @@ func TestNew(t *testing.T) {
 func TestWrap(t *testing.T) {
 	originalErr := fmt.Errorf("原始错误")
 	appErr := Wrap(CodeInternalError, "服务器错误", originalErr)
-	
+
 	if appErr.Code != CodeInternalError {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeInternalError, appErr.Code)
 	}
@@ -122,7 +122,7 @@ func TestWrap(t *testing.T) {
 func TestWrapWithDetails(t *testing.T) {
 	originalErr := fmt.Errorf("原始错误")
 	appErr := WrapWithDetails(CodeInternalError, "服务器错误", originalErr, "详细错误信息")
-	
+
 	if appErr.Details != "详细错误信息" {
 		t.Errorf("期望 Details=详细错误信息, 实际 Details=%s", appErr.Details)
 	}
@@ -131,7 +131,7 @@ func TestWrapWithDetails(t *testing.T) {
 // TestNewBadRequest 测试创建请求错误
 func TestNewBadRequest(t *testing.T) {
 	appErr := NewBadRequest("请求格式错误")
-	
+
 	if appErr.Code != CodeBadRequest {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeBadRequest, appErr.Code)
 	}
@@ -143,7 +143,7 @@ func TestNewBadRequest(t *testing.T) {
 // TestNewInvalidParam 测试创建参数无效错误
 func TestNewInvalidParam(t *testing.T) {
 	appErr := NewInvalidParam("username")
-	
+
 	if appErr.Code != CodeInvalidParam {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeInvalidParam, appErr.Code)
 	}
@@ -155,7 +155,7 @@ func TestNewInvalidParam(t *testing.T) {
 // TestNewMissingParam 测试创建缺少参数错误
 func TestNewMissingParam(t *testing.T) {
 	appErr := NewMissingParam("productId")
-	
+
 	if appErr.Code != CodeMissingParam {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeMissingParam, appErr.Code)
 	}
@@ -167,7 +167,7 @@ func TestNewMissingParam(t *testing.T) {
 // TestNewInvalidID 测试创建ID无效错误
 func TestNewInvalidID(t *testing.T) {
 	appErr := NewInvalidID("产品ID")
-	
+
 	if appErr.Code != CodeInvalidID {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeInvalidID, appErr.Code)
 	}
@@ -179,7 +179,7 @@ func TestNewInvalidID(t *testing.T) {
 // TestNewNotFound 测试创建资源不存在错误
 func TestNewNotFound(t *testing.T) {
 	appErr := NewNotFound("产品")
-	
+
 	if appErr.Code != CodeNotFound {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeNotFound, appErr.Code)
 	}
@@ -192,7 +192,7 @@ func TestNewNotFound(t *testing.T) {
 func TestNewInternalError(t *testing.T) {
 	originalErr := fmt.Errorf("数据库错误")
 	appErr := NewInternalError("服务器内部错误", originalErr)
-	
+
 	if appErr.Code != CodeInternalError {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeInternalError, appErr.Code)
 	}
@@ -205,7 +205,7 @@ func TestNewInternalError(t *testing.T) {
 func TestExternalError(t *testing.T) {
 	originalErr := fmt.Errorf("连接超时")
 	appErr := ExternalError("禅道", originalErr)
-	
+
 	if appErr.Code != CodeExternalError {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeExternalError, appErr.Code)
 	}
@@ -218,7 +218,7 @@ func TestExternalError(t *testing.T) {
 func TestDatabaseError(t *testing.T) {
 	originalErr := fmt.Errorf("查询失败")
 	appErr := DatabaseError("查询用户", originalErr)
-	
+
 	if appErr.Code != CodeDatabaseError {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeDatabaseError, appErr.Code)
 	}
@@ -231,7 +231,7 @@ func TestDatabaseError(t *testing.T) {
 func TestIsAppError(t *testing.T) {
 	appErr := NewBadRequest("请求错误")
 	normalErr := fmt.Errorf("普通错误")
-	
+
 	if !IsAppError(appErr) {
 		t.Errorf("期望 IsAppError(appErr) = true")
 	}
@@ -245,16 +245,16 @@ func TestGetAppError(t *testing.T) {
 	t.Run("已经是AppError", func(t *testing.T) {
 		appErr := NewBadRequest("请求错误")
 		result := GetAppError(appErr)
-		
+
 		if result != appErr {
 			t.Errorf("期望返回相同的 AppError")
 		}
 	})
-	
+
 	t.Run("普通错误转换", func(t *testing.T) {
 		normalErr := fmt.Errorf("普通错误")
 		result := GetAppError(normalErr)
-		
+
 		if result.Code != CodeInternalError {
 			t.Errorf("期望 Code=%d, 实际 Code=%d", CodeInternalError, result.Code)
 		}
@@ -268,12 +268,12 @@ func TestGetAppError(t *testing.T) {
 func TestErrorChain(t *testing.T) {
 	originalErr := fmt.Errorf("原始错误")
 	wrappedErr := Wrap(CodeInternalError, "包装错误", originalErr)
-	
+
 	// 使用 errors.Is 检查错误链
 	if !errors.Is(wrappedErr, originalErr) {
 		t.Errorf("期望错误链中包含原始错误")
 	}
-	
+
 	// 使用 errors.Unwrap 解包错误
 	unwrapped := errors.Unwrap(wrappedErr)
 	if unwrapped != originalErr {

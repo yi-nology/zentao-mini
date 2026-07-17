@@ -23,12 +23,12 @@ func NewWebhookService() *WebhookService {
 }
 
 type WebhookPayload struct {
-	Title           string                  `json:"title"`
-	Timestamp       string                  `json:"timestamp"`
-	Project         string                  `json:"project"`
-	Summary         WebhookSummary          `json:"summary"`
-	Details         []AssigneeDetailPayload `json:"details"`
-	Message         string                  `json:"message"`
+	Title     string                  `json:"title"`
+	Timestamp string                  `json:"timestamp"`
+	Project   string                  `json:"project"`
+	Summary   WebhookSummary          `json:"summary"`
+	Details   []AssigneeDetailPayload `json:"details"`
+	Message   string                  `json:"message"`
 }
 
 type WebhookSummary struct {

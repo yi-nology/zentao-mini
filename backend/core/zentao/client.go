@@ -32,10 +32,14 @@ const tokenTTL = 23 * time.Hour
 
 // NewClient 创建新的禅道客户端
 func NewClient(server, account, password string) *Client {
-	if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
-		server = "http://" + server
+	// server 为空时跳过 URL 规范化，避免生成 "http:/" 这样的无效地址；
+	// 后续可通过 UpdateConfig 在用户上传配置后补全。
+	if server != "" {
+		if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
+			server = "http://" + server
+		}
+		server = strings.TrimSuffix(server, "/")
 	}
-	server = strings.TrimSuffix(server, "/")
 
 	sdkClient := zentao.NewClient(server)
 	sdkClient.SetTimeout(120 * time.Second)

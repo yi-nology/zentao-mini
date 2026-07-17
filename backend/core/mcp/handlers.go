@@ -1,12 +1,13 @@
 package mcp
 
 import (
-	"github.com/yi-nology/zentao-mini/backend/core/dto"
 	"fmt"
 	"strconv"
+
+	"github.com/yi-nology/zentao-mini/backend/core/dto"
 )
 
-// handlePing 处理 ping 请求
+// handlePing 处理 ping 请求.
 func (s *MCPServer) handlePing(_ map[string]interface{}) (interface{}, error) {
 	return map[string]interface{}{
 		"status":  "ok",
@@ -15,7 +16,7 @@ func (s *MCPServer) handlePing(_ map[string]interface{}) (interface{}, error) {
 	}, nil
 }
 
-// handleGetProducts 获取产品列表
+// handleGetProducts 获取产品列表.
 func (s *MCPServer) handleGetProducts(_ map[string]interface{}) (interface{}, error) {
 	result, err := s.productService.GetProducts()
 	if err != nil {
@@ -28,7 +29,7 @@ func (s *MCPServer) handleGetProducts(_ map[string]interface{}) (interface{}, er
 	}, nil
 }
 
-// handleGetProjects 获取项目列表
+// handleGetProjects 获取项目列表.
 func (s *MCPServer) handleGetProjects(params map[string]interface{}) (interface{}, error) {
 	query := &dto.ProjectQueryDTO{}
 	if v, ok := params["productId"]; ok {
@@ -48,7 +49,7 @@ func (s *MCPServer) handleGetProjects(params map[string]interface{}) (interface{
 	}, nil
 }
 
-// handleGetExecutions 获取执行/迭代列表
+// handleGetExecutions 获取执行/迭代列表.
 func (s *MCPServer) handleGetExecutions(params map[string]interface{}) (interface{}, error) {
 	query := &dto.ExecutionQueryDTO{}
 	if v, ok := params["projectId"]; ok {
@@ -73,7 +74,7 @@ func (s *MCPServer) handleGetExecutions(params map[string]interface{}) (interfac
 	}, nil
 }
 
-// handleGetBugs 获取 Bug 列表
+// handleGetBugs 获取 Bug 列表.
 func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, error) {
 	query := &dto.BugQueryDTO{}
 	if v, ok := params["productId"]; ok {
@@ -98,7 +99,7 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 	}, nil
 }
 
-// handleGetStories 获取需求列表
+// handleGetStories 获取需求列表.
 func (s *MCPServer) handleGetStories(params map[string]interface{}) (interface{}, error) {
 	query := &dto.StoryQueryDTO{}
 	if v, ok := params["productId"]; ok {
@@ -120,7 +121,7 @@ func (s *MCPServer) handleGetStories(params map[string]interface{}) (interface{}
 	}, nil
 }
 
-// handleGetTasks 获取任务列表
+// handleGetTasks 获取任务列表.
 func (s *MCPServer) handleGetTasks(params map[string]interface{}) (interface{}, error) {
 	query := &dto.TaskQueryDTO{}
 	if v, ok := params["productId"]; ok {
@@ -147,7 +148,7 @@ func (s *MCPServer) handleGetTasks(params map[string]interface{}) (interface{}, 
 	}, nil
 }
 
-// handleGetUsers 获取用户列表
+// handleGetUsers 获取用户列表.
 func (s *MCPServer) handleGetUsers(_ map[string]interface{}) (interface{}, error) {
 	result, err := s.userService.GetUsers(1, 100)
 	if err != nil {
@@ -160,7 +161,7 @@ func (s *MCPServer) handleGetUsers(_ map[string]interface{}) (interface{}, error
 	}, nil
 }
 
-// handleGetTimelog 获取工时数据
+// handleGetTimelog 获取工时数据.
 func (s *MCPServer) handleGetTimelog(params map[string]interface{}) (interface{}, error) {
 	query := &dto.TimelogQueryDTO{}
 	if v, ok := params["productId"]; ok {

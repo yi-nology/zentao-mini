@@ -47,12 +47,12 @@ func TestFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := Filter(tt.slice, tt.filter)
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("期望长度=%d, 实际长度=%d", len(tt.expected), len(result))
 				return
 			}
-			
+
 			for i := range result {
 				if result[i] != tt.expected[i] {
 					t.Errorf("索引 %d: 期望=%d, 实际=%d", i, tt.expected[i], result[i])
@@ -146,7 +146,7 @@ func TestFilterByDateRange(t *testing.T) {
 			result := FilterByDateRange(tt.slice, tt.startDate, tt.endDate, func(item testItem) string {
 				return item.date
 			})
-			
+
 			if len(result) != tt.expected {
 				t.Errorf("期望长度=%d, 实际长度=%d", tt.expected, len(result))
 			}
@@ -201,7 +201,7 @@ func TestFilterBySpecificDate(t *testing.T) {
 			result := FilterBySpecificDate(tt.slice, tt.specificDate, func(item testItem) string {
 				return item.date
 			})
-			
+
 			if len(result) != tt.expected {
 				t.Errorf("期望长度=%d, 实际长度=%d", tt.expected, len(result))
 			}
@@ -247,7 +247,7 @@ func TestFilterByField(t *testing.T) {
 			result := FilterByField(tt.slice, tt.value, func(item testItem) string {
 				return item.status
 			})
-			
+
 			if len(result) != tt.expected {
 				t.Errorf("期望长度=%d, 实际长度=%d", tt.expected, len(result))
 			}
@@ -294,7 +294,7 @@ func TestFilterByStringField(t *testing.T) {
 			result := FilterByStringField(tt.slice, tt.value, func(item testItem) string {
 				return item.name
 			})
-			
+
 			if len(result) != tt.expected {
 				t.Errorf("期望长度=%d, 实际长度=%d", tt.expected, len(result))
 			}
@@ -339,12 +339,12 @@ func TestSort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := Sort(tt.slice, tt.less)
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("期望长度=%d, 实际长度=%d", len(tt.expected), len(result))
 				return
 			}
-			
+
 			for i := range result {
 				if result[i] != tt.expected[i] {
 					t.Errorf("索引 %d: 期望=%d, 实际=%d", i, tt.expected[i], result[i])
