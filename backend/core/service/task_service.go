@@ -63,7 +63,12 @@ func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 	// 按指派人筛选
 	if query.AssignedTo != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Task) bool {
-			return func() string { if ref, ok := item.AssignedTo.(zentao.UserRef); ok { return ref.Account }; return "" }() == query.AssignedTo
+			return func() string {
+				if ref, ok := item.AssignedTo.(zentao.UserRef); ok {
+					return ref.Account
+				}
+				return ""
+			}() == query.AssignedTo
 		})
 	}
 

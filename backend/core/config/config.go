@@ -8,17 +8,34 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config 应用配置结构
+// Config 应用配置结构.
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Zentao   ZentaoConfig   `mapstructure:"zentao"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	Security SecurityConfig `mapstructure:"security"`
-	Log      LogConfig      `mapstructure:"log"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Zentao    ZentaoConfig    `mapstructure:"zentao"`
+	Auth      AuthConfig      `mapstructure:"auth"`
+	Security  SecurityConfig  `mapstructure:"security"`
+	Log       LogConfig       `mapstructure:"log"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	MCP       MCPConfig       `mapstructure:"mcp"`
 }
 
-// ServerConfig 服务器配置
+// MCPConfig MCP 子系统配置
+// 控制传输模式、运行时开关、Token 鉴权、只读模式与 action 白名单.
+type MCPConfig struct {
+	// 是否启用 MCP 服务（运行时可通过 /api/v1/mcp/config 热重载）
+	Enabled bool `mapstructure:"enabled"`
+	// 传输模式: "http" | "stdio" | "both"
+	// 由启动入口决定，运行时不可改
+	Transport string `mapstructure:"transport"`
+	// 鉴权 Token，为空表示不鉴权（运行时热重载，仅存哈希）
+	Token string `mapstructure:"token"`
+	// 只读模式，禁止写操作（当前 MCP 全为查询接口，为未来扩展预留）
+	ReadOnly bool `mapstructure:"read_only"`
+	// action 白名单，为空表示允许全部；非空仅允许列表内的 action
+	Actions []string `mapstructure:"actions"`
+}
+
+// ServerConfig 服务器配置.
 type ServerConfig struct {
 	// 应用类型: "wails" 或 "http"
 	Type string `mapstructure:"type"`
@@ -34,7 +51,7 @@ type ServerConfig struct {
 	ShutdownTimeout int `mapstructure:"shutdown_timeout"`
 }
 
-// ZentaoConfig 禅道配置
+// ZentaoConfig 禅道配置.
 type ZentaoConfig struct {
 	// 禅道服务器地址
 	Server string `mapstructure:"server"`
@@ -48,7 +65,7 @@ type ZentaoConfig struct {
 	RequestTimeout int `mapstructure:"request_timeout"`
 }
 
-// AuthConfig 认证配置
+// AuthConfig 认证配置.
 type AuthConfig struct {
 	// 认证配置文件路径
 	ConfigPath string `mapstructure:"config_path"`
@@ -56,7 +73,7 @@ type AuthConfig struct {
 	DBPath string `mapstructure:"db_path"`
 }
 
-// SecurityConfig 安全配置
+// SecurityConfig 安全配置.
 type SecurityConfig struct {
 	// 加密密钥
 	EncryptionKey string `mapstructure:"encryption_key"`
@@ -64,7 +81,7 @@ type SecurityConfig struct {
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
 }
 
-// LogConfig 日志配置
+// LogConfig 日志配置.
 type LogConfig struct {
 	// 日志级别: debug, info, warn, error
 	Level string `mapstructure:"level"`
@@ -78,7 +95,7 @@ type LogConfig struct {
 	EnableStacktrace bool `mapstructure:"enable_stacktrace"`
 }
 
-// RateLimitConfig 限流配置
+// RateLimitConfig 限流配置.
 type RateLimitConfig struct {
 	// 每分钟允许的请求数
 	RequestsPerMinute int `mapstructure:"requests_per_minute"`
@@ -86,12 +103,12 @@ type RateLimitConfig struct {
 	BlockDurationMinutes int `mapstructure:"block_duration_minutes"`
 }
 
-// 全局配置实例
+// 全局配置实例.
 var globalConfig *Config
 
 // Init 初始化配置
 // configPath: 配置文件路径（可选）
-// envPrefix: 环境变量前缀
+// envPrefix: 环境变量前缀.
 func Init(configPath string, envPrefix string) error {
 	v := viper.New()
 
@@ -109,6 +126,7 @@ func Init(configPath string, envPrefix string) error {
 		"auth.db_path", "auth.config_path",
 		"log.level", "log.format", "log.enable_caller", "log.enable_stacktrace",
 		"rate_limit.requests_per_minute", "rate_limit.block_duration_minutes",
+		"mcp.enabled", "mcp.transport", "mcp.token", "mcp.read_only", "mcp.actions",
 	}
 	for _, key := range envKeys {
 		_ = v.BindEnv(key)
@@ -151,7 +169,7 @@ func Init(configPath string, envPrefix string) error {
 	return nil
 }
 
-// setDefaults 设置默认值
+// setDefaults 设置默认值.
 func setDefaults(v *viper.Viper) {
 	// 服务器配置
 	v.SetDefault("server.type", "http")
@@ -177,9 +195,14 @@ func setDefaults(v *viper.Viper) {
 	// 限流配置
 	v.SetDefault("rate_limit.requests_per_minute", 60)
 	v.SetDefault("rate_limit.block_duration_minutes", 5)
+
+	// MCP 配置
+	v.SetDefault("mcp.enabled", true)
+	v.SetDefault("mcp.transport", "http")
+	v.SetDefault("mcp.read_only", false)
 }
 
-// validate 验证配置
+// validate 验证配置.
 func validate(cfg *Config) error {
 	// 验证服务器配置
 	if cfg.Server.Type != "http" && cfg.Server.Type != "wails" {
@@ -225,10 +248,16 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("server shutdown timeout must be positive")
 	}
 
+	// 验证 MCP 传输模式
+	validMCPTransports := map[string]bool{"http": true, "stdio": true, "both": true}
+	if cfg.MCP.Transport != "" && !validMCPTransports[cfg.MCP.Transport] {
+		return fmt.Errorf("invalid mcp transport: %s, must be one of: http, stdio, both", cfg.MCP.Transport)
+	}
+
 	return nil
 }
 
-// Get 获取全局配置实例，未初始化时返回带默认值的空配置
+// Get 获取全局配置实例，未初始化时返回带默认值的空配置.
 func Get() *Config {
 	if globalConfig == nil {
 		// 未初始化时返回带默认值的配置，避免 panic
@@ -241,7 +270,7 @@ func Get() *Config {
 	return globalConfig
 }
 
-// GetServerTimeout 获取服务器超时配置（转换为time.Duration）
+// GetServerTimeout 获取服务器超时配置（转换为time.Duration）.
 func (c *ServerConfig) GetReadTimeout() time.Duration {
 	return time.Duration(c.ReadTimeout) * time.Second
 }
@@ -254,27 +283,27 @@ func (c *ServerConfig) GetShutdownTimeout() time.Duration {
 	return time.Duration(c.ShutdownTimeout) * time.Second
 }
 
-// GetZentaoTimeout 获取禅道请求超时配置
+// GetZentaoTimeout 获取禅道请求超时配置.
 func (c *ZentaoConfig) GetRequestTimeout() time.Duration {
 	return time.Duration(c.RequestTimeout) * time.Second
 }
 
-// GetTokenRefreshInterval 获取Token刷新间隔
+// GetTokenRefreshInterval 获取Token刷新间隔.
 func (c *ZentaoConfig) GetTokenRefreshInterval() time.Duration {
 	return time.Duration(c.TokenRefreshInterval) * time.Hour
 }
 
-// GetBlockDuration 获取限流封禁时长
+// GetBlockDuration 获取限流封禁时长.
 func (c *RateLimitConfig) GetBlockDuration() time.Duration {
 	return time.Duration(c.BlockDurationMinutes) * time.Minute
 }
 
-// IsProduction 是否为生产环境
+// IsProduction 是否为生产环境.
 func (c *Config) IsProduction() bool {
 	return c.Log.Format == "json"
 }
 
-// IsDevelopment 是否为开发环境
+// IsDevelopment 是否为开发环境.
 func (c *Config) IsDevelopment() bool {
 	return c.Log.Format == "console"
 }

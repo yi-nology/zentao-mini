@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -33,6 +34,9 @@ func (t *HTTPTransport) Server() *MCPServer {
 }
 
 func (t *HTTPTransport) HandleActionByName(ctx context.Context, action string, c *app.RequestContext) {
+	if checkAccess(c, action) {
+		return
+	}
 	result, err := t.server.HandleAction(action, collectQueryParams(c))
 	respond(c, result, err)
 }
@@ -78,6 +82,65 @@ func collectQueryParams(c *app.RequestContext) map[string]interface{} {
 	return params
 }
 
+// extractToken 从请求中提取 Token
+// 优先 Authorization: Bearer <token>，其次 query 参数 token.
+func extractToken(c *app.RequestContext) string {
+	auth := string(c.Request.Header.Peek("Authorization"))
+	if strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
+	}
+	if t := c.Query("token"); t != "" {
+		return t
+	}
+	return ""
+}
+
+// checkAccess 统一访问控制检查
+// 返回 true 表示请求被拦截（已写入错误响应）；false 表示放行
+// 检查顺序：总开关 → Token 鉴权 → action 白名单 → 只读模式
+// 当 action == ""（如工具发现）时跳过 action 白名单与只读检查.
+func checkAccess(c *app.RequestContext, action string) bool {
+	mgr := GetMCPModeManager()
+
+	if !mgr.IsEnabled() {
+		c.JSON(http.StatusServiceUnavailable, MCPResponse{
+			Status:  "error",
+			Message: "MCP service is disabled",
+		})
+		return true
+	}
+
+	if mgr.HasToken() && !mgr.VerifyToken(extractToken(c)) {
+		c.JSON(http.StatusUnauthorized, MCPResponse{
+			Status:  "error",
+			Message: "unauthorized: invalid or missing token",
+		})
+		return true
+	}
+
+	if action == "" {
+		return false
+	}
+
+	if !mgr.IsActionAllowed(action) {
+		c.JSON(http.StatusForbidden, MCPResponse{
+			Status:  "error",
+			Message: "action not allowed: " + action,
+		})
+		return true
+	}
+
+	if mgr.IsReadOnly() && IsWriteAction(action) {
+		c.JSON(http.StatusForbidden, MCPResponse{
+			Status:  "error",
+			Message: "read-only mode: write action blocked: " + action,
+		})
+		return true
+	}
+
+	return false
+}
+
 func (t *HTTPTransport) HandleAction(ctx context.Context, c *app.RequestContext) {
 	var req MCPRequest
 	if err := c.BindAndValidate(&req); err != nil {
@@ -85,6 +148,9 @@ func (t *HTTPTransport) HandleAction(ctx context.Context, c *app.RequestContext)
 			Status:  "error",
 			Message: "Invalid request: expecting JSON {\"action\":\"...\",\"params\":{...}}",
 		})
+		return
+	}
+	if checkAccess(c, req.Action) {
 		return
 	}
 	result, err := t.server.HandleAction(req.Action, req.Params)
@@ -100,11 +166,18 @@ func (t *HTTPTransport) HandleActionGet(ctx context.Context, c *app.RequestConte
 		})
 		return
 	}
+	if checkAccess(c, action) {
+		return
+	}
 	result, err := t.server.HandleAction(action, collectQueryParams(c))
 	respond(c, result, err)
 }
 
 func (t *HTTPTransport) HandleListTools(ctx context.Context, c *app.RequestContext) {
+	// 工具发现属元信息，action="" 跳过白名单与只读检查，但仍受总开关与 Token 保护
+	if checkAccess(c, "") {
+		return
+	}
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"status": "ok",
 		"count":  len(Tools),
@@ -113,6 +186,9 @@ func (t *HTTPTransport) HandleListTools(ctx context.Context, c *app.RequestConte
 }
 
 func (t *HTTPTransport) HandleGetTool(ctx context.Context, c *app.RequestContext) {
+	if checkAccess(c, "") {
+		return
+	}
 	name := c.Param("name")
 	tool := GetToolByName(name)
 	if tool == nil {
@@ -147,15 +223,24 @@ func (t *HTTPTransport) RegisterRoutes(r *server.Hertz) {
 	for path, action := range actionMap {
 		act := action
 		r.GET("/mcp/"+path, func(ctx context.Context, c *app.RequestContext) {
+			if checkAccess(c, act) {
+				return
+			}
 			result, err := t.server.HandleAction(act, collectQueryParams(c))
 			respond(c, result, err)
 		})
 		r.POST("/mcp/"+path, func(ctx context.Context, c *app.RequestContext) {
 			var req MCPRequest
 			if err := c.BindAndValidate(&req); err == nil && req.Action != "" {
+				if checkAccess(c, req.Action) {
+					return
+				}
 				result, err := t.server.HandleAction(req.Action, req.Params)
 				respond(c, result, err)
 			} else {
+				if checkAccess(c, act) {
+					return
+				}
 				result, err := t.server.HandleAction(act, collectQueryParams(c))
 				respond(c, result, err)
 			}

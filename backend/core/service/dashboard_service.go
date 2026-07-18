@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yi-nology/zentao-mini/backend/core/logger"
-	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
-	"github.com/yi-nology/zentao-mini/backend/core/vo"
 	"github.com/yi-nology/common/biz/zentao"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/vo"
+	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 	"go.uber.org/zap"
 )
 

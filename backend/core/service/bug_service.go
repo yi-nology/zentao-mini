@@ -31,16 +31,18 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 
 	// 如果有产品ID，按产品查询
 	if query.ProductID != 0 {
-		// 版本过滤需要获取所有bug（含closed），在内存中过滤
-		if query.Version != "" {
-			bugs, err = s.client.GetBugs(query.ProductID, 1, 2000)
-		} else if query.AssignedTo != "" || query.Status != "" {
-			// 优先使用SearchBugs进行多条件筛选，减少内存消耗
+		// 版本/类型/状态过滤需要获取所有bug（含closed），在内存中过滤
+		// 注意：closed 状态的 bug 不会被禅道默认接口返回，
+		// 必须用 status=all 全量获取（含 closed）后在内存过滤
+		if query.Version != "" || query.Type != "" || query.Status != "" {
+			bugs, err = s.client.GetAllBugsIncludeClosed(query.ProductID)
+		} else if query.AssignedTo != "" {
+			// 指派人过滤使用SearchBugs减少内存消耗
 			params := zentao.BugSearchParams{
 				ProductID:  query.ProductID,
 				Status:     query.Status,
 				AssignedTo: query.AssignedTo,
-				Limit:      1000, // 一次获取足够多的数据用于筛选
+				Limit:      1000,
 				Page:       1,
 			}
 			bugs, err = s.client.SearchBugs(params)
@@ -63,6 +65,13 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	// 使用链式过滤器进行筛选
 	chainFilter := utils.NewChainFilter(bugs)
 
+	// 按状态筛选（version/type 分支下 bugs 包含全部状态，需在内存过滤）
+	if query.Status != "" {
+		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+			return item.Status == query.Status
+		})
+	}
+
 	// 按版本筛选（openedBuild 包含指定版本名称）
 	if query.Version != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
@@ -72,6 +81,13 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 				}
 			}
 			return false
+		})
+	}
+
+	// 按类型筛选
+	if query.Type != "" {
+		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+			return item.Type == query.Type
 		})
 	}
 

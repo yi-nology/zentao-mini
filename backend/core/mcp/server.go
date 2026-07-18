@@ -6,7 +6,7 @@ import (
 )
 
 // MCPServer 是 MCP 服务的核心，直接依赖 service 层
-// 统一处理所有 action，消除 stdio/HTTP 的代码重复
+// 统一处理所有 action，消除 stdio/HTTP 的代码重复.
 type MCPServer struct {
 	productService   *service.ProductService
 	projectService   *service.ProjectService
@@ -18,7 +18,7 @@ type MCPServer struct {
 	timelogService   *service.TimelogService
 }
 
-// NewMCPServer 创建 MCP 服务实例
+// NewMCPServer 创建 MCP 服务实例.
 func NewMCPServer(client *myzentao.Client) *MCPServer {
 	return &MCPServer{
 		productService:   service.NewProductService(client),
@@ -32,7 +32,7 @@ func NewMCPServer(client *myzentao.Client) *MCPServer {
 	}
 }
 
-// NewMCPServerFromServices 从已有的 service 实例创建 MCP 服务
+// NewMCPServerFromServices 从已有的 service 实例创建 MCP 服务.
 func NewMCPServerFromServices(
 	productService *service.ProductService,
 	projectService *service.ProjectService,
@@ -55,7 +55,7 @@ func NewMCPServerFromServices(
 	}
 }
 
-// HandleAction 统一入口，处理所有 MCP action
+// HandleAction 统一入口，处理所有 MCP action.
 func (s *MCPServer) HandleAction(action string, params map[string]interface{}) (interface{}, error) {
 	switch action {
 	case "ping":
@@ -81,7 +81,7 @@ func (s *MCPServer) HandleAction(action string, params map[string]interface{}) (
 	}
 }
 
-// ActionError 未知 action 错误
+// ActionError 未知 action 错误.
 type ActionError struct {
 	Action  string
 	Message string
@@ -89,4 +89,17 @@ type ActionError struct {
 
 func (e *ActionError) Error() string {
 	return e.Message + ": " + e.Action
+}
+
+// IsWriteAction 判断 action 是否为写操作（用于只读模式拦截）
+// 当前 MCP 全为查询接口，写操作为未来扩展（如 create_*/update_*/delete_*）预留.
+func IsWriteAction(action string) bool {
+	switch action {
+	case "create_product", "create_project", "create_bug", "create_story", "create_task",
+		"update_product", "update_project", "update_bug", "update_story", "update_task",
+		"delete_product", "delete_project", "delete_bug", "delete_story", "delete_task":
+		return true
+	default:
+		return false
+	}
 }

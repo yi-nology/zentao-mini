@@ -159,7 +159,7 @@ func (c *MemoryCache) Size() int {
 
 // Stats 缓存统计信息
 type CacheStats struct {
-	TotalItems int
+	TotalItems   int
 	ExpiredItems int
 }
 

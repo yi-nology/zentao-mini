@@ -1,27 +1,27 @@
 package mcp
 
-// Tool 定义 MCP 工具
+// Tool 定义 MCP 工具.
 type Tool struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
 	InputSchema InputSchema `json:"inputSchema"`
 }
 
-// InputSchema JSON Schema 格式的参数定义
+// InputSchema JSON Schema 格式的参数定义.
 type InputSchema struct {
-	Type       string                 `json:"type"`
-	Properties map[string]Property    `json:"properties,omitempty"`
-	Required   []string               `json:"required,omitempty"`
+	Type       string              `json:"type"`
+	Properties map[string]Property `json:"properties,omitempty"`
+	Required   []string            `json:"required,omitempty"`
 }
 
-// Property 参数属性
+// Property 参数属性.
 type Property struct {
 	Type        string   `json:"type"`
 	Description string   `json:"description"`
 	Enum        []string `json:"enum,omitempty"`
 }
 
-// Tools 所有可用的 MCP 工具
+// Tools 所有可用的 MCP 工具.
 var Tools = []Tool{
 	{
 		Name:        "ping",
@@ -147,7 +147,7 @@ var Tools = []Tool{
 	},
 }
 
-// GetToolByName 根据名称获取工具定义
+// GetToolByName 根据名称获取工具定义.
 func GetToolByName(name string) *Tool {
 	for _, t := range Tools {
 		if t.Name == name {

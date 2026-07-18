@@ -1,13 +1,17 @@
 # Makefile for zentao-mini backend
 
-.PHONY: all build run clean test test-coverage test-coverage-html lint fmt help
+.PHONY: all build build-mcp run clean test test-coverage test-coverage-html lint fmt help
 
 # 构建目标
 all: build
 
 # 构建项目
-build: 
+build:
 	go build -o server ./cmd/server
+
+# 构建 MCP stdio 独立入口（供 AI 工具作为子进程启动）
+build-mcp:
+	go build -o zentao-mini-mcp ./cmd/mcp
 
 # 运行项目
 run: build
@@ -15,7 +19,7 @@ run: build
 
 # 清理构建产物
 clean:
-	rm -f server
+	rm -f server zentao-mini-mcp
 	rm -f coverage.out coverage.html
 
 # 运行所有测试
@@ -58,9 +62,9 @@ install-tools:
 # 显示帮助信息
 help:
 	@echo "可用命令:"
-	@echo "  make build              - 构建项目"
+	@echo "  make build              - 构建项目（HTTP server）"
+	@echo "  make build-mcp          - 构建 MCP stdio 独立入口（zentao-mini-mcp）"
 	@echo "  make run                - 运行项目"
-	@echo "  make clean              - 清理构建产物"
 	@echo "  make test               - 运行所有测试"
 	@echo "  make test-coverage      - 运行测试并生成覆盖率报告"
 	@echo "  make test-coverage-html - 生成HTML格式的覆盖率报告"

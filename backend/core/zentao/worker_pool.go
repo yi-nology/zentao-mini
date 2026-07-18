@@ -17,12 +17,12 @@ type TaskResult struct {
 
 // WorkerPool 工作池，用于并发控制
 type WorkerPool struct {
-	taskChan  chan Task
+	taskChan   chan Task
 	resultChan chan TaskResult
-	workers   int
-	wg        sync.WaitGroup
-	ctx       context.Context
-	cancel    context.CancelFunc
+	workers    int
+	wg         sync.WaitGroup
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // NewWorkerPool 创建新的工作池
@@ -30,7 +30,7 @@ type WorkerPool struct {
 // bufferSize: 任务缓冲区大小
 func NewWorkerPool(workers int, bufferSize int) *WorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	pool := &WorkerPool{
 		taskChan:   make(chan Task, bufferSize),
 		resultChan: make(chan TaskResult, bufferSize),
@@ -67,7 +67,7 @@ func (p *WorkerPool) worker() {
 				// 任务通道已关闭
 				return
 			}
-			
+
 			// 执行任务
 			result := TaskResult{}
 			if task != nil {
@@ -75,7 +75,7 @@ func (p *WorkerPool) worker() {
 				result.Value = value
 				result.Error = err
 			}
-			
+
 			// 发送结果
 			select {
 			case <-p.ctx.Done():
@@ -128,7 +128,7 @@ func (p *WorkerPool) Shutdown() {
 // 返回所有任务的结果
 func (p *WorkerPool) ProcessBatch(tasks []Task) []TaskResult {
 	results := make([]TaskResult, 0, len(tasks))
-	
+
 	// 提交所有任务
 	for _, task := range tasks {
 		if !p.Submit(task) {

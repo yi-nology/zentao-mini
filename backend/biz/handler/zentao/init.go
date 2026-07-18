@@ -7,20 +7,20 @@ import (
 )
 
 var (
-	productHandler    *handlers.ProductHandler
-	projectHandler    *handlers.ProjectHandler
-	executionHandler  *handlers.ExecutionHandler
-	bugHandler        *handlers.BugHandler
-	buildHandler      *handlers.BuildHandler
-	storyHandler      *handlers.StoryHandler
-	taskHandler       *handlers.TaskHandler
-	userHandler       *handlers.UserHandler
-	timelogHandler    *handlers.TimelogHandler
-	dashboardHandler  *handlers.DashboardHandler
-	schedulerHandler  *handlers.SchedulerHandler
-	initHandler       *handlers.InitHandler
-	healthHandler     *handlers.HealthHandler
-	mcpHTTPTransport  *coremcp.HTTPTransport
+	productHandler   *handlers.ProductHandler
+	projectHandler   *handlers.ProjectHandler
+	executionHandler *handlers.ExecutionHandler
+	bugHandler       *handlers.BugHandler
+	buildHandler     *handlers.BuildHandler
+	storyHandler     *handlers.StoryHandler
+	taskHandler      *handlers.TaskHandler
+	userHandler      *handlers.UserHandler
+	timelogHandler   *handlers.TimelogHandler
+	dashboardHandler *handlers.DashboardHandler
+	schedulerHandler *handlers.SchedulerHandler
+	initHandler      *handlers.InitHandler
+	healthHandler    *handlers.HealthHandler
+	mcpHTTPTransport *coremcp.HTTPTransport
 )
 
 func Init(registry *handlers.HandlerRegistry, transport *coremcp.HTTPTransport) {

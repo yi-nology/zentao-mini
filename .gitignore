@@ -25,6 +25,7 @@ backend/coverage.out
 
 # Environment files
 backend/.env
+backend/config.yaml
 
 # Frontend build artifacts
 frontend/package.json.md5
@@ -36,11 +37,13 @@ build-app.sh
 .idea/
 .trae/
 .qoder/
+.zcode/
 
 zentao-mini-app
 zentao-mini-local
 zentao-mini-server
 app
 server
+backend/mcp
 data/
 zentao-mini-local-new
