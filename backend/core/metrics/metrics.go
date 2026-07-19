@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -32,6 +33,36 @@ type Metrics struct {
 }
 
 var globalMetrics *Metrics
+
+// cacheCounters 维护按 cacheType 的命中/未命中计数（原子读写），
+// 供 GetCacheHitRate 计算实时命中率（prometheus client_golang 读计数器值不便）
+var (
+	cacheCountersMu sync.RWMutex
+	cacheCounters   = make(map[string]*cacheCounter)
+)
+
+type cacheCounter struct {
+	hits   uint64
+	misses uint64
+}
+
+func getCacheCounter(cacheType string) *cacheCounter {
+	cacheCountersMu.RLock()
+	c, ok := cacheCounters[cacheType]
+	cacheCountersMu.RUnlock()
+	if ok {
+		return c
+	}
+	cacheCountersMu.Lock()
+	defer cacheCountersMu.Unlock()
+	// 双重检查
+	if c, ok := cacheCounters[cacheType]; ok {
+		return c
+	}
+	c = &cacheCounter{}
+	cacheCounters[cacheType] = c
+	return c
+}
 
 func Init() error {
 	m := &Metrics{
@@ -201,10 +232,18 @@ func Handler() app.HandlerFunc {
 
 func RecordCacheHit(cacheType string) {
 	Get().CacheHits.WithLabelValues(cacheType).Inc()
+	c := getCacheCounter(cacheType)
+	cacheCountersMu.Lock()
+	c.hits++
+	cacheCountersMu.Unlock()
 }
 
 func RecordCacheMiss(cacheType string) {
 	Get().CacheMisses.WithLabelValues(cacheType).Inc()
+	c := getCacheCounter(cacheType)
+	cacheCountersMu.Lock()
+	c.misses++
+	cacheCountersMu.Unlock()
 }
 
 func RecordCacheOperation(cacheType, operation string, duration time.Duration) {
@@ -245,6 +284,18 @@ func RecordTimelog(user, project string, hours float64) {
 	Get().TimelogTotal.WithLabelValues(user, project).Add(hours)
 }
 
+// GetCacheHitRate 返回指定缓存类型的命中率（0.0 ~ 1.0）
+// 若该类型无任何访问，返回 0
 func GetCacheHitRate(cacheType string) float64 {
-	return 0.0
+	cacheCountersMu.RLock()
+	c, ok := cacheCounters[cacheType]
+	cacheCountersMu.RUnlock()
+	if !ok || c == nil {
+		return 0
+	}
+	total := c.hits + c.misses
+	if total == 0 {
+		return 0
+	}
+	return float64(c.hits) / float64(total)
 }
