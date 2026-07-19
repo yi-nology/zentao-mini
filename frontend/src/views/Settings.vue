@@ -41,6 +41,15 @@
             <el-radio-button label="auto">跟随系统</el-radio-button>
           </el-radio-group>
         </div>
+        <div class="info-row">
+          <span class="info-label">桌面通知</span>
+          <div>
+            <el-switch v-model="notificationEnabled" @change="onNotificationChange" />
+            <el-button v-if="notificationEnabled && notifPermission !== 'granted'" size="small" link type="primary" @click="requestNotifPermission" style="margin-left: 12px">
+              授权系统通知
+            </el-button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -100,6 +109,11 @@ import { getAccountInfo, testZentaoConnection } from '@/api/zentao'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
 import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
+import {
+  isNotificationEnabled,
+  setNotificationEnabled,
+  ensurePermission
+} from '@/composables/useDesktopNotification'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 interface AccountInfo {
@@ -120,6 +134,31 @@ const accountInfo = ref<AccountInfo | null>(null)
 const latency = ref(0)
 const appVersion = ref('dev')
 const themeMode = ref<ThemeMode>('auto')
+const notificationEnabled = ref(false)
+const notifPermission = ref<NotificationPermission>('default')
+
+const onNotificationChange = async (val: boolean | string | number) => {
+  const enabled = Boolean(val)
+  setNotificationEnabled(enabled)
+  if (enabled) {
+    // 用户开启通知时自动请求权限
+    const granted = await ensurePermission()
+    notifPermission.value = granted ? 'granted' : (typeof Notification !== 'undefined' ? Notification.permission : 'default')
+    if (!granted) {
+      ElMessage.info('已开启应用内通知，但需要授权才能显示桌面通知')
+    }
+  }
+}
+
+const requestNotifPermission = async () => {
+  const granted = await ensurePermission()
+  notifPermission.value = granted ? 'granted' : (typeof Notification !== 'undefined' ? Notification.permission : 'default')
+  if (granted) {
+    ElMessage.success('已授权桌面通知')
+  } else {
+    ElMessage.warning('授权失败，可在浏览器/系统设置中手动开启')
+  }
+}
 
 const cacheLoading = ref(true)
 const cacheStatus = ref<CacheStatus | null>(null)
@@ -202,6 +241,8 @@ const onThemeChange = (val: ThemeMode) => {
 
 onMounted(() => {
   themeMode.value = getStoredThemeMode()
+  notificationEnabled.value = isNotificationEnabled()
+  notifPermission.value = typeof Notification !== 'undefined' ? Notification.permission : 'default'
   fetchAccountInfo()
   fetchCacheStatus()
 })

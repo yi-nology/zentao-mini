@@ -5,3 +5,15 @@
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
+
+export function HideWindow() {
+  return window['go']['main']['App']['HideWindow']();
+}
+
+export function MinimizeToTray() {
+  return window['go']['main']['App']['MinimizeToTray']();
+}
+
+export function ShowWindow() {
+  return window['go']['main']['App']['ShowWindow']();
+}
