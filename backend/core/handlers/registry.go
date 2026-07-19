@@ -39,7 +39,6 @@ type HandlerRegistry struct {
 	timelogHandler   *TimelogHandler
 	dashboardHandler *DashboardHandler
 	schedulerHandler *SchedulerHandler
-	mcpHandler       *MCPHandler
 	initHandler      *InitHandler
 	healthHandler    *HealthHandler
 }
@@ -73,17 +72,6 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.userHandler = NewUserHandler(registry.userService)
 	registry.timelogHandler = NewTimelogHandler(registry.timelogService)
 	registry.dashboardHandler = NewDashboardHandler(registry.dashboardService)
-
-	registry.mcpHandler = NewMCPHandler(
-		registry.productHandler,
-		registry.projectHandler,
-		registry.executionHandler,
-		registry.bugHandler,
-		registry.storyHandler,
-		registry.taskHandler,
-		registry.userHandler,
-		registry.timelogHandler,
-	)
 
 	registry.initHandler = NewInitHandler(initService, client)
 
@@ -189,12 +177,6 @@ func (r *HandlerRegistry) GetUserService() *service.UserService { return r.userS
 
 // GetTimelogService 获取工时 Service
 func (r *HandlerRegistry) GetTimelogService() *service.TimelogService { return r.timelogService }
-
-// GetMCPHandler 获取MCP Handler
-// Deprecated: 请使用 mcp.NewHTTPTransport(mcp.NewMCPServerFromServices(...)) 代替
-func (r *HandlerRegistry) GetMCPHandler() *MCPHandler {
-	return r.mcpHandler
-}
 
 // GetInitHandler 获取初始化Handler
 func (r *HandlerRegistry) GetInitHandler() *InitHandler {
