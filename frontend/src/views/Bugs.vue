@@ -87,7 +87,14 @@
     <div class="table-card">
       <div class="table-header">
         <span v-if="selectedBugs.length > 0">已选择 {{ selectedBugs.length }} 个Bug</span>
+        <span v-else class="result-count">共 {{ pagination.total }} 条</span>
         <div class="header-actions">
+          <ColumnSettings
+            :columns="columns"
+            @toggle="toggleColumn"
+            @show-all="showAllColumns"
+            @reset="resetColumns"
+          />
           <el-button type="primary" size="small" @click="handleViewDetails" :disabled="selectedBugs.length === 0">
             查看详情
           </el-button>
@@ -102,59 +109,58 @@
         border
         stripe
         style="width: 100%"
+        :default-sort="defaultSort"
         @select="handleSelect"
         @select-all="handleSelectAll"
+        @sort-change="handleSortChange"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" align="center" />
-        <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">
-            <a href="javascript:void(0)" @click="openZentaoLink(buildZentaoUrl(`bug-view-${row.id}.html`))" class="bug-title">
-              {{ row.title }}
-            </a>
-          </template>
-        </el-table-column>
-        <el-table-column prop="openedBuild" label="版本" width="120" align="center" show-overflow-tooltip>
-          <template #default="{ row }">
-            <template v-if="row.openedBuild && row.openedBuild.length > 0">
-              <el-tag v-for="build in row.openedBuild" :key="build" size="small" type="info" style="margin-right: 2px;">
-                {{ build }}
+        <el-table-column type="selection" width="55" fixed="left" />
+        <template v-for="col in visibleColumns" :key="col.key">
+          <el-table-column
+            :prop="col.key"
+            :label="col.label"
+            :width="col.width"
+            :min-width="col.minWidth"
+            :align="col.align || 'center'"
+            :sortable="col.sortable || false"
+            :show-overflow-tooltip="col.showOverflowTooltip"
+          >
+            <template v-if="col.key === 'title'" #default="{ row }">
+              <a href="javascript:void(0)" @click="openZentaoLink(buildZentaoUrl(`bug-view-${row.id}.html`))" class="bug-title">
+                {{ row.title }}
+              </a>
+            </template>
+            <template v-else-if="col.key === 'openedBuild'" #default="{ row }">
+              <template v-if="row.openedBuild && row.openedBuild.length > 0">
+                <el-tag v-for="build in row.openedBuild" :key="build" size="small" type="info" style="margin-right: 2px;">
+                  {{ build }}
+                </el-tag>
+              </template>
+              <span v-else>-</span>
+            </template>
+            <template v-else-if="col.key === 'status'" #default="{ row }">
+              <el-tag :type="getStatusType(row.status)">
+                {{ getStatusLabel(row.status) }}
               </el-tag>
             </template>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">
-              {{ getStatusLabel(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="severity" label="严重程度" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getSeverityType(row.severity)">
-              {{ getSeverityLabel(row.severity) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="type" label="类型" width="110" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.type" type="info" size="small">{{ getTypeLabel(row.type) }}</el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="assignedTo" label="指派人" width="100" align="center">
-          <template #default="{ row }">
-            {{ row.assignedTo?.realname || row.assignedTo?.account || row.assignedTo || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="openedDate" label="创建时间" width="150" align="center">
-          <template #default="{ row }">
-            {{ formatDate(row.openedDate) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="80" align="center">
+            <template v-else-if="col.key === 'severity'" #default="{ row }">
+              <el-tag :type="getSeverityType(row.severity)">
+                {{ getSeverityLabel(row.severity) }}
+              </el-tag>
+            </template>
+            <template v-else-if="col.key === 'type'" #default="{ row }">
+              <el-tag v-if="row.type" type="info" size="small">{{ getTypeLabel(row.type) }}</el-tag>
+              <span v-else>-</span>
+            </template>
+            <template v-else-if="col.key === 'assignedTo'" #default="{ row }">
+              {{ row.assignedTo?.realname || row.assignedTo?.account || row.assignedTo || '-' }}
+            </template>
+            <template v-else-if="col.key === 'openedDate'" #default="{ row }">
+              {{ formatDate(row.openedDate) }}
+            </template>
+          </el-table-column>
+        </template>
+        <el-table-column label="操作" width="80" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleViewDetail(row)">
               查看
@@ -211,6 +217,8 @@ import { sanitizeHtml } from '@/utils/sanitize'
 import { getBugs, getBuildsByProject, getBugStatusOptions, getUsers, getProducts } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
+import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
+import ColumnSettings from '@/components/ColumnSettings.vue'
 import type { Bug, User, SelectOption } from '@/types/api'
 import * as runtime from '@wailsjs/runtime/runtime'
 import { useRoute, useRouter } from 'vue-router'
@@ -240,6 +248,46 @@ const globalSelection = inject<GlobalSelection>('globalSelection')!
 const route = useRoute()
 const router = useRouter()
 const { buildUrl: buildZentaoUrl } = useZentaoConfig()
+
+// ----- 表格列配置（自定义列 + 本地排序） -----
+interface BugColumnConfig extends ColumnConfig {
+  align?: 'left' | 'center' | 'right'
+  showOverflowTooltip?: boolean
+}
+
+const defaultBugColumns: BugColumnConfig[] = [
+  { key: 'id', label: 'ID', visible: true, width: 80, sortable: true },
+  { key: 'title', label: '标题', visible: true, minWidth: 200, align: 'left', showOverflowTooltip: true },
+  { key: 'openedBuild', label: '版本', visible: true, width: 120 },
+  { key: 'status', label: '状态', visible: true, width: 90, sortable: true },
+  { key: 'severity', label: '严重程度', visible: true, width: 90, sortable: true },
+  { key: 'type', label: '类型', visible: true, width: 110 },
+  { key: 'assignedTo', label: '指派人', visible: true, width: 100 },
+  { key: 'openedDate', label: '创建时间', visible: true, width: 150, sortable: true }
+]
+
+const {
+  columns,
+  visibleColumns,
+  toggleColumn,
+  showAllColumns,
+  resetColumns
+} = useTableColumns<BugColumnConfig>('zentao-mini-bug-columns', defaultBugColumns)
+
+// 排序状态
+const sortState = reactive<{ prop: string; order: 'ascending' | 'descending' | null }>({
+  prop: '',
+  order: null
+})
+const defaultSort = computed(() => {
+  if (!sortState.prop || !sortState.order) return undefined
+  return { prop: sortState.prop, order: sortState.order }
+})
+
+const handleSortChange = ({ prop, order }: { prop: string; order: 'ascending' | 'descending' | null }): void => {
+  sortState.prop = prop
+  sortState.order = order
+}
 
 const filterForm = reactive<FilterForm>({
   assignedTo: '',
@@ -307,7 +355,7 @@ const assignedToOptions = computed(() => {
 })
 
 const filteredBugList = computed(() => {
-  return bugList.value.filter((bug: Bug) => {
+  const list = bugList.value.filter((bug: Bug) => {
     if (filterForm.assignedTo) {
       const assigned = bug.assignedTo
       if (!assigned) return false
@@ -318,6 +366,27 @@ const filteredBugList = computed(() => {
     // 状态、版本、类型已由后端筛选，这里不再二次过滤，以保证分页 total 准确
     return true
   })
+
+  // 本地排序（仅对当前页数据生效）
+  if (sortState.prop && sortState.order) {
+    const factor = sortState.order === 'ascending' ? 1 : -1
+    return [...list].sort((a: any, b: any) => {
+      const va = a[sortState.prop]
+      const vb = b[sortState.prop]
+      if (va == null && vb == null) return 0
+      if (va == null) return 1
+      if (vb == null) return -1
+      // severity 是数字字符串（1-4）
+      if (typeof va === 'number' || typeof vb === 'number') {
+        return (Number(va) - Number(vb)) * factor
+      }
+      // 时间字段直接字符串比较（ISO 格式可比较）
+      const sa = String(va)
+      const sb = String(vb)
+      return sa.localeCompare(sb) * factor
+    })
+  }
+  return list
 })
 
 const fetchUsers = async (): Promise<void> => {
@@ -608,6 +677,25 @@ onMounted(() => {
   text-decoration: underline;
   color: var(--color-primary-hover);
 }
+
+.result-count {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+</style>
 
 .bug-detail {
   line-height: 1.6;
