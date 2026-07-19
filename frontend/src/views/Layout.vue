@@ -48,6 +48,8 @@
               @keydown.down.prevent="highlightNext"
               @keydown.up.prevent="highlightPrev"
               @keydown.enter.prevent="enterHighlighted"
+              @keydown.page-down.prevent="searchNextPage"
+              @keydown.page-up.prevent="searchPrevPage"
             />
             <!-- Search Results Dropdown -->
             <div v-if="searchOpen" class="search-dropdown">
@@ -83,14 +85,21 @@
                   <button
                     class="search-page-btn"
                     :disabled="searchPage <= 1"
-                    @click="searchPage--; doSearch()"
+                    @click="searchPrevPage"
                   >上一页</button>
                   <span class="search-page-info">{{ searchPage }} / {{ totalPages }}</span>
                   <button
                     class="search-page-btn"
                     :disabled="searchPage >= totalPages"
-                    @click="searchPage++; doSearch()"
+                    @click="searchNextPage"
                   >下一页</button>
+                </div>
+                <!-- 快捷键提示条 -->
+                <div class="search-hints">
+                  <span><kbd>↑↓</kbd>选择</span>
+                  <span><kbd>Enter</kbd>跳转</span>
+                  <span><kbd>PgUp/PgDn</kbd>翻页</span>
+                  <span><kbd>Esc</kbd>关闭</span>
                 </div>
               </template>
             </div>
@@ -269,6 +278,24 @@ const highlightPrev = () => {
 const enterHighlighted = () => {
   if (searchHighlightIndex.value >= 0 && searchHighlightIndex.value < flatResults.value.length) {
     navigateTo(flatResults.value[searchHighlightIndex.value])
+  }
+}
+
+// 翻页：上一页（PgUp 或点击）
+const searchPrevPage = () => {
+  if (searchPage.value > 1) {
+    searchPage.value--
+    searchHighlightIndex.value = -1
+    doSearch()
+  }
+}
+
+// 翻页：下一页（PgDn 或点击）
+const searchNextPage = () => {
+  if (searchPage.value < totalPages.value) {
+    searchPage.value++
+    searchHighlightIndex.value = -1
+    doSearch()
   }
 }
 
@@ -701,6 +728,27 @@ provide<GlobalSelection>('globalSelection', globalSelection)
 .search-page-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.search-hints {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 14px 10px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  border-top: 1px dashed var(--color-border-light);
+}
+.search-hints kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 4px;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 10px;
+  color: var(--color-text-secondary);
 }
 
 .search-page-info {
