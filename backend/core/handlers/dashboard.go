@@ -32,6 +32,15 @@ func (h *DashboardHandler) GetDashboard(ctx context.Context, c *app.RequestConte
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return
 	}
+	// 如果数据来自缓存（离线或命中），通过响应头告知前端
+	if result != nil && result.FromCache {
+		c.Response.Header.Set("X-Cache", "HIT")
+		if result.Stale {
+			c.Response.Header.Set("X-Cache-Stale", "1")
+		}
+	} else {
+		c.Response.Header.Set("X-Cache", "MISS")
+	}
 	errors.Success(c, result)
 }
 

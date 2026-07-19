@@ -45,6 +45,36 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">离线缓存</h3>
+      <div class="settings-card">
+        <div v-if="cacheLoading" class="loading-text">加载中...</div>
+        <template v-else-if="cacheStatus">
+          <div class="info-row">
+            <span class="info-label">缓存条目</span>
+            <span class="info-value">{{ cacheStatus.entryCount }} 条</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">占用空间</span>
+            <span class="info-value">{{ formatBytes(cacheStatus.totalBytes) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">最后更新</span>
+            <span class="info-value">{{ cacheStatus.lastUpdateAt ? formatTime(cacheStatus.lastUpdateAt) : '从未' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">数据库路径</span>
+            <span class="info-value mono">{{ cacheStatus.dbPath }}</span>
+          </div>
+          <div class="info-row actions">
+            <el-button size="small" @click="fetchCacheStatus">刷新</el-button>
+            <el-button size="small" type="danger" @click="clearCache">清空缓存</el-button>
+          </div>
+        </template>
+        <div v-else class="empty-text">缓存未启用（SQLite 初始化失败）</div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">系统信息</h3>
       <div class="settings-card">
         <div class="info-row">
@@ -70,6 +100,7 @@ import { getAccountInfo, testZentaoConnection } from '@/api/zentao'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
 import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 interface AccountInfo {
   domain: string
@@ -77,11 +108,21 @@ interface AccountInfo {
   connected: boolean
 }
 
+interface CacheStatus {
+  entryCount: number
+  totalBytes: number
+  lastUpdateAt: string
+  dbPath: string
+}
+
 const loading = ref(true)
 const accountInfo = ref<AccountInfo | null>(null)
 const latency = ref(0)
 const appVersion = ref('dev')
 const themeMode = ref<ThemeMode>('auto')
+
+const cacheLoading = ref(true)
+const cacheStatus = ref<CacheStatus | null>(null)
 
 const fetchAccountInfo = async () => {
   loading.value = true
@@ -106,6 +147,55 @@ const fetchAccountInfo = async () => {
   loading.value = false
 }
 
+const fetchCacheStatus = async () => {
+  cacheLoading.value = true
+  try {
+    const res = await api.get('/cache/status') as ApiResponse<CacheStatus>
+    if (res?.data) cacheStatus.value = res.data
+  } catch {
+    // 缓存可能未启用（404 或 500），静默处理
+    cacheStatus.value = null
+  } finally {
+    cacheLoading.value = false
+  }
+}
+
+const clearCache = async () => {
+  try {
+    await ElMessageBox.confirm('确定要清空所有离线缓存吗？断网时将无法查看历史数据。', '清空确认', {
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  try {
+    await api.delete('/cache')
+    ElMessage.success('缓存已清空')
+    fetchCacheStatus()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '清空失败'
+    ElMessage.error(msg)
+  }
+}
+
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const formatTime = (iso: string): string => {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('zh-CN')
+  } catch {
+    return iso
+  }
+}
+
 const onThemeChange = (val: ThemeMode) => {
   setThemeMode(val)
 }
@@ -113,6 +203,7 @@ const onThemeChange = (val: ThemeMode) => {
 onMounted(() => {
   themeMode.value = getStoredThemeMode()
   fetchAccountInfo()
+  fetchCacheStatus()
 })
 </script>
 
@@ -164,5 +255,20 @@ onMounted(() => {
   padding: var(--space-lg);
   color: var(--color-text-tertiary);
   font-size: 14px;
+}
+
+.info-row.actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.info-value.mono {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  word-break: break-all;
+  max-width: 60%;
+  text-align: right;
 }
 </style>

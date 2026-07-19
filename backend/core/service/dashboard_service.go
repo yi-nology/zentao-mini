@@ -214,6 +214,9 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 		if err := json.Unmarshal(result.Data, &dashboard); err != nil {
 			return nil, err
 		}
+		// 标记数据来源（前端据此显示离线徽标）
+		dashboard.FromCache = result.FromCache
+		dashboard.Stale = result.Stale
 		return &dashboard, nil
 	}
 	return s.fetchDashboard(ctx, productID, startDate, endDate)

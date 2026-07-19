@@ -1,6 +1,11 @@
 <template>
   <div class="dashboard-container">
     <div class="dashboard-toolbar">
+      <div class="left-area">
+        <el-tag v-if="data?.fromCache" :type="data?.stale ? 'warning' : 'info'" size="small" effect="plain" class="cache-badge">
+          {{ data?.stale ? '⚠ 离线模式（过期缓存）' : '缓存数据' }}
+        </el-tag>
+      </div>
       <div class="time-range">
         <span class="time-range-label">时间范围：</span>
         <el-radio-group v-model="timeRange" size="small">
@@ -385,8 +390,16 @@ const getTaskStatusLabel = (status: string): string => {
 
 .dashboard-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 16px;
+  gap: 12px;
+}
+.dashboard-toolbar .left-area {
+  flex: 1;
+}
+.cache-badge {
+  font-weight: 600;
 }
 .time-range {
   display: flex;

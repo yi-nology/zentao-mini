@@ -234,6 +234,9 @@ export interface DashboardData {
   timelog: TimelogSummary
   recentBugs: Bug[]
   recentTasks: Task[]
+  // 缓存元信息
+  fromCache?: boolean
+  stale?: boolean
 }
 
 export interface SearchItem {
