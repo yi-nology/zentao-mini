@@ -17,6 +17,8 @@
     "chart.js": "^4.5.1",
     "dompurify": "^3.4.6",
     "element-plus": "^2.13.5",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "vue": "^3.2.37",
     "vue-router": "^5.0.3",
     "xlsx": "^0.18.5"

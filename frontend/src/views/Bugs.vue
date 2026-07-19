@@ -98,9 +98,16 @@
           <el-button type="primary" size="small" @click="handleViewDetails" :disabled="selectedBugs.length === 0">
             查看详情
           </el-button>
-          <el-button type="success" size="small" @click="handleExport" :disabled="selectedBugs.length === 0">
-            导出
-          </el-button>
+          <el-dropdown split-button type="success" size="small" @click="handleExport('excel')" @command="handleExport" :disabled="selectedBugs.length === 0">
+            导出 Excel
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="excel">导出 Excel (.xlsx)</el-dropdown-item>
+                <el-dropdown-item command="csv">导出 CSV (.csv)</el-dropdown-item>
+                <el-dropdown-item command="pdf">导出 PDF (.pdf)</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
       <el-table
@@ -599,35 +606,33 @@ const handleViewDetail = (row: Bug): void => {
   detailDialogVisible.value = true
 }
 
-const handleExport = async (): Promise<void> => {
+const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   if (selectedBugs.value.length === 0) return
-  const XLSX = await import('xlsx')
-  const exportData = selectedBugs.value.map((bug: Bug) => ({
-      ID: bug.id,
-      标题: bug.title,
-      链接地址: buildZentaoUrl(`bug-view-${bug.id}.html`),
-      产品: productMap.value[bug.product] || String(bug.product),
-      项目: String(bug.project),
-      版本: (bug.openedBuild || []).join(', '),
-      状态: getStatusLabel(bug.status),
-      严重程度: getSeverityLabel(bug.severity),
-      类型: getTypeLabel(bug.type),
-      指派人: bug.assignedTo?.realname || bug.assignedTo?.account || '',
-      创建时间: formatDate(bug.openedDate),
-      描述: bug.steps || ''
-    }))
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Bug列表')
-
-    try {
-      XLSX.writeFile(workbook, `Bug列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
-      ElMessage.success(`导出 ${selectedBugs.value.length} 个Bug成功`)
-    } catch (error) {
-      console.error('导出失败:', error)
-      ElMessage.error('导出失败，请重试')
-    }
+  const { exportData, timestampedFilename } = await import('@/utils/export')
+  type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
+  const cols: ExportColumn<Bug>[] = [
+    { header: 'ID', access: bug => bug.id },
+    { header: '标题', access: bug => bug.title },
+    { header: '链接地址', access: bug => buildZentaoUrl(`bug-view-${bug.id}.html`) },
+    { header: '产品', access: bug => productMap.value[bug.product] || String(bug.product) },
+    { header: '项目', access: bug => String(bug.project) },
+    { header: '版本', access: bug => (bug.openedBuild || []).join(', ') },
+    { header: '状态', access: bug => getStatusLabel(bug.status) },
+    { header: '严重程度', access: bug => getSeverityLabel(bug.severity) },
+    { header: '类型', access: bug => getTypeLabel(bug.type) },
+    { header: '指派人', access: bug => bug.assignedTo?.realname || bug.assignedTo?.account || '' },
+    { header: '创建时间', access: bug => formatDate(bug.openedDate) },
+    { header: '描述', access: bug => bug.steps || '' }
+  ]
+  const filename = timestampedFilename('Bug列表')
+  try {
+    await exportData(filename, selectedBugs.value, cols, format, { title: 'Bug 列表' })
+    ElMessage.success(`导出 ${selectedBugs.value.length} 个Bug成功`)
+  } catch (error) {
+    console.error('导出失败:', error)
+    const msg = error instanceof Error ? error.message : '导出失败'
+    ElMessage.error(msg)
+  }
 }
 
 const openZentaoLink = (url: string): void => {
