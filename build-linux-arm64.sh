@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # 交叉编译 Wails 应用为 arm64 Linux 可执行文件
+# 详细说明见 build-linux.sh（同 CGO_ENABLED=0 纯 Go 编译策略）
 
 echo "开始交叉编译 Wails 应用为 arm64 Linux 版本..."
 
