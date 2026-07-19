@@ -94,17 +94,26 @@
       <!-- Charts -->
       <div class="charts-grid">
         <div class="chart-card">
-          <h3>Bug 严重程度分布</h3>
+          <div class="chart-card-header">
+            <h3>Bug 严重程度分布</h3>
+            <el-button v-if="hasSeverityData" link size="small" @click="downloadChart(0, 'bug-severity')">下载图片</el-button>
+          </div>
           <div v-if="hasSeverityData" class="chart-wrapper"><canvas ref="severityChartRef" /></div>
           <div v-else class="chart-empty">暂无数据</div>
         </div>
         <div class="chart-card">
-          <h3>Bug 类型分布</h3>
+          <div class="chart-card-header">
+            <h3>Bug 类型分布</h3>
+            <el-button v-if="hasTypeData" link size="small" @click="downloadChart(1, 'bug-type')">下载图片</el-button>
+          </div>
           <div v-if="hasTypeData" class="chart-wrapper"><canvas ref="typeChartRef" /></div>
           <div v-else class="chart-empty">暂无数据</div>
         </div>
         <div class="chart-card">
-          <h3>任务状态分布</h3>
+          <div class="chart-card-header">
+            <h3>任务状态分布</h3>
+            <el-button v-if="hasTaskData" link size="small" @click="downloadChart(2, 'task-status')">下载图片</el-button>
+          </div>
           <div v-if="hasTaskData" class="chart-wrapper"><canvas ref="taskChartRef" /></div>
           <div v-else class="chart-empty">暂无数据</div>
         </div>
@@ -332,6 +341,18 @@ watch([timeRange, customDateRange], () => {
   if (globalSelection.product) fetchData()
 })
 
+// 下载图表为 PNG（chart.toBase64Image()）
+const downloadChart = (index: number, name: string): void => {
+  const chart = charts[index]
+  if (!chart) return
+  // chart.js 提供 toBase64Image()
+  const base64 = (chart as any).toBase64Image('image/png', 1)
+  const link = document.createElement('a')
+  link.download = `${name}-${Date.now()}.png`
+  link.href = base64
+  link.click()
+}
+
 watch(() => globalSelection.product, (val) => {
   destroyCharts()
   if (val) fetchData()
@@ -516,6 +537,20 @@ const getTaskStatusLabel = (status: string): string => {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   padding: var(--space-lg);
+}
+
+.chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.chart-card-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
 }
 
 .chart-card h3 {

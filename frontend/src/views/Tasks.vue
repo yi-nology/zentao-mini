@@ -48,6 +48,21 @@
     </div>
 
     <div class="table-card">
+      <div class="table-header">
+        <span class="result-count">共 {{ pagination.total }} 条</span>
+        <div class="header-actions">
+          <el-dropdown split-button type="success" size="small" @click="handleExport('excel')" @command="handleExport" :disabled="taskList.length === 0">
+            导出 Excel
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="excel">导出 Excel (.xlsx)</el-dropdown-item>
+                <el-dropdown-item command="csv">导出 CSV (.csv)</el-dropdown-item>
+                <el-dropdown-item command="pdf">导出 PDF (.pdf)</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </div>
       <el-table v-loading="loading" :data="taskList" border stripe style="width: 100%" :row-class-name="tableRowClassName">
         <el-table-column prop="id" label="ID" width="80" align="center" />
         <el-table-column prop="name" label="标题" min-width="220">
@@ -170,6 +185,30 @@ const fetchExecutions = async (): Promise<void> => {
 
 const fetchUsers = async (): Promise<void> => {
   try { userOptions.value = (await getUsers()) || [] } catch (error) { console.error('获取用户列表失败:', error) }
+}
+
+// 导出当前页任务列表
+const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
+  if (taskList.value.length === 0) return
+  const { exportData, timestampedFilename } = await import('@/utils/export')
+  type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
+  const cols: ExportColumn<Task>[] = [
+    { header: 'ID', access: t => t.id },
+    { header: '标题', access: t => t.name },
+    { header: '状态', access: t => getStatusLabel(t.status) },
+    { header: '指派给', access: t => t.assignedTo?.realname || t.assignedTo?.account || '' },
+    { header: '预估工时', access: t => t.estimate ?? 0 },
+    { header: '消耗工时', access: t => t.consumed ?? 0 },
+    { header: '剩余工时', access: t => t.left ?? 0 },
+    { header: '截止日期', access: t => t.deadline || '' }
+  ]
+  try {
+    await exportData(timestampedFilename('任务列表'), taskList.value, cols, format, { title: '任务列表' })
+    ElMessage.success(`导出 ${taskList.value.length} 个任务成功`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '导出失败'
+    ElMessage.error(msg)
+  }
 }
 
 watch(() => [globalSelection.product, globalSelection.project], () => { filterForm.execution = null; fetchExecutions() }, { deep: true })
