@@ -34,8 +34,12 @@
       <h3 class="section-title">显示设置</h3>
       <div class="settings-card">
         <div class="info-row">
-          <span class="info-label">深色模式</span>
-          <el-switch v-model="darkMode" @change="toggleDarkMode" />
+          <span class="info-label">主题模式</span>
+          <el-radio-group v-model="themeMode" @change="onThemeChange">
+            <el-radio-button label="light">浅色</el-radio-button>
+            <el-radio-button label="dark">深色</el-radio-button>
+            <el-radio-button label="auto">跟随系统</el-radio-button>
+          </el-radio-group>
         </div>
       </div>
     </div>
@@ -65,6 +69,7 @@ import { ref, onMounted } from 'vue'
 import { getAccountInfo, testZentaoConnection } from '@/api/zentao'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
+import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
 
 interface AccountInfo {
   domain: string
@@ -76,7 +81,7 @@ const loading = ref(true)
 const accountInfo = ref<AccountInfo | null>(null)
 const latency = ref(0)
 const appVersion = ref('dev')
-const darkMode = ref(false)
+const themeMode = ref<ThemeMode>('auto')
 
 const fetchAccountInfo = async () => {
   loading.value = true
@@ -101,16 +106,12 @@ const fetchAccountInfo = async () => {
   loading.value = false
 }
 
-const toggleDarkMode = (val: boolean | string | number) => {
-  const isDark = Boolean(val)
-  document.documentElement.classList.toggle('dark', isDark)
-  localStorage.setItem('zentao-mini-dark', isDark ? '1' : '0')
+const onThemeChange = (val: ThemeMode) => {
+  setThemeMode(val)
 }
 
 onMounted(() => {
-  const saved = localStorage.getItem('zentao-mini-dark')
-  darkMode.value = saved === '1'
-  document.documentElement.classList.toggle('dark', darkMode.value)
+  themeMode.value = getStoredThemeMode()
   fetchAccountInfo()
 })
 </script>

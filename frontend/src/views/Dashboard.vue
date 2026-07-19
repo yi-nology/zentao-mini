@@ -645,7 +645,7 @@ const getTaskStatusLabel = (status: string): string => {
 .tag--resolved, .tag--done { background: var(--color-success-light); color: var(--color-success); }
 .tag--closed { background: var(--color-info-light); color: var(--color-info); }
 .tag--wait { background: var(--color-warning-light); color: var(--color-warning); }
-.tag--draft, .tag--pause { background: #F1F5F9; color: var(--color-text-tertiary); }
+.tag--draft, .tag--pause { background: var(--color-info-light); color: var(--color-text-tertiary); }
 
 .list-empty {
   padding: 40px var(--space-lg);
