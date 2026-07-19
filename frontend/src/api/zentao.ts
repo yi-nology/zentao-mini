@@ -278,8 +278,20 @@ export const testZentaoConnection = (): Promise<ApiResponse<unknown>> => {
   return api.get('/users/current')
 }
 
-export const getDashboard = (productId: number): Promise<ApiResponse<DashboardData>> => {
-  return api.get('/dashboard', { params: { productId } })
+export interface DashboardTimeRange {
+  productId: number
+  startDate?: string
+  endDate?: string
+}
+
+export const getDashboard = (
+  productId: number,
+  timeRange?: { startDate?: string; endDate?: string }
+): Promise<ApiResponse<DashboardData>> => {
+  const params: Record<string, any> = { productId }
+  if (timeRange?.startDate) params.startDate = timeRange.startDate
+  if (timeRange?.endDate) params.endDate = timeRange.endDate
+  return api.get('/dashboard', { params })
 }
 
 export interface InitStatusData {

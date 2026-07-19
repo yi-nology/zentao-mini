@@ -1,5 +1,29 @@
 <template>
   <div class="dashboard-container">
+    <div class="dashboard-toolbar">
+      <div class="time-range">
+        <span class="time-range-label">时间范围：</span>
+        <el-radio-group v-model="timeRange" size="small">
+          <el-radio-button label="7d">近 7 天</el-radio-button>
+          <el-radio-button label="30d">近 30 天</el-radio-button>
+          <el-radio-button label="90d">近 90 天</el-radio-button>
+          <el-radio-button label="all">全部</el-radio-button>
+          <el-radio-button label="custom">自定义</el-radio-button>
+        </el-radio-group>
+        <el-date-picker
+          v-if="timeRange === 'custom'"
+          v-model="customDateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          size="small"
+          style="width: 240px; margin-left: 8px"
+        />
+        <span class="time-range-current">{{ timeRangeLabel }}</span>
+      </div>
+    </div>
+
     <div v-if="loading" class="loading-wrapper">
       <div class="loading-spinner"></div>
       <span>加载中...</span>
@@ -149,6 +173,42 @@ const loading = ref(false)
 const error = ref('')
 const data = ref<DashboardData | null>(null)
 
+// 时间范围筛选：近 7 天 / 近 30 天 / 近 90 天 / 全部 / 自定义
+type TimeRangeKey = '7d' | '30d' | '90d' | 'all' | 'custom'
+const timeRange = ref<TimeRangeKey>('all')
+const customDateRange = ref<[string, string] | null>(null)
+
+const formatDate = (d: Date): string => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// 计算实际起止日期（YYYY-MM-DD）
+const timeRangeParams = computed<{ startDate?: string; endDate?: string }>(() => {
+  if (timeRange.value === 'all') return {}
+  if (timeRange.value === 'custom') {
+    if (!customDateRange.value || !customDateRange.value[0] || !customDateRange.value[1]) return {}
+    return {
+      startDate: customDateRange.value[0],
+      endDate: customDateRange.value[1]
+    }
+  }
+  const days = timeRange.value === '7d' ? 7 : timeRange.value === '30d' ? 30 : 90
+  const end = new Date()
+  const start = new Date()
+  start.setDate(end.getDate() - days + 1)
+  return { startDate: formatDate(start), endDate: formatDate(end) }
+})
+
+// 时间范围标签描述（显示在卡片上方）
+const timeRangeLabel = computed(() => {
+  const p = timeRangeParams.value
+  if (!p.startDate) return '全部时间'
+  return `${p.startDate} 至 ${p.endDate}`
+})
+
 const severityChartRef = ref<HTMLCanvasElement | null>(null)
 const typeChartRef = ref<HTMLCanvasElement | null>(null)
 const taskChartRef = ref<HTMLCanvasElement | null>(null)
@@ -254,7 +314,7 @@ const fetchData = async (): Promise<void> => {
   loading.value = true
   error.value = ''
   try {
-    const res = await getDashboard(pid)
+    const res = await getDashboard(pid, timeRangeParams.value)
     data.value = res.data
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '未知错误'
@@ -266,6 +326,11 @@ const fetchData = async (): Promise<void> => {
     loading.value = false
   }
 }
+
+// 时间范围变化时重新加载
+watch([timeRange, customDateRange], () => {
+  if (globalSelection.product) fetchData()
+})
 
 watch(() => globalSelection.product, (val) => {
   destroyCharts()
@@ -295,6 +360,26 @@ const getTaskStatusLabel = (status: string): string => {
 <style scoped>
 .dashboard-container {
   max-width: 1200px;
+}
+
+.dashboard-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+.time-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.time-range-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.time-range-current {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-left: 8px;
 }
 
 /* Loading */

@@ -23,7 +23,11 @@ func (h *DashboardHandler) GetDashboard(ctx context.Context, c *app.RequestConte
 		errors.BadRequest(c, "参数格式错误")
 		return
 	}
-	result, err := h.dashboardService.GetDashboardContext(ctx, query.ProductID)
+	if err := query.Validate(); err != nil {
+		errors.BadRequest(c, err.Error())
+		return
+	}
+	result, err := h.dashboardService.GetDashboardContext(ctx, query.ProductID, query.StartDate, query.EndDate)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return

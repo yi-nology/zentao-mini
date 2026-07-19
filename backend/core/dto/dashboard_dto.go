@@ -1,8 +1,40 @@
 package dto
 
+import "fmt"
+
 // DashboardQuery 仪表盘查询参数
 type DashboardQuery struct {
-	ProductID int `form:"productId" json:"productId"`
+	ProductID int    `form:"productId" json:"productId"`
+	StartDate string `form:"startDate" json:"startDate"` // 起始日期（含），格式 YYYY-MM-DD，为空表示不限
+	EndDate   string `form:"endDate" json:"endDate"`     // 截止日期（含），格式 YYYY-MM-DD，为空表示不限
+}
+
+// Validate 校验查询参数：日期格式必须是 YYYY-MM-DD（如果提供）
+func (q *DashboardQuery) Validate() error {
+	if !isValidDateFormat(q.StartDate) {
+		return fmt.Errorf("startDate 格式必须是 YYYY-MM-DD")
+	}
+	if !isValidDateFormat(q.EndDate) {
+		return fmt.Errorf("endDate 格式必须是 YYYY-MM-DD")
+	}
+	if q.StartDate != "" && q.EndDate != "" && q.StartDate > q.EndDate {
+		return fmt.Errorf("startDate 不能晚于 endDate")
+	}
+	return nil
+}
+
+// isValidDateFormat 校验 YYYY-MM-DD 格式（允许空字符串）
+func isValidDateFormat(s string) bool {
+	if s == "" {
+		return true
+	}
+	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
+		return false
+	}
+	if _, err := fmt.Sscanf(s, "%4d-%2d-%2d", new(int), new(int), new(int)); err != nil {
+		return false
+	}
+	return true
 }
 
 // ProjectOverviewQuery 项目概览查询参数
