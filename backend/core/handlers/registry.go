@@ -39,6 +39,7 @@ type HandlerRegistry struct {
 	timelogHandler   *TimelogHandler
 	dashboardHandler *DashboardHandler
 	schedulerHandler *SchedulerHandler
+	logHandler       *LogHandler
 	initHandler      *InitHandler
 	healthHandler    *HealthHandler
 }
@@ -72,6 +73,8 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.userHandler = NewUserHandler(registry.userService)
 	registry.timelogHandler = NewTimelogHandler(registry.timelogService)
 	registry.dashboardHandler = NewDashboardHandler(registry.dashboardService)
+
+	registry.logHandler = NewLogHandler()
 
 	registry.initHandler = NewInitHandler(initService, client)
 
@@ -181,6 +184,11 @@ func (r *HandlerRegistry) GetTimelogService() *service.TimelogService { return r
 // GetInitHandler 获取初始化Handler
 func (r *HandlerRegistry) GetInitHandler() *InitHandler {
 	return r.initHandler
+}
+
+// GetLogHandler 获取日志 Handler
+func (r *HandlerRegistry) GetLogHandler() *LogHandler {
+	return r.logHandler
 }
 
 func (r *HandlerRegistry) GetDashboardHandler() *DashboardHandler {
