@@ -158,6 +158,13 @@ func registerBackwardCompatRoutes(r *server.Hertz, registry *handlers.HandlerReg
 	api.GET("/logs", logHandler.GetLogs)
 	api.DELETE("/logs", logHandler.ClearLogs)
 	api.GET("/logs/status", logHandler.LogsStatus)
+
+	// 离线缓存管理接口（缓存初始化失败时跳过注册）
+	if cacheH := registry.GetCacheHandler(); cacheH != nil {
+		api.GET("/cache/status", cacheH.GetStatus)
+		api.DELETE("/cache", cacheH.ClearAll)
+		api.DELETE("/cache/:entityType", cacheH.Invalidate)
+	}
 }
 
 func registerDomainRoutes(g *route.RouterGroup) {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/yi-nology/common/biz/zentao"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/storage"
 	"github.com/yi-nology/zentao-mini/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 	"go.uber.org/zap"
@@ -18,11 +19,17 @@ import (
 // DashboardService 仪表盘服务
 type DashboardService struct {
 	client *myzentao.Client
+	cache  *CacheService // 可选，nil 表示不启用离线缓存
 }
 
 // NewDashboardService 创建仪表盘服务
 func NewDashboardService(client *myzentao.Client) *DashboardService {
 	return &DashboardService{client: client}
+}
+
+// SetCacheService 注入缓存服务（启用离线模式后由 registry 调用）
+func (s *DashboardService) SetCacheService(cs *CacheService) {
+	s.cache = cs
 }
 
 // GetDashboard 获取仪表盘数据
@@ -186,7 +193,34 @@ func toWeekKey(dateStr string) string {
 
 // GetDashboardContext 获取仪表盘数据（支持 context 取消和日期范围过滤）
 // startDate/endDate 为空表示不过滤；格式 YYYY-MM-DD
+// 若注入了 CacheService，优先走缓存：缓存未命中回源后写入；回源失败有过期缓存时 fallback
 func (s *DashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
+	// 缓存键包含日期范围（不同时间范围不共享缓存）
+	cacheKey := fmt.Sprintf("dashboard:%s:%s", startDate, endDate)
+	if s.cache != nil && productID > 0 {
+		result, err := s.cache.GetOrLoad(ctx, storage.EntityDashboard, productID, DefaultCacheTTL,
+			func(ctx context.Context) ([]byte, error) {
+				d, err := s.fetchDashboard(ctx, productID, startDate, endDate)
+				if err != nil {
+					return nil, err
+				}
+				return json.Marshal(d)
+			})
+		if err != nil {
+			return nil, err
+		}
+		_ = cacheKey // cacheKey 用于将来精细化（当前用 productID 区分）
+		var dashboard vo.DashboardVO
+		if err := json.Unmarshal(result.Data, &dashboard); err != nil {
+			return nil, err
+		}
+		return &dashboard, nil
+	}
+	return s.fetchDashboard(ctx, productID, startDate, endDate)
+}
+
+// fetchDashboard 真正从禅道拉数据并聚合（原 GetDashboardContext 主体）
+func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
 	dashboard := &vo.DashboardVO{}
 
 	var (

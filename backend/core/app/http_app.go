@@ -80,6 +80,7 @@ func (a *HTTPApp) Stop(ctx context.Context) error {
 	}
 
 	a.deps.Handlers.StopScheduler()
+	a.deps.Handlers.CloseCache()
 
 	if a.hertz != nil {
 		logger.Info("HTTP server shutting down", zap.String("name", a.Name()))
