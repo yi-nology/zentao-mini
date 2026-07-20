@@ -104,7 +104,6 @@ import { sanitizeHtml } from '@/utils/sanitize'
 import { getStories, getUsers, getStoryStatusOptions } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Story, User } from '@/types/api'
-import * as runtime from '@wailsjs/runtime/runtime'
 import { useRoute, useRouter } from 'vue-router'
 
 interface GlobalSelection { product: number | null; project: number | null; execution: number | null }
@@ -201,9 +200,12 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   }
 }
 
-const openZentaoLink = (url: string): void => {
+const openZentaoLink = async (url: string): Promise<void> => {
   if (!url) { ElMessage.warning('禅道地址未配置，请检查系统设置'); return }
-  try { const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }; if (w.runtime && w.runtime.BrowserOpenURL) { runtime.BrowserOpenURL(url) } else { window.open(url, '_blank', 'noopener,noreferrer') } } catch { window.open(url, '_blank', 'noopener,noreferrer') }
+  try {
+    const { openExternalLink } = await import('@/composables/useExternalLink')
+    await openExternalLink(url)
+  } catch { window.open(url, '_blank', 'noopener,noreferrer') }
 }
 
 onMounted(() => {

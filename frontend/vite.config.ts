@@ -7,8 +7,7 @@ const config: UserConfig = {
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
-      '@wailsjs': resolve(__dirname, 'wailsjs')
+      '@': resolve(__dirname, 'src')
     }
   },
   base: './',

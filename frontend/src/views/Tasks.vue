@@ -138,7 +138,6 @@ import { sanitizeHtml } from '@/utils/sanitize'
 import { getExecutions, getTasks, getTaskStatusOptions, getUsers } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Task, User, Execution, SelectOption } from '@/types/api'
-import * as runtime from '@wailsjs/runtime/runtime'
 import { useRoute, useRouter } from 'vue-router'
 
 interface GlobalSelection { product: number | null; project: number | null; execution: number | null }
@@ -245,10 +244,13 @@ const getProgress = (estimate: number, consumed: number): number => { if (!estim
 const getProgressStatus = (estimate: number, consumed: number): string => { if (!estimate || estimate === 0) return ''; const ratio = consumed / estimate; if (ratio > 1) return 'exception'; if (ratio >= 0.8) return 'warning'; return '' }
 const tableRowClassName = ({ row }: { row: Task }) => { if (row.estimate > 0 && row.consumed > row.estimate) return 'overdue-row'; return '' }
 const openTaskDetail = (task: Task): void => { currentTask.value = task; detailDialogVisible.value = true }
-const openZentaoTask = (taskId: number): void => {
+const openZentaoTask = async (taskId: number): Promise<void> => {
   const url = buildZentaoUrl(`task-view-${taskId}.html`)
   if (!url) { ElMessage.warning('禅道地址未配置，请检查系统设置'); return }
-  try { const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }; if (w.runtime && w.runtime.BrowserOpenURL) { runtime.BrowserOpenURL(url) } else { window.open(url, '_blank', 'noopener,noreferrer') } } catch { window.open(url, '_blank', 'noopener,noreferrer') }
+  try {
+    const { openExternalLink } = await import('@/composables/useExternalLink')
+    await openExternalLink(url)
+  } catch { window.open(url, '_blank', 'noopener,noreferrer') }
 }
 
 onMounted(() => {

@@ -1,14 +1,14 @@
 /**
- * 桌面通知 composable
- * 1. 监听 Wails runtime 事件 'notification'（后端 EventBus 推送的定时任务结果）
+ * 桌面通知 composable (Wails v3 版本)
+ * 1. 监听 @wailsio/runtime 事件 'notification'（后端 app.Event.Emit 推送）
  * 2. 通过 Notification API 显示桌面通知（需要用户授权）
  * 3. 同时通过 Element Plus 的 ElNotification 在应用内显示（不依赖授权）
  *
- * 仅在 Wails 桌面环境下生效（其他模式后端不会发 EventsEmit）
+ * 仅在 Wails 桌面环境下生效（其他模式后端不会发 Emit）
  */
 import { onMounted, onBeforeUnmount } from 'vue'
 import { ElNotification } from 'element-plus'
-import * as runtime from '@wailsjs/runtime/runtime'
+import { Events } from '@wailsio/runtime'
 
 const STORAGE_KEY = 'zentao-mini-notification'
 
@@ -50,19 +50,20 @@ function showOSNotification(payload: NotificationPayload): void {
   }
   try {
     const n = new Notification(payload.title, {
-      body: payload.body,
-      // icon 可选
+      body: payload.body
     })
-    // 点击通知聚焦窗口
-    n.onclick = () => {
+    // 点击通知聚焦窗口（v3 通过 ShowWindow service binding）
+    n.onclick = async () => {
       try {
-        runtime.WindowShow && runtime.WindowShow()
+        // 路径与 wails3 generate bindings 输出一致，动态 import 避免 SSR 报错
+        // @ts-ignore - 由 wails3 generate 生成，无类型声明
+        const mod = await import('@/bindings/github.com/yi-nology/zentao-mini/app.js')
+        if (mod.ShowWindow) mod.ShowWindow()
       } catch {
-        /* ignore */
+        /* 非 wails 环境忽略 */
       }
       n.close()
     }
-    // 5 秒后自动关闭（部分浏览器需要）
     setTimeout(() => n.close(), 8000)
   } catch {
     /* Safari 等 iframe 内可能不可用 */
@@ -81,28 +82,30 @@ function showAppNotification(payload: NotificationPayload): void {
   })
 }
 
+const NOTIFICATION_EVENT = 'notification'
+
 /**
  * 注册桌面通知监听，返回取消监听函数
  */
 export function useDesktopNotification(): { cancel: () => void } {
   let cancelFn: (() => void) | null = null
 
-  const handler = (payload: NotificationPayload): void => {
+  const handler = (ev: { data?: NotificationPayload }): void => {
+    const payload = ev?.data
+    if (!payload) return
     if (!isNotificationEnabled()) return
     showAppNotification(payload)
     showOSNotification(payload)
   }
 
   onMounted(() => {
-    // Wails runtime events
-    if (runtime && typeof runtime.EventsOn === 'function') {
-      runtime.EventsOn('notification', handler)
-      cancelFn = () => runtime.EventsOff('notification')
-    }
+    // v3 用 Events.On 返回取消函数
+    cancelFn = Events.On(NOTIFICATION_EVENT, handler as any)
   })
 
   onBeforeUnmount(() => {
     if (cancelFn) cancelFn()
+    else Events.Off(NOTIFICATION_EVENT)
   })
 
   return {

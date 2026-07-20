@@ -227,7 +227,6 @@ import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
 import ColumnSettings from '@/components/ColumnSettings.vue'
 import type { Bug, User, SelectOption } from '@/types/api'
-import * as runtime from '@wailsjs/runtime/runtime'
 import { useRoute, useRouter } from 'vue-router'
 
 interface GlobalSelection {
@@ -635,18 +634,14 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   }
 }
 
-const openZentaoLink = (url: string): void => {
+const openZentaoLink = async (url: string): Promise<void> => {
   if (!url) {
     ElMessage.warning('禅道地址未配置，请检查系统设置')
     return
   }
   try {
-    const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }
-    if (w.runtime && w.runtime.BrowserOpenURL) {
-      runtime.BrowserOpenURL(url)
-    } else {
-      window.open(url, '_blank', 'noopener,noreferrer')
-    }
+    const { openExternalLink } = await import('@/composables/useExternalLink')
+    await openExternalLink(url)
   } catch (error) {
     console.error('打开链接失败:', error)
     window.open(url, '_blank', 'noopener,noreferrer')
