@@ -88,9 +88,26 @@ func (c *Client) getToken() (string, error) {
 	metrics.RecordCacheMiss("token")
 
 	if !c.refreshing.CompareAndSwap(false, true) {
+		// 另一个 goroutine 正在刷新 token：等待它完成（最多 10 秒），
+		// 而不是立即失败。这避免了 dashboard 并发拉取时部分请求拿不到 token 的问题。
+		for i := 0; i < 50; i++ {
+			time.Sleep(200 * time.Millisecond)
+			// 检查刷新是否已完成（refreshing 标志位被清回 false）
+			if !c.refreshing.Load() {
+				c.mu.RLock()
+				tokenStr = c.token.Get()
+				c.mu.RUnlock()
+				if tokenStr != "" && !c.isTokenExpired() {
+					return tokenStr, nil
+				}
+				// 刷新完了但 token 还是无效（可能刷新失败），跳出循环
+				break
+			}
+		}
+		// 最后兜底：再读一次 token
 		c.mu.RLock()
-		defer c.mu.RUnlock()
 		tokenStr = c.token.Get()
+		c.mu.RUnlock()
 		if tokenStr != "" && !c.isTokenExpired() {
 			return tokenStr, nil
 		}
