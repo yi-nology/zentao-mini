@@ -71,6 +71,18 @@
         <div class="table-header">
           <el-input v-model="tableSearch" placeholder="搜索任务名称/工作内容..." :prefix-icon="Search" style="width: 300px" />
           <span class="table-count">{{ filteredEfforts.length }} 条</span>
+          <div class="header-actions">
+            <el-dropdown split-button type="success" size="small" @click="handleExport('excel')" @command="handleExport" :disabled="filteredEfforts.length === 0">
+              导出 Excel
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="excel">导出 Excel (.xlsx)</el-dropdown-item>
+                  <el-dropdown-item command="csv">导出 CSV (.csv)</el-dropdown-item>
+                  <el-dropdown-item command="pdf">导出 PDF (.pdf)</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </div>
         <el-table :data="filteredEfforts" style="width: 100%" @sort-change="handleSortChange">
           <el-table-column prop="date" label="日期" sortable width="120" />
@@ -216,6 +228,32 @@ const handleSortChange = (sort: SortParams): void => {
   analysisData.value.efforts = sorted
 }
 const getUserName = (account: string): string => { const user = users.value.find(u => u.account === account); return user ? (user.realname || account) : account }
+
+// 导出当前过滤后的工时数据
+const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
+  const rows = filteredEfforts.value
+  if (rows.length === 0) return
+  const { exportData, timestampedFilename } = await import('@/utils/export')
+  type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
+  const cols: ExportColumn<TimelogEffort>[] = [
+    { header: '日期', access: e => e.date },
+    { header: '任务名称', access: e => e.taskName },
+    { header: '类型', access: e => e.taskType },
+    { header: '项目', access: e => e.project },
+    { header: '执行', access: e => e.execution },
+    { header: '账号', access: e => e.account },
+    { header: '姓名', access: e => getUserName(e.account) },
+    { header: '消耗工时', access: e => e.consumed },
+    { header: '工作内容', access: e => e.work }
+  ]
+  try {
+    await exportData(timestampedFilename('工时明细'), rows, cols, format, { title: '工时明细' })
+    ElMessage.success(`导出 ${rows.length} 条工时成功`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '导出失败'
+    ElMessage.error(msg)
+  }
+}
 
 const onProductChange = async (): Promise<void> => {
   filters.value.executionId = ''; executions.value = []
@@ -378,8 +416,12 @@ onMounted(async () => {
 .table-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   width: 100%;
+  margin-bottom: 12px;
+}
+.table-header .header-actions {
+  margin-left: auto;
 }
 
 .table-count {

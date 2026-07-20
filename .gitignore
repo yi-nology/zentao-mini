@@ -1,5 +1,4 @@
 build/bin
-build/
 node_modules
 frontend/dist
 auth-config1.json
@@ -47,3 +46,12 @@ server
 backend/mcp
 data/
 zentao-mini-local-new
+
+# Wails v3 构建产物
+/bin/
+/zentao-mini
+/zentao-mini.exe
+/.task/
+
+# 本地配置
+/.env

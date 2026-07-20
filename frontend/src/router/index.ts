@@ -65,6 +65,12 @@ const routes: AppRoute[] = [
         meta: { title: '心跳检测' }
       },
       {
+        path: 'logs',
+        name: 'Logs',
+        component: () => import('../views/Logs.vue'),
+        meta: { title: '系统日志' }
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('../views/Settings.vue'),

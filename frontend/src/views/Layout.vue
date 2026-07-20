@@ -48,6 +48,8 @@
               @keydown.down.prevent="highlightNext"
               @keydown.up.prevent="highlightPrev"
               @keydown.enter.prevent="enterHighlighted"
+              @keydown.page-down.prevent="searchNextPage"
+              @keydown.page-up.prevent="searchPrevPage"
             />
             <!-- Search Results Dropdown -->
             <div v-if="searchOpen" class="search-dropdown">
@@ -83,14 +85,21 @@
                   <button
                     class="search-page-btn"
                     :disabled="searchPage <= 1"
-                    @click="searchPage--; doSearch()"
+                    @click="searchPrevPage"
                   >上一页</button>
                   <span class="search-page-info">{{ searchPage }} / {{ totalPages }}</span>
                   <button
                     class="search-page-btn"
                     :disabled="searchPage >= totalPages"
-                    @click="searchPage++; doSearch()"
+                    @click="searchNextPage"
                   >下一页</button>
+                </div>
+                <!-- 快捷键提示条 -->
+                <div class="search-hints">
+                  <span><kbd>↑↓</kbd>选择</span>
+                  <span><kbd>Enter</kbd>跳转</span>
+                  <span><kbd>PgUp/PgDn</kbd>翻页</span>
+                  <span><kbd>Esc</kbd>关闭</span>
                 </div>
               </template>
             </div>
@@ -114,7 +123,11 @@ import { useRoute, useRouter } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
 import { search, getAccountInfo } from '@/api/zentao'
 import api from '@/api/api'
+import { useDesktopNotification } from '@/composables/useDesktopNotification'
 import type { SearchItem, ApiResponse } from '@/types/api'
+
+// 启用桌面通知监听（仅在 Wails 模式生效）
+useDesktopNotification()
 
 interface GlobalSelection {
   product: number | null
@@ -272,6 +285,24 @@ const enterHighlighted = () => {
   }
 }
 
+// 翻页：上一页（PgUp 或点击）
+const searchPrevPage = () => {
+  if (searchPage.value > 1) {
+    searchPage.value--
+    searchHighlightIndex.value = -1
+    doSearch()
+  }
+}
+
+// 翻页：下一页（PgDn 或点击）
+const searchNextPage = () => {
+  if (searchPage.value < totalPages.value) {
+    searchPage.value++
+    searchHighlightIndex.value = -1
+    doSearch()
+  }
+}
+
 const groupedResults = computed<ResultGroup[]>(() => {
   const groups: ResultGroup[] = [
     { type: 'bug', label: 'Bug', icon: '🐛', color: '#EF4444', items: [] },
@@ -308,6 +339,7 @@ const menuItems: MenuItem[] = [
   { path: '/timelog', label: '工时统计', icon: 'M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16zm1-13h-2v6l5.25 3.15.75-1.23-4-2.42V7z' },
   { path: '/scheduler', label: '定时任务', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
   { path: '/health', label: '心跳检测', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+  { path: '/logs', label: '系统日志', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   { path: '/mcp-guide', label: 'MCP 对接', icon: 'M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
   { path: '/settings', label: '设置', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
   { path: '/init-guide', label: '重新初始化', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' }
@@ -701,6 +733,27 @@ provide<GlobalSelection>('globalSelection', globalSelection)
 .search-page-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.search-hints {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 14px 10px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  border-top: 1px dashed var(--color-border-light);
+}
+.search-hints kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 4px;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 10px;
+  color: var(--color-text-secondary);
 }
 
 .search-page-info {

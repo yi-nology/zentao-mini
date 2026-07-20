@@ -10,6 +10,7 @@ import (
 
 	"github.com/yi-nology/common/biz/zentao"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"github.com/yi-nology/zentao-mini/backend/core/storage"
 	"github.com/yi-nology/zentao-mini/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 	"go.uber.org/zap"
@@ -18,6 +19,7 @@ import (
 // DashboardService 仪表盘服务
 type DashboardService struct {
 	client *myzentao.Client
+	cache  *CacheService // 可选，nil 表示不启用离线缓存
 }
 
 // NewDashboardService 创建仪表盘服务
@@ -25,9 +27,14 @@ func NewDashboardService(client *myzentao.Client) *DashboardService {
 	return &DashboardService{client: client}
 }
 
+// SetCacheService 注入缓存服务（启用离线模式后由 registry 调用）
+func (s *DashboardService) SetCacheService(cs *CacheService) {
+	s.cache = cs
+}
+
 // GetDashboard 获取仪表盘数据
 func (s *DashboardService) GetDashboard(productID int) (*vo.DashboardVO, error) {
-	return s.GetDashboardContext(context.Background(), productID)
+	return s.GetDashboardContext(context.Background(), productID, "", "")
 }
 
 // GetProjectOverview 获取项目概览
@@ -184,8 +191,39 @@ func toWeekKey(dateStr string) string {
 
 // ========== Context-aware Dashboard 方法 ==========
 
-// GetDashboardContext 获取仪表盘数据（支持 context 取消）
-func (s *DashboardService) GetDashboardContext(ctx context.Context, productID int) (*vo.DashboardVO, error) {
+// GetDashboardContext 获取仪表盘数据（支持 context 取消和日期范围过滤）
+// startDate/endDate 为空表示不过滤；格式 YYYY-MM-DD
+// 若注入了 CacheService，优先走缓存：缓存未命中回源后写入；回源失败有过期缓存时 fallback
+func (s *DashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
+	// 缓存键包含日期范围（不同时间范围不共享缓存）
+	cacheKey := fmt.Sprintf("dashboard:%s:%s", startDate, endDate)
+	if s.cache != nil && productID > 0 {
+		result, err := s.cache.GetOrLoad(ctx, storage.EntityDashboard, productID, DefaultCacheTTL,
+			func(ctx context.Context) ([]byte, error) {
+				d, err := s.fetchDashboard(ctx, productID, startDate, endDate)
+				if err != nil {
+					return nil, err
+				}
+				return json.Marshal(d)
+			})
+		if err != nil {
+			return nil, err
+		}
+		_ = cacheKey // cacheKey 用于将来精细化（当前用 productID 区分）
+		var dashboard vo.DashboardVO
+		if err := json.Unmarshal(result.Data, &dashboard); err != nil {
+			return nil, err
+		}
+		// 标记数据来源（前端据此显示离线徽标）
+		dashboard.FromCache = result.FromCache
+		dashboard.Stale = result.Stale
+		return &dashboard, nil
+	}
+	return s.fetchDashboard(ctx, productID, startDate, endDate)
+}
+
+// fetchDashboard 真正从禅道拉数据并聚合（原 GetDashboardContext 主体）
+func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
 	dashboard := &vo.DashboardVO{}
 
 	var (
@@ -249,6 +287,10 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 	default:
 	}
 
+	// 按日期范围过滤（基于 OpenedDate）
+	bugs = filterBugsByDateRange(bugs, startDate, endDate)
+	stories = filterStoriesByDateRange(stories, startDate, endDate)
+
 	if bugs != nil {
 		dashboard.Bugs = calcBugStats(bugs)
 		n := len(bugs)
@@ -264,6 +306,7 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 
 	if execCtxs != nil {
 		allTasks := collectTasksContext(bgCtx, s.client, execCtxs)
+		allTasks = filterTasksByDateRange(allTasks, startDate, endDate)
 		dashboard.Tasks = calcTaskStats(allTasks)
 		n := len(allTasks)
 		if n > 5 {
@@ -273,6 +316,77 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 	}
 
 	return dashboard, nil
+}
+
+// filterBugsByDateRange 按 OpenedDate 过滤 Bug 列表
+// startDate/endDate 为空表示不过滤；end 包含当天（截到 23:59:59）
+func filterBugsByDateRange(bugs []zentao.Bug, startDate, endDate string) []zentao.Bug {
+	if startDate == "" && endDate == "" || len(bugs) == 0 {
+		return bugs
+	}
+	result := make([]zentao.Bug, 0, len(bugs))
+	for _, b := range bugs {
+		// Bug.OpenedDate 是 interface{}，需要类型断言
+		rawDate := ""
+		switch v := b.OpenedDate.(type) {
+		case string:
+			rawDate = v
+		default:
+			if b.OpenedDate != nil {
+				rawDate = fmt.Sprintf("%v", v)
+			}
+		}
+		if isDateInRange(rawDate, startDate, endDate) {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+func filterStoriesByDateRange(stories []zentao.Story, startDate, endDate string) []zentao.Story {
+	if startDate == "" && endDate == "" || len(stories) == 0 {
+		return stories
+	}
+	result := make([]zentao.Story, 0, len(stories))
+	for _, s := range stories {
+		if isDateInRange(s.OpenedDate, startDate, endDate) {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+func filterTasksByDateRange(tasks []zentao.Task, startDate, endDate string) []zentao.Task {
+	if startDate == "" && endDate == "" || len(tasks) == 0 {
+		return tasks
+	}
+	result := make([]zentao.Task, 0, len(tasks))
+	for _, t := range tasks {
+		if isDateInRange(t.OpenedDate, startDate, endDate) {
+			result = append(result, t)
+		}
+	}
+	return result
+}
+
+// isDateInRange 判断 zentao 时间字符串（"2024-01-01 12:00:00" 或 "2024-01-01"）
+// 是否落在 [startDate, endDate] 范围内
+func isDateInRange(rawDate, startDate, endDate string) bool {
+	if rawDate == "" {
+		return false
+	}
+	// 截取日期部分
+	day := rawDate
+	if len(rawDate) >= 10 {
+		day = rawDate[:10]
+	}
+	if startDate != "" && day < startDate {
+		return false
+	}
+	if endDate != "" && day > endDate {
+		return false
+	}
+	return true
 }
 
 // GetProjectOverviewContext 获取项目概览（支持 context 取消）

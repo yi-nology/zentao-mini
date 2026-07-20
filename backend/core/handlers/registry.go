@@ -5,6 +5,7 @@ import (
 
 	"github.com/yi-nology/zentao-mini/backend/core/initialization"
 	"github.com/yi-nology/zentao-mini/backend/core/service"
+	"github.com/yi-nology/zentao-mini/backend/core/storage"
 	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 )
 
@@ -27,6 +28,8 @@ type HandlerRegistry struct {
 	reportService    *service.ReportService
 	webhookService   *service.WebhookService
 	schedulerService *service.SchedulerService
+	cacheService     *service.CacheService
+	cacheStore       storage.Store
 
 	productHandler   *ProductHandler
 	projectHandler   *ProjectHandler
@@ -39,7 +42,8 @@ type HandlerRegistry struct {
 	timelogHandler   *TimelogHandler
 	dashboardHandler *DashboardHandler
 	schedulerHandler *SchedulerHandler
-	mcpHandler       *MCPHandler
+	logHandler       *LogHandler
+	cacheHandler     *CacheHandler
 	initHandler      *InitHandler
 	healthHandler    *HealthHandler
 }
@@ -74,16 +78,19 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.timelogHandler = NewTimelogHandler(registry.timelogService)
 	registry.dashboardHandler = NewDashboardHandler(registry.dashboardService)
 
-	registry.mcpHandler = NewMCPHandler(
-		registry.productHandler,
-		registry.projectHandler,
-		registry.executionHandler,
-		registry.bugHandler,
-		registry.storyHandler,
-		registry.taskHandler,
-		registry.userHandler,
-		registry.timelogHandler,
-	)
+	registry.logHandler = NewLogHandler()
+
+	// 初始化 SQLite 缓存层（离线模式用）
+	cacheStore, err := storage.NewSQLiteStore("")
+	if err != nil {
+		log.Printf("Warning: failed to init SQLite cache store: %v (offline mode disabled)", err)
+	} else {
+		registry.cacheStore = cacheStore
+		registry.cacheService = service.NewCacheService(cacheStore)
+		registry.cacheHandler = NewCacheHandler(registry.cacheService)
+		// 把缓存注入到 DashboardService（支持离线查看仪表盘）
+		registry.dashboardService.SetCacheService(registry.cacheService)
+	}
 
 	registry.initHandler = NewInitHandler(initService, client)
 
@@ -115,6 +122,15 @@ func (r *HandlerRegistry) InitScheduler(store *initialization.ConfigStore) {
 func (r *HandlerRegistry) StopScheduler() {
 	if r.schedulerService != nil {
 		r.schedulerService.Stop()
+	}
+}
+
+// CloseCache 关闭缓存存储（应用退出时调用）
+func (r *HandlerRegistry) CloseCache() {
+	if r.cacheStore != nil {
+		if err := r.cacheStore.Close(); err != nil {
+			log.Printf("Failed to close cache store: %v", err)
+		}
 	}
 }
 
@@ -190,15 +206,19 @@ func (r *HandlerRegistry) GetUserService() *service.UserService { return r.userS
 // GetTimelogService 获取工时 Service
 func (r *HandlerRegistry) GetTimelogService() *service.TimelogService { return r.timelogService }
 
-// GetMCPHandler 获取MCP Handler
-// Deprecated: 请使用 mcp.NewHTTPTransport(mcp.NewMCPServerFromServices(...)) 代替
-func (r *HandlerRegistry) GetMCPHandler() *MCPHandler {
-	return r.mcpHandler
-}
-
 // GetInitHandler 获取初始化Handler
 func (r *HandlerRegistry) GetInitHandler() *InitHandler {
 	return r.initHandler
+}
+
+// GetLogHandler 获取日志 Handler
+func (r *HandlerRegistry) GetLogHandler() *LogHandler {
+	return r.logHandler
+}
+
+// GetCacheHandler 获取缓存 Handler（可能为 nil，当 SQLite 初始化失败时）
+func (r *HandlerRegistry) GetCacheHandler() *CacheHandler {
+	return r.cacheHandler
 }
 
 func (r *HandlerRegistry) GetDashboardHandler() *DashboardHandler {

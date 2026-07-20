@@ -13,10 +13,14 @@
   /* Semantic */
   --color-success: #22C55E;
   --color-success-light: #DCFCE7;
+  --color-success-bg: #F0FDF4;
+  --color-success-border: #BBF7D0;
   --color-warning: #F59E0B;
   --color-warning-light: #FEF3C7;
   --color-danger: #EF4444;
   --color-danger-light: #FEE2E2;
+  --color-danger-bg: #FEF2F2;
+  --color-danger-border: #FECACA;
   --color-info: #6B7280;
   --color-info-light: #F1F5F9;
 
@@ -72,8 +76,12 @@ html.dark {
   --color-primary-hover: #5A72F7;
 
   --color-success-light: #052E16;
+  --color-success-bg: #052E16;
+  --color-success-border: #14532D;
   --color-warning-light: #451A03;
   --color-danger-light: #450A0A;
+  --color-danger-bg: #2A0A0A;
+  --color-danger-border: #5A1A1A;
   --color-info-light: #1E293B;
 
   --color-bg: #0F172A;

@@ -66,9 +66,11 @@ jobs:
             build-essential \
             pkg-config \
             libgtk-3-dev \
+            libgtk-4-dev \
             libwebkit2gtk-4.1-dev \
+            libwebkitgtk-6.0-dev \
             libglib2.0-dev \
-            libappindicator3-dev \
+            libayatana-appindicator3-dev \
             patchelf \
             file \
             fakeroot \
@@ -79,54 +81,53 @@ jobs:
         run: |
           echo "== pkg-config debug =="
           pkg-config --modversion gtk+-3.0 || true
-          pkg-config --modversion gio-unix-2.0 || true
+          pkg-config --modversion gtk4 || true
           pkg-config --modversion webkit2gtk-4.1 || true
-          pkg-config --modversion webkit2gtk-4.0 || true
+          pkg-config --modversion webkitgtk-6.0 || true
 
-      - name: Install Wails CLI
+      - name: Install Wails v3 CLI
         shell: bash
         run: |
           set -e
           for i in 1 2 3 4 5; do
-            echo "Attempt $i to install Wails CLI..."
-            if go install github.com/wailsapp/wails/v2/cmd/wails@latest; then
+            echo "Attempt $i to install Wails v3 CLI..."
+            if go install github.com/wailsapp/wails/v3/cmd/wails3@latest; then
               break
             fi
             sleep 5
           done
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-          "$(go env GOPATH)/bin/wails" version
+          "$(go env GOPATH)/bin/wails3" version
 
       - name: Install frontend dependencies
         working-directory: ./frontend
         run: npm ci
 
-      - name: Build using Makefile
+      - name: Build using wails3 task
         shell: bash
-        env:
-          WAILS_TAGS: ${{ matrix.goos == 'linux' && 'webkit2_41' || '' }}
         run: |
           set -e
+          # tag 触发用 package（macOS 产出 .app bundle），普通推送用 build（产出裸 binary）
           if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "Building release version..."
-            make release
+            echo "Building release version with package..."
+            wails3 task package
           else
             echo "Building regular version..."
-            make build
+            wails3 task build
           fi
 
       - name: List build outputs
         shell: bash
         run: |
-          echo "== build/bin =="
-          ls -lah build/bin || true
+          echo "== bin/ =="
+          ls -lah bin/ 2>/dev/null || true
 
       - name: Package Linux tar.gz
         if: matrix.goos == 'linux'
         shell: bash
         run: |
           set -e
-          cd build/bin
+          cd bin
 
           BIN_NAME="${{ env.APP_NAME }}"
           if [ ! -f "$BIN_NAME" ]; then
@@ -142,18 +143,23 @@ jobs:
         shell: bash
         run: |
           set -e
-          cd build/bin
+          cd bin
 
           APP_BUNDLE="${{ env.APP_NAME }}.app"
           ZIP_NAME="${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}.zip"
 
+          # 如果 .app 不存在（普通 build 模式），直接打包裸 binary
           if [ ! -d "$APP_BUNDLE" ]; then
-            echo "App bundle not found: $APP_BUNDLE"
-            ls -lah
-            exit 1
+            echo "App bundle not found, falling back to raw binary"
+            if [ ! -f "${{ env.APP_NAME }}" ]; then
+              echo "Binary not found either"
+              ls -lah
+              exit 1
+            fi
+            zip "$ZIP_NAME" "${{ env.APP_NAME }}"
+          else
+            ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_NAME"
           fi
-
-          ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_NAME"
 
           cat > "README-macOS-${{ matrix.goarch }}.txt" <<EOF
           ${{ env.APP_NAME }} macOS 安装说明
@@ -175,7 +181,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $binDir = "build/bin"
+          $binDir = "bin"
           $exe = Join-Path $binDir "${env:APP_NAME}.exe"
           if (!(Test-Path $exe)) {
             Write-Host "Binary not found: $exe"
@@ -188,7 +194,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}
-          path: build/bin/*
+          path: |
+            bin/*.tar.gz
+            bin/*.zip
+            bin/README-*.txt
           if-no-files-found: error
 
 

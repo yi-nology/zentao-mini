@@ -2,13 +2,13 @@ import { defineConfig } from 'vite'
 import type { UserConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import wails from '@wailsio/runtime/plugins/vite'
 
 const config: UserConfig = {
-  plugins: [vue()],
+  plugins: [vue(), wails('./bindings')],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
-      '@wailsjs': resolve(__dirname, 'wailsjs')
+      '@': resolve(__dirname, 'src')
     }
   },
   base: './',

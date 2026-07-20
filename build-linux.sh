@@ -1,41 +1,66 @@
 #!/bin/bash
+# 交叉编译 zentao-mini 为 Linux 可执行文件
+#
+# === Wails v3 迁移后重要变化 ===
+# v3 必须启用 CGO（webview 集成），不再支持 CGO_ENABLED=0 的纯 Go 编译。
+# 这意味着无法从 macOS/Windows 直接交叉编译 Linux 桌面包（缺 GTK/WebKit cross-toolchain）。
+#
+# 推荐方案（按优先级）：
+#   1. CI 构建：推送到 master 或打 tag，GitHub Actions 在 Linux runner 上构建
+#   2. Docker 交叉编译：wails3 task setup:docker && wails3 task linux:build
+#   3. 本地 Linux 环境：直接运行本脚本（需先装系统依赖）
+#
+# 本脚本现在调用 wails3 task，需要 wails3 CLI 已安装：
+#   go install github.com/wailsapp/wails/v3/cmd/wails3@latest
 
-# 交叉编译 Wails 应用为 x86_64 Linux 可执行文件
+set -e
 
-echo "开始交叉编译 Wails 应用为 x86_64 Linux 版本..."
+ARCH="${1:-amd64}"  # 默认 amd64，可传 arm64
 
-# 构建前端
-echo "构建前端..."
-cd frontend && npm run build:wails
-if [ $? -ne 0 ]; then
-    echo "错误: 前端构建失败"
+echo "=== 构建 zentao-mini Linux/$ARCH 版本 ==="
+
+if ! command -v wails3 >/dev/null 2>&1; then
+    echo "错误: wails3 CLI 未安装"
+    echo "  go install github.com/wailsapp/wails/v3/cmd/wails3@latest"
     exit 1
 fi
-cd ..
 
-# 交叉编译为 Linux x86_64
-echo "交叉编译为 Linux x86_64..."
-
-# 创建输出目录
-mkdir -p build/linux-amd64
-
-# 使用 go build 直接交叉编译，添加 Wails 构建标签
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags wails -o build/linux-amd64/zentao-mini .
-if [ $? -ne 0 ]; then
-    echo "错误: 交叉编译失败"
-    exit 1
+if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "警告: 当前不是 Linux 环境"
+    echo "  v3 + CGO 桌面应用无法跨平台编译"
+    echo "  选项 A: 在 Linux 机器/VM 中运行本脚本"
+    echo "  选项 B: 用 Docker 交叉编译:"
+    echo "          wails3 task setup:docker"
+    echo "          wails3 task linux:build"
+    echo "  选项 C: 仅构建 server 模式（无 GUI，纯 HTTP）:"
+    echo "          cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=$ARCH go build -o ../build/bin/zentao-mini-server ./cmd/server"
+    echo ""
+    read -p "继续尝试本机构建 server 模式? (y/N) " confirm
+    if [[ "$confirm" != "y" ]]; then
+        exit 1
+    fi
+    cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=$ARCH go build -o ../build/bin/zentao-mini-server ./cmd/server
+    echo "✓ server 二进制: build/bin/zentao-mini-server"
+    exit 0
 fi
 
-# 复制环境变量文件
-cp frontend/.env.wails build/linux-amd64/.env
-
-# 验证文件是否生成
-if [ -f "build/linux-amd64/zentao-mini" ]; then
-    echo "交叉编译完成!"
-    echo "可执行文件位置: build/linux-amd64/zentao-mini"
-    echo "文件大小: $(ls -lh build/linux-amd64/zentao-mini | awk '{print $5}')"
-    echo "环境变量文件已复制: build/linux-amd64/.env"
-else
-    echo "错误: 可执行文件未生成"
-    exit 1
+# Linux 本地环境，装系统依赖（首次需要）
+echo "检查系统依赖..."
+if ! pkg-config --exists gtk+-3.0 webkit2gtk-4.1 2>/dev/null; then
+    echo "安装 GTK/WebKit 依赖..."
+    sudo apt-get update
+    sudo apt-get install -y \
+        build-essential pkg-config \
+        libgtk-3-dev libwebkit2gtk-4.1-dev libglib2.0-dev \
+        libayatana-appindicator3-dev \
+        patchelf file fakeroot desktop-file-utils
 fi
+
+# 调用 wails3 task 构建（自动处理 frontend + Go + 打包）
+echo "调用 wails3 task linux:build..."
+GOARCH=$ARCH wails3 task linux:build
+
+echo ""
+echo "✓ 构建完成"
+echo "  产物位置: build/bin/"
+ls -lah build/bin/ 2>/dev/null || true

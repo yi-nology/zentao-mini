@@ -62,6 +62,18 @@ func Init(cfg *config.LogConfig) error {
 		options = append(options, zap.AddStacktrace(zapcore.ErrorLevel))
 	}
 
+	// 用 Hook 把每条日志同时追加到进程内环形缓冲（供日志页消费）
+	options = append(options, zap.Hooks(func(ent zapcore.Entry) error {
+		entry := &LogEntry{
+			Time:    ent.Time.Format("2006-01-02T15:04:05.000Z07:00"),
+			Level:   ent.Level.String(),
+			Message: ent.Message,
+			Caller:  ent.Caller.TrimmedPath(),
+		}
+		GetRingBuffer().Append(entry)
+		return nil
+	}))
+
 	globalLogger = zap.New(core, options...)
 	sugarLogger = globalLogger.Sugar()
 

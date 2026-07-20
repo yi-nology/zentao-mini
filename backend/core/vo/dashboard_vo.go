@@ -8,6 +8,10 @@ type DashboardVO struct {
 	Timelog     TimelogSummaryVO `json:"timelog"`
 	RecentBugs  []BugVO          `json:"recentBugs"`
 	RecentTasks []TaskVO         `json:"recentTasks"`
+
+	// 缓存元信息（前端用于显示"离线/缓存"徽标）
+	FromCache bool `json:"fromCache,omitempty"` // 数据是否来自本地缓存
+	Stale     bool `json:"stale,omitempty"`     // 是否来自过期缓存（离线兜底）
 }
 
 // BugStatsVO Bug 统计

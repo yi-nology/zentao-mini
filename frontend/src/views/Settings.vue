@@ -34,9 +34,52 @@
       <h3 class="section-title">显示设置</h3>
       <div class="settings-card">
         <div class="info-row">
-          <span class="info-label">深色模式</span>
-          <el-switch v-model="darkMode" @change="toggleDarkMode" />
+          <span class="info-label">主题模式</span>
+          <el-radio-group v-model="themeMode" @change="onThemeChange">
+            <el-radio-button label="light">浅色</el-radio-button>
+            <el-radio-button label="dark">深色</el-radio-button>
+            <el-radio-button label="auto">跟随系统</el-radio-button>
+          </el-radio-group>
         </div>
+        <div class="info-row">
+          <span class="info-label">桌面通知</span>
+          <div>
+            <el-switch v-model="notificationEnabled" @change="onNotificationChange" />
+            <el-button v-if="notificationEnabled && notifPermission !== 'granted'" size="small" link type="primary" @click="requestNotifPermission" style="margin-left: 12px">
+              授权系统通知
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">离线缓存</h3>
+      <div class="settings-card">
+        <div v-if="cacheLoading" class="loading-text">加载中...</div>
+        <template v-else-if="cacheStatus">
+          <div class="info-row">
+            <span class="info-label">缓存条目</span>
+            <span class="info-value">{{ cacheStatus.entryCount }} 条</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">占用空间</span>
+            <span class="info-value">{{ formatBytes(cacheStatus.totalBytes) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">最后更新</span>
+            <span class="info-value">{{ cacheStatus.lastUpdateAt ? formatTime(cacheStatus.lastUpdateAt) : '从未' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">数据库路径</span>
+            <span class="info-value mono">{{ cacheStatus.dbPath }}</span>
+          </div>
+          <div class="info-row actions">
+            <el-button size="small" @click="fetchCacheStatus">刷新</el-button>
+            <el-button size="small" type="danger" @click="clearCache">清空缓存</el-button>
+          </div>
+        </template>
+        <div v-else class="empty-text">缓存未启用（SQLite 初始化失败）</div>
       </div>
     </div>
 
@@ -65,6 +108,13 @@ import { ref, onMounted } from 'vue'
 import { getAccountInfo, testZentaoConnection } from '@/api/zentao'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
+import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
+import {
+  isNotificationEnabled,
+  setNotificationEnabled,
+  ensurePermission
+} from '@/composables/useDesktopNotification'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 interface AccountInfo {
   domain: string
@@ -72,11 +122,46 @@ interface AccountInfo {
   connected: boolean
 }
 
+interface CacheStatus {
+  entryCount: number
+  totalBytes: number
+  lastUpdateAt: string
+  dbPath: string
+}
+
 const loading = ref(true)
 const accountInfo = ref<AccountInfo | null>(null)
 const latency = ref(0)
 const appVersion = ref('dev')
-const darkMode = ref(false)
+const themeMode = ref<ThemeMode>('auto')
+const notificationEnabled = ref(false)
+const notifPermission = ref<NotificationPermission>('default')
+
+const onNotificationChange = async (val: boolean | string | number) => {
+  const enabled = Boolean(val)
+  setNotificationEnabled(enabled)
+  if (enabled) {
+    // 用户开启通知时自动请求权限
+    const granted = await ensurePermission()
+    notifPermission.value = granted ? 'granted' : (typeof Notification !== 'undefined' ? Notification.permission : 'default')
+    if (!granted) {
+      ElMessage.info('已开启应用内通知，但需要授权才能显示桌面通知')
+    }
+  }
+}
+
+const requestNotifPermission = async () => {
+  const granted = await ensurePermission()
+  notifPermission.value = granted ? 'granted' : (typeof Notification !== 'undefined' ? Notification.permission : 'default')
+  if (granted) {
+    ElMessage.success('已授权桌面通知')
+  } else {
+    ElMessage.warning('授权失败，可在浏览器/系统设置中手动开启')
+  }
+}
+
+const cacheLoading = ref(true)
+const cacheStatus = ref<CacheStatus | null>(null)
 
 const fetchAccountInfo = async () => {
   loading.value = true
@@ -101,17 +186,65 @@ const fetchAccountInfo = async () => {
   loading.value = false
 }
 
-const toggleDarkMode = (val: boolean | string | number) => {
-  const isDark = Boolean(val)
-  document.documentElement.classList.toggle('dark', isDark)
-  localStorage.setItem('zentao-mini-dark', isDark ? '1' : '0')
+const fetchCacheStatus = async () => {
+  cacheLoading.value = true
+  try {
+    const res = await api.get('/cache/status') as ApiResponse<CacheStatus>
+    if (res?.data) cacheStatus.value = res.data
+  } catch {
+    // 缓存可能未启用（404 或 500），静默处理
+    cacheStatus.value = null
+  } finally {
+    cacheLoading.value = false
+  }
+}
+
+const clearCache = async () => {
+  try {
+    await ElMessageBox.confirm('确定要清空所有离线缓存吗？断网时将无法查看历史数据。', '清空确认', {
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  try {
+    await api.delete('/cache')
+    ElMessage.success('缓存已清空')
+    fetchCacheStatus()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '清空失败'
+    ElMessage.error(msg)
+  }
+}
+
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const formatTime = (iso: string): string => {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('zh-CN')
+  } catch {
+    return iso
+  }
+}
+
+const onThemeChange = (val: ThemeMode) => {
+  setThemeMode(val)
 }
 
 onMounted(() => {
-  const saved = localStorage.getItem('zentao-mini-dark')
-  darkMode.value = saved === '1'
-  document.documentElement.classList.toggle('dark', darkMode.value)
+  themeMode.value = getStoredThemeMode()
+  notificationEnabled.value = isNotificationEnabled()
+  notifPermission.value = typeof Notification !== 'undefined' ? Notification.permission : 'default'
   fetchAccountInfo()
+  fetchCacheStatus()
 })
 </script>
 
@@ -163,5 +296,20 @@ onMounted(() => {
   padding: var(--space-lg);
   color: var(--color-text-tertiary);
   font-size: 14px;
+}
+
+.info-row.actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.info-value.mono {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  word-break: break-all;
+  max-width: 60%;
+  text-align: right;
 }
 </style>

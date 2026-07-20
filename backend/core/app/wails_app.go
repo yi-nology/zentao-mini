@@ -105,6 +105,7 @@ func (a *WailsApp) Start(ctx context.Context) error {
 
 func (a *WailsApp) Stop(ctx context.Context) error {
 	a.deps.Handlers.StopScheduler()
+	a.deps.Handlers.CloseCache()
 	if a.cancel != nil {
 		a.cancel()
 	}

@@ -30,7 +30,16 @@
         <span v-if="selectedStories.length > 0">已选择 {{ selectedStories.length }} 个需求</span>
         <div class="header-actions">
           <el-button type="primary" size="small" @click="handleViewDetails" :disabled="selectedStories.length === 0">查看详情</el-button>
-          <el-button type="success" size="small" @click="handleExport" :disabled="selectedStories.length === 0">导出</el-button>
+          <el-dropdown split-button type="success" size="small" @click="handleExport('excel')" @command="handleExport" :disabled="selectedStories.length === 0">
+            导出 Excel
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="excel">导出 Excel (.xlsx)</el-dropdown-item>
+                <el-dropdown-item command="csv">导出 CSV (.csv)</el-dropdown-item>
+                <el-dropdown-item command="pdf">导出 PDF (.pdf)</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
       <el-table v-loading="loading" :data="filteredStoryList" border stripe style="width: 100%" @select="handleSelect" @select-all="handleSelectAll">
@@ -95,7 +104,6 @@ import { sanitizeHtml } from '@/utils/sanitize'
 import { getStories, getUsers, getStoryStatusOptions } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Story, User } from '@/types/api'
-import * as runtime from '@wailsjs/runtime/runtime'
 import { useRoute, useRouter } from 'vue-router'
 
 interface GlobalSelection { product: number | null; project: number | null; execution: number | null }
@@ -171,22 +179,33 @@ const handleSelectAll = (selection: Story[]): void => { selectedStories.value = 
 const handleViewDetails = (): void => { if (selectedStories.value.length > 0) { currentStory.value = selectedStories.value[0]; detailDialogVisible.value = true } }
 const handleViewDetail = (row: Story): void => { currentStory.value = row; detailDialogVisible.value = true }
 
-const handleExport = async (): Promise<void> => {
+const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   if (selectedStories.value.length === 0) return
-  const XLSX = await import('xlsx')
-  const exportData = selectedStories.value.map((story: Story) => ({ ID: story.id, 标题: story.title, 状态: getStatusLabel(story.status), 阶段: getStageLabel(story.stage), 优先级: story.pri, 指派人: story.assignedTo?.realname || '' }))
-  const worksheet = XLSX.utils.json_to_sheet(exportData)
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, '需求列表')
+  const { exportData, timestampedFilename } = await import('@/utils/export')
+  type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
+  const cols: ExportColumn<Story>[] = [
+    { header: 'ID', access: s => s.id },
+    { header: '标题', access: s => s.title },
+    { header: '状态', access: s => getStatusLabel(s.status) },
+    { header: '阶段', access: s => getStageLabel(s.stage) },
+    { header: '优先级', access: s => s.pri },
+    { header: '指派人', access: s => s.assignedTo?.realname || s.assignedTo?.account || '' }
+  ]
   try {
-    XLSX.writeFile(workbook, `需求列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    await exportData(timestampedFilename('需求列表'), selectedStories.value, cols, format, { title: '需求列表' })
     ElMessage.success(`导出 ${selectedStories.value.length} 个需求成功`)
-  } catch { ElMessage.error('导出失败') }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '导出失败'
+    ElMessage.error(msg)
+  }
 }
 
-const openZentaoLink = (url: string): void => {
+const openZentaoLink = async (url: string): Promise<void> => {
   if (!url) { ElMessage.warning('禅道地址未配置，请检查系统设置'); return }
-  try { const w = window as unknown as { runtime?: { BrowserOpenURL?: (url: string) => void } }; if (w.runtime && w.runtime.BrowserOpenURL) { runtime.BrowserOpenURL(url) } else { window.open(url, '_blank', 'noopener,noreferrer') } } catch { window.open(url, '_blank', 'noopener,noreferrer') }
+  try {
+    const { openExternalLink } = await import('@/composables/useExternalLink')
+    await openExternalLink(url)
+  } catch { window.open(url, '_blank', 'noopener,noreferrer') }
 }
 
 onMounted(() => {

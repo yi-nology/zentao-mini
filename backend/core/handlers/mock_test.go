@@ -129,13 +129,17 @@ type MockDashboardService struct {
 	SearchResult    *vo.SearchVO
 	Err             error
 	DashboardCalled bool
-	OverviewCalled  bool
-	ProductIDArg    int
+	OverviewCalled bool
+	ProductIDArg   int
+	StartDateArg   string
+	EndDateArg     string
 }
 
-func (m *MockDashboardService) GetDashboardContext(ctx context.Context, productID int) (*vo.DashboardVO, error) {
+func (m *MockDashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
 	m.DashboardCalled = true
 	m.ProductIDArg = productID
+	m.StartDateArg = startDate
+	m.EndDateArg = endDate
 	return m.DashboardResult, m.Err
 }
 
