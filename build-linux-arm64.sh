@@ -1,35 +1,6 @@
 #!/bin/bash
+# 交叉编译 zentao-mini 为 Linux arm64 可执行文件
+# 详细说明见 build-linux.sh（Wails v3 + CGO 策略）
 
-# 交叉编译 Wails 应用为 arm64 Linux 可执行文件
-# 详细说明见 build-linux.sh（同 CGO_ENABLED=0 纯 Go 编译策略）
-
-echo "开始交叉编译 Wails 应用为 arm64 Linux 版本..."
-
-# 构建前端
-echo "构建前端..."
-cd frontend && npm run build:wails
-if [ $? -ne 0 ]; then
-    echo "错误: 前端构建失败"
-    exit 1
-fi
-cd ..
-
-# 交叉编译为 Linux arm64
-echo "交叉编译为 Linux arm64..."
-
-# 创建输出目录
-mkdir -p build/linux-arm64
-
-# 使用 go build 直接交叉编译，添加 Wails 构建标签，禁用 CGO 以避免交叉编译问题
-GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags wails -o build/linux-arm64/zentao-mini .
-if [ $? -ne 0 ]; then
-    echo "错误: 交叉编译失败"
-    exit 1
-fi
-
-# 复制环境变量文件
-cp frontend/.env.wails build/linux-arm64/.env
-
-echo "交叉编译完成!"
-echo "可执行文件位置: build/linux-arm64/zentao-mini"
-echo "环境变量文件已复制: build/linux-arm64/.env"
+set -e
+exec "$(dirname "$0")/build-linux.sh" arm64

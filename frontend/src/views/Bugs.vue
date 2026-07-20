@@ -695,7 +695,6 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
 }
-</style>
 
 .bug-detail {
   line-height: 1.6;

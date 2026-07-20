@@ -2,118 +2,119 @@
 
 ## Project Overview
 
-Wails v2 desktop app (Go + Vue 3) for Zentao (禅道) project management. Also deployable as a standalone HTTP server or embedded app with static frontend.
+**Wails v3 alpha** desktop app (Go + Vue 3) for Zentao (禅道) project management. Also deployable as a standalone HTTP server or embedded app with static frontend.
 
 **Go module name is `github.com/yi-nology/zentao-mini`**. Import paths use `github.com/yi-nology/zentao-mini/backend/...`.
+
+> ⚠️ **Wails v3 still in alpha** (`v3.0.0-alpha2.117` as of 2026-07). API may churn between versions. Pin the version in `go.mod` rather than chasing `@latest`.
 
 ## Architecture
 
 ```
-main.go + app.go          → Wails desktop entrypoint (embeds frontend/dist)
-                             - AppMenu + OnBeforeClose (hide-to-tray)
-                             - EventBus subscription → wails EventsEmit (notifications)
+main.go + app.go          → Wails v3 entrypoint
+                             - application.New + Service registration
+                             - SystemTray (native, v3 新增)
+                             - GlobalShortcut (CmdOrCtrl+Shift+Z 唤起)
+                             - EventBus subscription → app.Event.Emit
 backend/
   cmd/server/main.go      → HTTP server entrypoint (config-driven)
   cmd/app/main.go         → Embedded app entrypoint (static files baked in via ldflags)
   core/
-    app/                  → Application interface, Wire DI (wire.go → wire_gen.go)
-    event/                → In-process event bus (pub/sub, ID-based unsubscribe)
-    handlers/             → HTTP handlers (singleton via HandlerRegistry)
-                             - cache.go: offline cache management
-                             - logs.go: ring buffer log viewer
-    routes/routes.go      → Gin router setup
-    service/              → Business logic
-                             - cache_service.go: GetOrLoad with stale fallback
-                             - dashboard_service.go: time-range filter + cache integration
+    app/                  → Application interface, Wire DI
+    event/                → In-process event bus (pub/sub)
+    handlers/             → HTTP handlers (cache.go / logs.go)
+    service/              → Business logic (cache_service / dashboard_service)
     storage/              → SQLite offline cache (modernc.org/sqlite, pure Go)
-    logger/               → zap logger + ring_buffer.go (in-memory log viewer)
-    metrics/              → Prometheus + real cache hit rate
-    zentao/               → Zentao API client
-    initialization/       → Config/init service (JSON file storage: cron.db)
-    config/               → Viper config (env prefix: ZENTAO_MINI_)
+    logger/               → zap + ring_buffer
+    metrics/              → Prometheus + cache hit rate
 frontend/
-  src/                    → Vue 3 + Vue Router + Element Plus + Chart.js
-    composables/          → useTableColumns / useTheme / useDesktopNotification
-    utils/export.ts       → Excel/CSV/PDF generic exporter
-    components/ColumnSettings.vue
-  wailsjs/                → Auto-generated Wails JS bindings (do not edit)
-docs/
-  grafana/                → Grafana dashboard JSON + README
+  src/                    → Vue 3 + Element Plus + Chart.js
+    composables/          → useTableColumns / useTheme / useDesktopNotification / useExternalLink
+    utils/export.ts       → Excel/CSV/PDF exporter
+  bindings/               → wails3 generate 输出（不要手改）
+build/                    → v3 构建系统（Taskfile + 平台子目录）
+Taskfile.yml              → v3 主构建入口
+docs/grafana/             → Grafana dashboard JSON
 ```
 
 Three runtime modes:
-- **Wails desktop**: `wails dev` / `wails build` (enables desktop notifications, system menu, hide-to-tray)
-- **HTTP server**: `cd backend && go run cmd/server/main.go` (reads config.yaml + env)
-- **Embedded app**: `cd backend && go run cmd/app/main.go` (frontend baked into binary)
+- **Wails desktop**: `wails3 task dev` / `make run`（启用 SystemTray / 全局快捷键 / 桌面通知）
+- **HTTP server**: `cd backend && go run cmd/server/main.go`
+- **Embedded app**: `cd backend && go run cmd/app/main.go`
 
 ## Commands
 
 ### Development
 ```bash
-make run                  # wails dev (hot reload for both frontend and Go)
-make frontend-dev         # Vite dev server only (proxies /api → localhost:12345)
+make run                  # wails3 task dev (hot reload frontend + Go)
+make frontend-dev         # Vite dev server only
 cd backend && make run    # HTTP server only
 ```
 
 ### Build
 ```bash
-make build                # frontend build + wails build
-make release              # same as build (used for tagged releases)
-make frontend-build       # build frontend only
-cd backend && make build  # build backend server binary
+make build                # wails3 task build（当前平台）
+make release              # wails3 task package（带打包）
+wails3 task linux:build   # 指定平台（需在该平台环境或 Docker）
+make wails-generate       # 重新生成前端 bindings（改 App 方法后必须）
 ```
 
 ### Test & Lint
 ```bash
-cd backend && make test              # go test -v ./...
-cd backend && make test-coverage     # with coverage report
-cd backend && make lint              # golangci-lint (configured in .golangci.yml)
-cd backend && make lint-fix          # golangci-lint --fix
-cd backend && make check             # fmt + lint + test
-cd frontend && npm run type-check    # vue-tsc --noEmit
-cd frontend && npm run build         # vue-tsc && vite build (typecheck is part of build)
+cd backend && make check              # fmt + lint + test
+cd backend && make test               # go test
+cd frontend && npm run type-check     # vue-tsc --noEmit
+cd frontend && npm run build          # vite build
 ```
 
 ### Cross-compilation
-```bash
-bash build-linux.sh                  # Linux amd64 (pure Go, CGO_ENABLED=0)
-bash build-linux-arm64.sh            # Linux arm64
-bash build-windows-x64.sh            # Windows x64
-```
+v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
+- **CI**: 推送到 master/tag，GitHub Actions 在对应平台 runner 构建
+- **Docker**: `wails3 task setup:docker && wails3 task linux:build`
+- **server-only**（无 GUI）: `cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/server`
 
 ## Key Conventions & Gotchas
 
-- **Wire DI**: `backend/core/app/wire.go` defines injection; `wire_gen.go` is generated. After changing providers, run `wire ./backend/core/app/`. Both files are excluded from golangci-lint.
-- **Frontend env switching**: Build scripts use `cp .env.wails .env` or `cp .env.docker .env` before building. The active `.env` is gitignored.
-- **Config priority**: AppConfig struct > database stored config > environment variables (`ZENTAO_MINI_` prefix via Viper).
-- **Default HTTP port**: `12345`. Vite dev proxy targets this (see `frontend/vite.config.ts`).
-- **Generated code**: `frontend/wailsjs/` is auto-generated by Wails — never edit manually. After changing `App` methods in `app.go`, run `wails generate module` to refresh.
-- **Static files for embedded app**: Run `scripts/copy-static.sh` to copy `frontend/dist/` → `backend/cmd/app/static/` before building the embedded app.
-- **Backend Makefile** is in `backend/`, not the root. Root Makefile orchestrates frontend + Wails.
-- **CI**: Builds on push to `master` and on `v*.*.*` tags. Uploads artifacts per platform (linux-amd64, windows-amd64, darwin-arm64). Releases are auto-created from tags.
-- **Backend tests** are in `backend/core/` (covers dto/errors/event/handlers/logger/mcp/metrics/service/storage/utils). Frontend has no unit tests; UI smoke tests via Playwright.
+- **Wire DI**: `backend/core/app/wire.go` 定义注入；改 providers 后 `wire ./backend/core/app/`
+- **Frontend env switching**: 构建脚本 `cp .env.wails .env`，`.env` gitignored
+- **Config priority**: AppConfig > database stored config > env vars (`ZENTAO_MINI_` prefix)
+- **Default HTTP port**: `12345`
+- **Generated code**: `frontend/bindings/` 是 wails3 generate 自动生成的，不要手改。改 `app.go` 的 App 方法后必须运行 `wails3 generate bindings -d frontend/bindings` 或 `make wails-generate`
+- **Wails v3 Service 模式**: App 实现 `ServiceName/ServiceStartup/ServiceShutdown` 接口，通过 `application.NewService(app)` 包装注入到 `application.Options.Services`
+- **Static files for embedded app**: `scripts/copy-static.sh` 复制 `frontend/dist/` → `backend/cmd/app/static/`
+- **CI**: push to `master` 或 `v*.*.*` tag 触发，三平台 artifacts
 
 ## Feature Behaviors (mode-specific)
 
-| Feature | Wails desktop | HTTP server / Embedded |
-|---------|--------------|------------------------|
-| Desktop notifications | ✅ Via runtime EventsEmit + Notification API | ❌ Backend publishes to EventBus but no subscriber |
-| Hide-to-tray (close button) | ✅ OnBeforeClose hides window | N/A |
-| System menu / accelerators | ✅ CmdOrCtrl+H hide, CmdOrCtrl+R reload | ❌ |
-| Offline SQLite cache | ✅ All modes (cache.db in ~/.zentao-mini/) | ✅ |
-| Log viewer / Grafana / Prometheus | ✅ All modes | ✅ |
-
-**Known limitation — global hotkeys**: Wails v2 has no true global hotkey API (v3 does). The menu accelerators only work when the window has focus. After hide-to-tray, restore via OS taskbar/dock icon.
+| Feature | Wails desktop | HTTP / Embedded |
+|---------|--------------|-----------------|
+| SystemTray（原生托盘）| ✅ v3 原生 | ❌ |
+| GlobalShortcut（全局快捷键 CmdOrCtrl+Shift+Z）| ✅ v3 原生 | ❌ |
+| Desktop notifications | ✅ app.Event.Emit | ❌（EventBus 无订阅者）|
+| Hide-to-tray | ✅ | N/A |
+| Offline SQLite cache | ✅ | ✅ |
+| Log viewer / Grafana | ✅ | ✅ |
 
 ## Dependencies
 
-- Go 1.24+, Node 24+
-- Wails CLI v2 (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
-- golangci-lint (for `make lint`)
-- Linux full builds require: `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `pkg-config`, etc. (Cross-compilation scripts use `CGO_ENABLED=0` and skip these.)
+- Go 1.25+（推荐 1.26），Node 24+
+- Wails v3 CLI: `go install github.com/wailsapp/wails/v3/cmd/wails3@latest`
+- `@wailsio/runtime` npm 包（已写入 package.json）
+- golangci-lint
+- Linux 完整构建需要: `libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev pkg-config` 等
+- macOS: Xcode Command Line Tools
+- Windows: WebView2 Runtime（Win10/11 默认自带）
 
 ## Data files
 
-- `~/.zentao-mini/cron.db` — JSON file storing scheduled tasks + execution logs
-- `~/.zentao-mini/cache.db` — SQLite offline cache (auto-created, can be deleted safely)
+- `~/.zentao-mini/cron.db` — JSON 存储定时任务和执行日志
+- `~/.zentao-mini/cache.db` — SQLite 离线缓存（可安全删除）
+
+## Known Issues / Migration Notes
+
+- v3 alpha 阶段 API 偶有变化，升级版本前先 `wails3 doctor` 检查
+- `WebviewWindowOptions.Hidden:true` 在 Windows 上有 bug ([#4498](https://github.com/wailsapp/wails/issues/4498))
+- 全局快捷键在某些 Linux 桌面环境（如 Wayland）可能不工作
+- 若 wails3 generate 失败，尝试 `wails3 generate bindings -clean -d frontend/bindings`
+
 

@@ -34,15 +34,20 @@ backend-app-build:
 	@echo "Building backend app (with frontend static files)..."
 	@cd backend && go build -o app cmd/app/main.go
 
-# Wails 相关命令
+# Wails 相关命令 (v3)
+# v3 使用 Taskfile 作为主构建系统，这里通过 wails3 task 调用
 WAILS_TAGS ?=
 wails-build:
-	@echo "Building Wails application..."
-	@wails build -tags "$(WAILS_TAGS)"
+	@echo "Building Wails v3 application..."
+	@wails3 task build
 
 wails-run:
-	@echo "Running Wails application..."
-	@wails dev
+	@echo "Running Wails v3 application in dev mode..."
+	@wails3 task dev
+
+wails-generate:
+	@echo "Regenerating Wails v3 bindings..."
+	@wails3 generate bindings -d frontend/bindings
 
 # 组合命令
 install:

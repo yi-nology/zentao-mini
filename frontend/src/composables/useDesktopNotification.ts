@@ -55,9 +55,9 @@ function showOSNotification(payload: NotificationPayload): void {
     // 点击通知聚焦窗口（v3 通过 ShowWindow service binding）
     n.onclick = async () => {
       try {
-        // 路径与 wails3 generate bindings 输出一致，动态 import 避免 SSR 报错
+        // 相对路径引用 wails3 generate 生成的 bindings
         // @ts-ignore - 由 wails3 generate 生成，无类型声明
-        const mod = await import('@/bindings/github.com/yi-nology/zentao-mini/app.js')
+        const mod = await import('../../bindings/github.com/yi-nology/zentao-mini/app.js')
         if (mod.ShowWindow) mod.ShowWindow()
       } catch {
         /* 非 wails 环境忽略 */

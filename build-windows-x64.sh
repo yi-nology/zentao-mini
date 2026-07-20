@@ -1,34 +1,45 @@
 #!/bin/bash
+# 交叉编译 zentao-mini 为 Windows x64 可执行文件
+#
+# === Wails v3 迁移后重要变化 ===
+# v3 必须启用 CGO（webview2 集成），不再支持 CGO_ENABLED=0 的纯 Go 编译。
+# macOS/Linux 上无法直接交叉编译 Windows 桌面包（缺 mingw + webview2 cross-toolchain）。
+#
+# 推荐方案：
+#   1. CI 构建：GitHub Actions 在 Windows runner 上构建（最简单）
+#   2. Windows 本地环境：在 Windows 上 wsl/git-bash 运行本脚本
+#   3. 仅构建 server 模式：cd backend && CGO_ENABLED=0 GOOS=windows go build ./cmd/server
 
-# 交叉编译 Wails 应用为 Windows x64 可执行文件
+set -e
 
-echo "开始交叉编译 Wails 应用为 Windows x64 版本..."
+echo "=== 构建 zentao-mini Windows x64 版本 ==="
 
-# 构建前端
-echo "构建前端..."
-cd frontend && npm run build:wails
-if [ $? -ne 0 ]; then
-    echo "错误: 前端构建失败"
-    exit 1
-fi
-cd ..
-
-# 交叉编译为 Windows x64
-echo "交叉编译为 Windows x64..."
-
-# 创建输出目录
-mkdir -p build/windows-x64
-
-# 使用 go build 直接交叉编译，添加 Wails 构建标签
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags wails -o build/windows-x64/zentao-mini.exe .
-if [ $? -ne 0 ]; then
-    echo "错误: 交叉编译失败"
+if ! command -v wails3 >/dev/null 2>&1; then
+    echo "错误: wails3 CLI 未安装"
+    echo "  go install github.com/wailsapp/wails/v3/cmd/wails3@latest"
     exit 1
 fi
 
-# 复制环境变量文件
-cp frontend/.env.wails build/windows-x64/.env
+if [[ "$(uname -s)" == "MINGW"* || "$(uname -s)" == "MSYS"* || "$(uname -s)" == "CYGWIN"* ]]; then
+    # Windows 本地环境
+    echo "检测到 Windows 环境，调用 wails3 task windows:build..."
+    wails3 task windows:build
+    echo "✓ 构建完成"
+    ls -lah build/bin/ 2>/dev/null || true
+    exit 0
+fi
 
-echo "交叉编译完成!"
-echo "可执行文件位置: build/windows-x64/zentao-mini.exe"
-echo "环境变量文件已复制: build/windows-x64/.env"
+# 非 Windows 环境
+echo "警告: 当前不是 Windows 环境"
+echo "  v3 + CGO 桌面应用无法跨平台编译为 Windows .exe"
+echo "  选项 A: 推送到 GitHub，让 CI 在 Windows runner 上构建"
+echo "  选项 B: 用 Docker: wails3 task setup:docker && wails3 task windows:build"
+echo "  选项 C: 仅构建 server 模式（无 GUI）:"
+echo "          cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o ../build/bin/zentao-mini-server.exe ./cmd/server"
+echo ""
+read -p "继续尝试本机构建 server 模式? (y/N) " confirm
+if [[ "$confirm" != "y" ]]; then
+    exit 1
+fi
+cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o ../build/bin/zentao-mini-server.exe ./cmd/server
+echo "✓ server 二进制: build/bin/zentao-mini-server.exe"
