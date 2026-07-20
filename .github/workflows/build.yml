@@ -107,14 +107,13 @@ jobs:
         shell: bash
         run: |
           set -e
-          # tag 触发用 package（macOS 产出 .app bundle），普通推送用 build（产出裸 binary）
-          if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "Building release version with package..."
-            wails3 task package
-          else
-            echo "Building regular version..."
-            wails3 task build
-          fi
+          # 统一用 build（产出裸 binary）
+          # macOS 产出 bin/zentao-mini（无 .app bundle，但功能完整）
+          # Windows 产出 bin/zentao-mini.exe（无 NSIS installer，免装 NSIS）
+          # Linux 产出 bin/zentao-mini
+          # 如需 .app/.exe installer，本地运行 wails3 task package
+          echo "Building with wails3 task build..."
+          wails3 task build
 
       - name: List build outputs
         shell: bash
@@ -138,7 +137,7 @@ jobs:
 
           tar -czf "${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}.tar.gz" "$BIN_NAME"
 
-      - name: Package macOS app zip
+      - name: Package macOS zip
         if: matrix.goos == 'darwin'
         shell: bash
         run: |
@@ -148,28 +147,33 @@ jobs:
           APP_BUNDLE="${{ env.APP_NAME }}.app"
           ZIP_NAME="${{ env.APP_NAME }}-${{ matrix.artifact_suffix }}.zip"
 
-          # 如果 .app 不存在（普通 build 模式），直接打包裸 binary
-          if [ ! -d "$APP_BUNDLE" ]; then
-            echo "App bundle not found, falling back to raw binary"
-            if [ ! -f "${{ env.APP_NAME }}" ]; then
-              echo "Binary not found either"
-              ls -lah
-              exit 1
-            fi
+          # 优先打包 .app bundle（如果 wails3 task package 跑过），否则裸 binary
+          if [ -d "$APP_BUNDLE" ]; then
+            echo "Found .app bundle, creating proper macOS package"
+            ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_NAME"
+          elif [ -f "${{ env.APP_NAME }}" ]; then
+            echo "No .app bundle, zipping raw binary"
             zip "$ZIP_NAME" "${{ env.APP_NAME }}"
           else
-            ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_NAME"
+            echo "Neither .app nor raw binary found"
+            ls -lah
+            exit 1
           fi
 
           cat > "README-macOS-${{ matrix.goarch }}.txt" <<EOF
           ${{ env.APP_NAME }} macOS 安装说明
 
+          如果是 .app bundle:
           1. 解压 ${ZIP_NAME}
           2. 将 "${{ env.APP_NAME }}.app" 拖到 Applications
           3. 首次运行时若被拦截，先右键 -> 打开
           4. 若仍无法打开，请执行：
-
              xattr -r -d com.apple.quarantine /Applications/${{ env.APP_NAME }}.app
+
+          如果是裸 binary:
+          1. 解压 ${ZIP_NAME}
+          2. chmod +x zentao-mini
+          3. ./zentao-mini
 
           说明：
           - 当前产物未做 Apple Developer 签名与 notarization

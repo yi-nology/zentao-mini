@@ -3,26 +3,26 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "wails3-test"
+name: "zentao-mini"
 arch: ${GOARCH}
 platform: "linux"
-version: "0.1.0"
+version: "0.0.1"
 section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
-description: "A wails3-test application"
-vendor: "My Company"
+description: "禅道项目管理桌面助手"
+vendor: "MurphyYi"
 homepage: "https://wails.io"
 license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/wails3-test"
-    dst: "/usr/local/bin/wails3-test"
+  - src: "./bin/zentao-mini"
+    dst: "/usr/local/bin/zentao-mini"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/wails3-test.png"
-  - src: "./build/linux/wails3-test.desktop"
-    dst: "/usr/share/applications/wails3-test.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/zentao-mini.png"
+  - src: "./build/linux/zentao-mini.desktop"
+    dst: "/usr/share/applications/zentao-mini.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

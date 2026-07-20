@@ -1,13 +1,13 @@
 [Desktop Entry]
 Version=1.0
-Name=My Product
-Comment=A wails3-test application
+Name=zentao-mini
+Comment=禅道项目管理桌面助手
 # The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/wails3-test %u
+Exec=/usr/local/bin/zentao-mini %u
 Terminal=false
 Type=Application
-Icon=wails3-test
+Icon=zentao-mini
 Categories=Utility;
-StartupWMClass=wails3-test
+StartupWMClass=zentao-mini
 
  
