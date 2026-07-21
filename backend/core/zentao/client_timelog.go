@@ -2,6 +2,7 @@ package zentao
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"sync"
@@ -49,6 +50,9 @@ func mapToSlice(m map[string]*statItem) []statItem {
 
 // GetTaskEfforts 获取任务的工时记录
 func (c *Client) GetTaskEfforts(taskID int) ([]zentao.EffortEntry, error) {
+	if c.IsSessionMode() {
+		return c.getTaskEffortsSession(context.Background(), taskID)
+	}
 	var result []zentao.EffortEntry
 	err := c.withTokenRetry("GetTaskEfforts", func(client *zentao.Client) error {
 		var err error
@@ -60,6 +64,9 @@ func (c *Client) GetTaskEfforts(taskID int) ([]zentao.EffortEntry, error) {
 
 // GetTaskEffortsContext 获取任务的工时记录（支持 context 取消）
 func (c *Client) GetTaskEffortsContext(ctx context.Context, taskID int) ([]zentao.EffortEntry, error) {
+	if c.IsSessionMode() {
+		return c.getTaskEffortsSession(ctx, taskID)
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -75,10 +82,13 @@ func (c *Client) GetTaskEffortsContext(ctx context.Context, taskID int) ([]zenta
 }
 
 // GetTimelogAnalysis 获取工时统计分析
+//
+// 该方法原本直接调用 c.sdkClient.*（绕过 wrapper），导致会话模式无法工作。
+// 重构为通过 wrapper 方法（GetProduct/GetProjectsByProduct/GetExecutions/
+// GetTasks/GetTaskEfforts）获取数据 —— 这些方法已经做了 token/session 双模式分发，
+// 因此本方法自动支持两种模式，无需额外的 session 分支。
 func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedTo, dateFrom, dateTo string) (map[string]interface{}, error) {
-	if _, err := c.getToken(); err != nil {
-		return nil, err
-	}
+	ctx := context.Background()
 
 	prodID, err := strconv.Atoi(productID)
 	if err != nil {
@@ -94,16 +104,14 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	}
 
 	productName := fmt.Sprintf("产品%d", prodID)
-	product, err := c.sdkClient.GetProduct(prodID)
-	if err == nil && product != nil {
+	if product, perr := c.GetProductContext(ctx, prodID); perr == nil && product != nil {
 		productName = product.Name
 	}
 
-	projectsResponse, err := c.sdkClient.GetProjectsByProduct(prodID, 1, 100)
+	projects, err := c.GetProjectsByProductContext(ctx, prodID, 1, 100)
 	if err != nil {
 		return nil, fmt.Errorf("获取项目列表失败: %w", err)
 	}
-	projects := projectsResponse.Projects
 
 	if filterProjectID > 0 {
 		filtered := make([]zentao.Project, 0)
@@ -142,11 +150,11 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 		for i, proj := range projects {
 			proj := proj
 			execTasks[i] = func() (interface{}, error) {
-				execsResponse, err := c.sdkClient.GetExecutions(proj.ID, 1, 100)
-				if err != nil {
-					return nil, err
+				execs, eerr := c.GetExecutionsContext(ctx, proj.ID, 1, 100)
+				if eerr != nil {
+					return nil, eerr
 				}
-				return execsResponse.Executions, nil
+				return execs, nil
 			}
 		}
 
@@ -176,13 +184,13 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	for i, ec := range allExecs {
 		ec := ec
 		taskTasks[i] = func() (interface{}, error) {
-			tasksResponse, err := c.sdkClient.GetTasks(ec.Exec.ID, 1, 500)
-			if err != nil {
-				return nil, err
+			tasks, terr := c.GetTasksContext(ctx, ec.Exec.ID, 1, 500)
+			if terr != nil {
+				return nil, terr
 			}
 			var filteredTasks []zentao.Task
-			for _, t := range tasksResponse.Tasks {
-				if consumed, ok := t.Consumed.(float64); ok && consumed > 0 {
+			for _, t := range tasks {
+				if toFloat64(t.Consumed) > 0 {
 					filteredTasks = append(filteredTasks, t)
 				}
 			}
@@ -222,9 +230,9 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	for i, tc := range allTaskCtx {
 		tc := tc
 		effortTasks[i] = func() (interface{}, error) {
-			efforts, err := c.sdkClient.GetTaskEfforts(tc.Task.ID)
-			if err != nil {
-				return nil, err
+			efforts, ferr := c.GetTaskEffortsContext(ctx, tc.Task.ID)
+			if ferr != nil {
+				return nil, ferr
 			}
 
 			var filteredEfforts []effortItem
@@ -339,4 +347,26 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 		"byDate":      byDate,
 		"efforts":     effortsData,
 	}, nil
+}
+
+// toFloat64 把 SDK 里 interface{} 类型的 Consumed/Left 安全转 float64。
+// session 模式映射时这些字段已是 float64；token 模式下 SDK 可能返回 float64 或 json.Number。
+func toFloat64(v interface{}) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case float32:
+		return float64(n)
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case json.Number:
+		f, _ := n.Float64()
+		return f
+	case string:
+		f, _ := strconv.ParseFloat(n, 64)
+		return f
+	}
+	return 0
 }

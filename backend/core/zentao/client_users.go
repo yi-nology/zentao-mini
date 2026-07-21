@@ -1,6 +1,7 @@
 package zentao
 
 import (
+	"context"
 	"time"
 
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
@@ -44,6 +45,9 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 
 // GetUsersAll 获取所有用户列表
 func (c *Client) GetUsersAll() ([]zentao.User, error) {
+	if c.IsSessionMode() {
+		return c.getUsersAllSession(context.Background())
+	}
 	cacheKey := "zentao:users:all"
 
 	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {

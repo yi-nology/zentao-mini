@@ -48,7 +48,7 @@ func provideConfigStore(config *AppConfig) *initialization.ConfigStore {
 // provideZentaoClient 提供ZentaoClient实例
 func provideZentaoClient(config *AppConfig, initService *initialization.InitService) *zentao.Client {
 
-	zentaoServer, zentaoAccount, zentaoPassword := initialization.LoadZentaoConfig(initService)
+	zentaoServer, zentaoAccount, zentaoPassword, realm := initialization.LoadZentaoConfigWithRealm(initService)
 
 	if config.ZentaoServer != "" {
 		zentaoServer = config.ZentaoServer
@@ -69,7 +69,17 @@ func provideZentaoClient(config *AppConfig, initService *initialization.InitServ
 	if zentaoPassword == "" {
 		zentaoPassword = os.Getenv("ZENTAO_PASSWORD")
 	}
+	if realm == "" {
+		if r := os.Getenv("ZENTAO_MINI_REALM"); r != "" {
+			realm = r
+		} else if r := os.Getenv("ZENTAO_REALM"); r != "" {
+			realm = r
+		}
+	}
 
+	if realm != "" {
+		return zentao.NewSessionClient(zentaoServer, zentaoAccount, zentaoPassword, realm)
+	}
 	return zentao.NewClient(zentaoServer, zentaoAccount, zentaoPassword)
 }
 

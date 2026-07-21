@@ -2,6 +2,7 @@ package zentao
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
@@ -13,6 +14,9 @@ import (
 
 // GetProducts 获取产品列表
 func (c *Client) GetProducts() ([]zentao.Product, error) {
+	if c.IsSessionMode() {
+		return c.getProductsSession(context.Background())
+	}
 	cacheKey := "zentao:products:all"
 
 	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
@@ -76,6 +80,18 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 
 // GetProduct 获取产品详情
 func (c *Client) GetProduct(productID int) (*zentao.Product, error) {
+	if c.IsSessionMode() {
+		all, err := c.getProductsSession(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		for i := range all {
+			if all[i].ID == productID {
+				return &all[i], nil
+			}
+		}
+		return nil, fmt.Errorf("产品 %d 不存在", productID)
+	}
 	var result *zentao.Product
 	err := c.withTokenRetry("GetProduct", func(client *zentao.Client) error {
 		var err error
@@ -87,6 +103,18 @@ func (c *Client) GetProduct(productID int) (*zentao.Product, error) {
 
 // GetProductContext 获取产品详情（支持 context 取消）
 func (c *Client) GetProductContext(ctx context.Context, productID int) (*zentao.Product, error) {
+	if c.IsSessionMode() {
+		all, err := c.getProductsSession(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for i := range all {
+			if all[i].ID == productID {
+				return &all[i], nil
+			}
+		}
+		return nil, fmt.Errorf("产品 %d 不存在", productID)
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()

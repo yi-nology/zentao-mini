@@ -211,7 +211,47 @@
             <div v-html="sanitizeHtml(currentBug.steps)"></div>
           </el-descriptions-item>
         </el-descriptions>
+        <div class="bug-actions">
+          <el-button size="small" @click="handleBugAction('confirm', currentBug.id)">确认</el-button>
+          <el-button size="small" type="warning" @click="handleBugAction('resolve', currentBug.id)">解决</el-button>
+          <el-button size="small" type="success" @click="handleBugAction('close', currentBug.id)">关闭</el-button>
+          <el-button size="small" @click="handleBugAction('activate', currentBug.id)">激活</el-button>
+          <el-button size="small" @click="handleBugAction('assign', currentBug.id)">指派</el-button>
+        </div>
       </div>
+    </el-dialog>
+
+    <!-- 简单动作对话框（确认/解决/关闭/激活/指派 通用） -->
+    <el-dialog v-model="actionDialogVisible" :title="actionTitle" width="480px" append-to-body>
+      <el-form label-width="90px">
+        <el-form-item v-if="actionType === 'resolve'" label="解决方案">
+          <el-select v-model="actionForm.resolution" style="width: 100%">
+            <el-option label="已解决(bydesign)" value="bydesign" />
+            <el-option label="重复(duplicate)" value="duplicate" />
+            <el-option label="外部原因(external)" value="external" />
+            <el-option label="修复(fixed)" value="fixed" />
+            <el-option label="不予解决(notrepro)" value="notrepro" />
+            <el-option label="延期(postponed)" value="postponed" />
+            <el-option label="不予修复(willnotfix)" value="willnotfix" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="actionType === 'resolve'" label="解决版本">
+          <el-input v-model="actionForm.resolvedBuild" placeholder="如 mainV3_Build06" />
+        </el-form-item>
+        <el-form-item v-if="actionType === 'assign'" label="指派给">
+          <el-input v-model="actionForm.assignedTo" placeholder="账号" />
+        </el-form-item>
+        <el-form-item v-if="actionType === 'activate'" label="指派给">
+          <el-input v-model="actionForm.assignedTo" placeholder="账号（可空）" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="actionForm.comment" type="textarea" :rows="3" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="actionDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="actionLoading" @click="submitAction">提交</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -221,7 +261,7 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getBugs, getBuildsByProject, getBugStatusOptions, getUsers, getProducts } from '@/api/zentao'
+import { getBugs, getBuildsByProject, getBugStatusOptions, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
@@ -478,6 +518,61 @@ const handleReset = (): void => {
   fetchBugs()
 }
 
+// ----- Bug 写操作（确认/解决/关闭/激活/指派）-----
+type BugActionType = 'confirm' | 'resolve' | 'close' | 'activate' | 'assign'
+const actionDialogVisible = ref(false)
+const actionLoading = ref(false)
+const actionType = ref<BugActionType>('confirm')
+const actionBugId = ref(0)
+const actionForm = reactive<{ resolution: string; resolvedBuild: string; assignedTo: string; comment: string }>({
+  resolution: 'fixed',
+  resolvedBuild: '',
+  assignedTo: '',
+  comment: ''
+})
+const actionTitle = computed(() => {
+  const map: Record<BugActionType, string> = {
+    confirm: '确认 Bug', resolve: '解决 Bug', close: '关闭 Bug', activate: '激活 Bug', assign: '指派 Bug'
+  }
+  return map[actionType.value]
+})
+
+const handleBugAction = (type: BugActionType, id: number): void => {
+  actionType.value = type
+  actionBugId.value = id
+  actionForm.resolution = 'fixed'
+  actionForm.resolvedBuild = ''
+  actionForm.assignedTo = ''
+  actionForm.comment = ''
+  actionDialogVisible.value = true
+}
+
+const submitAction = async (): Promise<void> => {
+  actionLoading.value = true
+  try {
+    const id = actionBugId.value
+    if (actionType.value === 'confirm') {
+      await confirmBug(id, { comment: actionForm.comment })
+    } else if (actionType.value === 'resolve') {
+      await resolveBug(id, { resolution: actionForm.resolution, resolvedBuild: actionForm.resolvedBuild, comment: actionForm.comment })
+    } else if (actionType.value === 'close') {
+      await closeBug(id, { comment: actionForm.comment })
+    } else if (actionType.value === 'activate') {
+      await activateBug(id, { assignedTo: actionForm.assignedTo, comment: actionForm.comment })
+    } else if (actionType.value === 'assign') {
+      await assignBug(id, { assignedTo: actionForm.assignedTo, comment: actionForm.comment })
+    }
+    ElMessage.success('操作成功')
+    actionDialogVisible.value = false
+    fetchBugs()
+  } catch (err) {
+    const anyErr = err as { response?: { data?: { message?: string } } }
+    ElMessage.error(anyErr?.response?.data?.message || '操作失败')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
 const handleSizeChange = (size: number): void => {
   if (!globalSelection.product) return
   pagination.pageSize = size
@@ -709,5 +804,14 @@ onMounted(() => {
 .bug-detail :deep(.el-descriptions__label) {
   font-weight: 600;
   color: var(--color-text-primary);
+}
+
+.bug-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-light);
+  flex-wrap: wrap;
 }
 </style>

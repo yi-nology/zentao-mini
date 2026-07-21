@@ -21,6 +21,10 @@ type AuthConfig struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Domain   string `json:"domain"`
+	// Realm 认证域。非空（如 "kydc"）表示使用会话模式登录，
+	// 数据访问走禅道 PHP *.json 端点；空表示默认 Token 模式（REST API）。
+	// 适用于禁用 REST API 的禅道实例（如麒麟 pm.kylin.com）。
+	Realm string `json:"realm,omitempty"`
 }
 
 // EncryptedAuthConfig 加密的认证配置结构
@@ -177,6 +181,37 @@ func (s *InitService) StoreAuthConfig(fileData []byte) error {
 	return nil
 }
 
+// StoreAuthConfigFromStruct 加密一个 AuthConfig 后落盘。供登录表单端点使用：
+// 用户直接提交账号密码时（而非上传加密文件），用本地 encryptionKey 做 AES 加密
+// 后写入 auth.db，保证密码不以明文形式落盘。salt 用随机 hex，IV 由 Encrypt 生成。
+func (s *InitService) StoreAuthConfigFromStruct(cfg *AuthConfig) error {
+	if cfg == nil {
+		return errors.New("auth config is nil")
+	}
+	// 随机 salt（16 字节 hex）。
+	saltBytes := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, saltBytes); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
+	salt := hex.EncodeToString(saltBytes)
+
+	ciphertextB64, ivHex, err := s.Encrypt(cfg, salt)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt auth config: %w", err)
+	}
+
+	encrypted := EncryptedAuthConfig{
+		Salt:          salt,
+		Iv:            ivHex,
+		EncryptedData: ciphertextB64,
+	}
+	data, err := json.Marshal(encrypted)
+	if err != nil {
+		return fmt.Errorf("failed to marshal encrypted config: %w", err)
+	}
+	return s.StoreAuthConfig(data)
+}
+
 // LoadAuthConfig 从数据库加载认证配置
 func (s *InitService) LoadAuthConfig() (*AuthConfig, []byte, error) {
 	// 读取数据库文件（存储的是加密的JSON文件原文）
@@ -296,22 +331,33 @@ func (s *InitService) Encrypt(config *AuthConfig, salt string) (string, string, 
 
 // LoadZentaoConfig 加载禅道配置
 func LoadZentaoConfig(initService *InitService) (string, string, string) {
+	server, account, password, _ := LoadZentaoConfigWithRealm(initService)
+	return server, account, password
+}
+
+// LoadZentaoConfigWithRealm 加载禅道配置，额外返回 realm。
+// realm 非空表示会话模式（kydc），空表示 Token 模式。
+// 优先级：数据库 > 环境变量（ZENTAO_REALM / ZENTAO_MINI_REALM）。
+func LoadZentaoConfigWithRealm(initService *InitService) (server, account, password, realm string) {
 	log.Println("Loading zentao config...")
 
 	authConfig, _, err := initService.LoadAuthConfig()
 	if err == nil && authConfig != nil {
 		log.Println("Config loaded from database successfully")
-		log.Printf("Using database config: Domain=%s, Username=%s", authConfig.Domain, authConfig.Username)
-		return authConfig.Domain, authConfig.Username, authConfig.Password
+		log.Printf("Using database config: Domain=%s, Username=%s, Realm=%s", authConfig.Domain, authConfig.Username, authConfig.Realm)
+		return authConfig.Domain, authConfig.Username, authConfig.Password, authConfig.Realm
 	}
 
 	log.Printf("Failed to load config from database: %v", err)
 	log.Println("Falling back to environment variables")
 
-	zentaoServer := os.Getenv("ZENTAO_SERVER")
-	zentaoAccount := os.Getenv("ZENTAO_ACCOUNT")
-	zentaoPassword := os.Getenv("ZENTAO_PASSWORD")
+	server = os.Getenv("ZENTAO_SERVER")
+	account = os.Getenv("ZENTAO_ACCOUNT")
+	password = os.Getenv("ZENTAO_PASSWORD")
+	if realm = os.Getenv("ZENTAO_REALM"); realm == "" {
+		realm = os.Getenv("ZENTAO_MINI_REALM")
+	}
 
-	log.Printf("Using environment variables: Domain=%s, Username=%s", zentaoServer, zentaoAccount)
-	return zentaoServer, zentaoAccount, zentaoPassword
+	log.Printf("Using environment variables: Domain=%s, Username=%s, Realm=%s", server, account, realm)
+	return server, account, password, realm
 }

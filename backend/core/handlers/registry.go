@@ -31,6 +31,15 @@ type HandlerRegistry struct {
 	cacheService     *service.CacheService
 	cacheStore       storage.Store
 
+	// Phase2b 新增实体
+	caseService      *service.CaseService
+	planService      *service.PlanService
+	programService   *service.ProgramService
+	releaseService   *service.ReleaseService
+	testTaskService  *service.TestTaskService
+	ticketService    *service.TicketService
+	feedbackService  *service.FeedbackService
+
 	productHandler   *ProductHandler
 	projectHandler   *ProjectHandler
 	executionHandler *ExecutionHandler
@@ -46,6 +55,18 @@ type HandlerRegistry struct {
 	cacheHandler     *CacheHandler
 	initHandler      *InitHandler
 	healthHandler    *HealthHandler
+
+	// Phase2b 新增 handler
+	caseHandler     *CaseHandler
+	planHandler     *PlanHandler
+	programHandler  *ProgramHandler
+	releaseHandler  *ReleaseHandler
+	testTaskHandler *TestTaskHandler
+	ticketHandler   *TicketHandler
+	feedbackHandler *FeedbackHandler
+
+	// Phase2c 写操作 handler
+	writeHandler *WriteHandler
 }
 
 // NewHandlerRegistry 创建Handler注册表
@@ -67,6 +88,15 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.timelogService = service.NewTimelogService(client)
 	registry.dashboardService = service.NewDashboardService(client)
 
+	// Phase2b 新增实体 service
+	registry.caseService = service.NewCaseService(client)
+	registry.planService = service.NewPlanService(client)
+	registry.programService = service.NewProgramService(client)
+	registry.releaseService = service.NewReleaseService(client)
+	registry.testTaskService = service.NewTestTaskService(client)
+	registry.ticketService = service.NewTicketService(client)
+	registry.feedbackService = service.NewFeedbackService(client)
+
 	registry.productHandler = NewProductHandler(registry.productService)
 	registry.projectHandler = NewProjectHandler(registry.projectService)
 	registry.executionHandler = NewExecutionHandler(registry.executionService)
@@ -77,6 +107,18 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	registry.userHandler = NewUserHandler(registry.userService)
 	registry.timelogHandler = NewTimelogHandler(registry.timelogService)
 	registry.dashboardHandler = NewDashboardHandler(registry.dashboardService)
+
+	// Phase2b 新增 handler
+	registry.caseHandler = NewCaseHandler(registry.caseService)
+	registry.planHandler = NewPlanHandler(registry.planService)
+	registry.programHandler = NewProgramHandler(registry.programService)
+	registry.releaseHandler = NewReleaseHandler(registry.releaseService)
+	registry.testTaskHandler = NewTestTaskHandler(registry.testTaskService)
+	registry.ticketHandler = NewTicketHandler(registry.ticketService)
+	registry.feedbackHandler = NewFeedbackHandler(registry.feedbackService)
+
+	// Phase2c 写操作 handler（直接依赖 client，不经 service）
+	registry.writeHandler = NewWriteHandler(client)
 
 	registry.logHandler = NewLogHandler()
 
@@ -232,3 +274,15 @@ func (r *HandlerRegistry) GetSchedulerHandler() *SchedulerHandler {
 func (r *HandlerRegistry) GetHealthHandler() *HealthHandler {
 	return r.healthHandler
 }
+
+// Phase2b 新增 handler 访问器
+func (r *HandlerRegistry) GetCaseHandler() *CaseHandler         { return r.caseHandler }
+func (r *HandlerRegistry) GetPlanHandler() *PlanHandler         { return r.planHandler }
+func (r *HandlerRegistry) GetProgramHandler() *ProgramHandler   { return r.programHandler }
+func (r *HandlerRegistry) GetReleaseHandler() *ReleaseHandler   { return r.releaseHandler }
+func (r *HandlerRegistry) GetTestTaskHandler() *TestTaskHandler { return r.testTaskHandler }
+func (r *HandlerRegistry) GetTicketHandler() *TicketHandler     { return r.ticketHandler }
+func (r *HandlerRegistry) GetFeedbackHandler() *FeedbackHandler { return r.feedbackHandler }
+
+// Phase2c 写操作 handler 访问器
+func (r *HandlerRegistry) GetWriteHandler() *WriteHandler { return r.writeHandler }

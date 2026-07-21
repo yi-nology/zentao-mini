@@ -51,8 +51,8 @@ func provideConfigStore(config *AppConfig) *initialization.ConfigStore {
 
 // provideZentaoClient 提供ZentaoClient实例
 func provideZentaoClient(config *AppConfig, initService *initialization.InitService) *zentao.Client {
-	// 加载禅道配置
-	zentaoServer, zentaoAccount, zentaoPassword := initialization.LoadZentaoConfig(initService)
+	// 加载禅道配置（含 realm）
+	zentaoServer, zentaoAccount, zentaoPassword, realm := initialization.LoadZentaoConfigWithRealm(initService)
 
 	// 如果配置中有值，优先使用配置中的值
 	if config.ZentaoServer != "" {
@@ -84,7 +84,18 @@ func provideZentaoClient(config *AppConfig, initService *initialization.InitServ
 			zentaoPassword = os.Getenv("ZENTAO_PASSWORD")
 		}
 	}
+	if realm == "" {
+		if r := os.Getenv("ZENTAO_MINI_REALM"); r != "" {
+			realm = r
+		} else if r := os.Getenv("ZENTAO_REALM"); r != "" {
+			realm = r
+		}
+	}
 
+	// realm 非空 → 会话模式（PHP *.json 端点）；空 → Token 模式（REST API）
+	if realm != "" {
+		return zentao.NewSessionClient(zentaoServer, zentaoAccount, zentaoPassword, realm)
+	}
 	return zentao.NewClient(zentaoServer, zentaoAccount, zentaoPassword)
 }
 

@@ -15,6 +15,9 @@ import (
 
 // GetBugs 获取产品的 Bug 列表
 func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		return c.getBugsSession(context.Background(), productID, page, pageSize)
+	}
 	cacheKey := DefaultKeyBuilder.Build("zentao:bugs", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
 	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
@@ -38,6 +41,9 @@ func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error
 
 // GetBugsByProject 根据项目 ID 过滤 Bug 列表
 func (c *Client) GetBugsByProject(productID, projectID int, page, pageSize int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		return c.getBugsByProjectSession(context.Background(), productID, projectID, page, pageSize)
+	}
 	var response *zentao.BugListResponse
 	err := c.withTokenRetry("GetBugsByProject", func(client *zentao.Client) error {
 		var err error
@@ -52,6 +58,19 @@ func (c *Client) GetBugsByProject(productID, projectID int, page, pageSize int) 
 
 // GetBugsByStatus 根据状态过滤 Bug 列表
 func (c *Client) GetBugsByStatus(productID int, status string, page, pageSize int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		all, err := c.getAllBugsSession(context.Background(), productID)
+		if err != nil {
+			return nil, err
+		}
+		filtered := make([]zentao.Bug, 0)
+		for _, b := range all {
+			if b.Status == status {
+				filtered = append(filtered, b)
+			}
+		}
+		return paginateBugs(filtered, page, pageSize), nil
+	}
 	var response *zentao.BugListResponse
 	err := c.withTokenRetry("GetBugsByStatus", func(client *zentao.Client) error {
 		var err error
@@ -66,6 +85,9 @@ func (c *Client) GetBugsByStatus(productID int, status string, page, pageSize in
 
 // SearchBugs 搜索 Bug（支持多条件过滤）
 func (c *Client) SearchBugs(params zentao.BugSearchParams) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		return c.searchBugsSession(context.Background(), params)
+	}
 	var response *zentao.BugListResponse
 	err := c.withTokenRetry("SearchBugs", func(client *zentao.Client) error {
 		var err error
@@ -91,6 +113,9 @@ func (c *Client) GetBug(bugID int) (*zentao.Bug, error) {
 
 // GetAllBugs 获取产品全部 Bug（自动翻页）
 func (c *Client) GetAllBugs(productID int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		return c.getAllBugsSession(context.Background(), productID)
+	}
 	var all []zentao.Bug
 	page := 1
 	for {
@@ -111,6 +136,10 @@ func (c *Client) GetAllBugs(productID int) ([]zentao.Bug, error) {
 // 禅道默认 /products/{id}/bugs 接口不返回 closed bug，
 // 需显式传 status=all 才能获取全部状态。自动翻页。
 func (c *Client) GetAllBugsIncludeClosed(productID int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		// 会话模式 getAllBugsSession 用 browseType=all，天然包含 closed。
+		return c.getAllBugsSession(context.Background(), productID)
+	}
 	token, err := c.getToken()
 	if err != nil {
 		return nil, fmt.Errorf("获取 token 失败: %w", err)
@@ -170,6 +199,22 @@ func (c *Client) GetAllBugsByProject(projectID int) ([]zentao.Bug, error) {
 
 // GetAllBugsByProjectWithProduct 获取项目全部 Bug（指定产品ID）
 func (c *Client) GetAllBugsByProjectWithProduct(productID int, projectID int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		if productID > 0 {
+			all, err := c.getAllBugsSession(context.Background(), productID)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]zentao.Bug, 0)
+			for _, b := range all {
+				if b.Project == projectID {
+					out = append(out, b)
+				}
+			}
+			return out, nil
+		}
+		return c.getAllBugsByProjectSession(context.Background(), projectID)
+	}
 	var allBugs []zentao.Bug
 	page := 1
 	for {
@@ -198,6 +243,9 @@ func (c *Client) GetAllBugsByProjectWithProduct(productID int, projectID int) ([
 
 // GetBugsContext 获取 Bug 列表（支持 context 取消）
 func (c *Client) GetBugsContext(ctx context.Context, productID int, page, pageSize int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		return c.getBugsSession(ctx, productID, page, pageSize)
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -217,6 +265,9 @@ func (c *Client) GetBugsContext(ctx context.Context, productID int, page, pageSi
 
 // GetAllBugsContext 获取产品全部 Bug（支持 context 取消，自动翻页）
 func (c *Client) GetAllBugsContext(ctx context.Context, productID int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		return c.getAllBugsSession(ctx, productID)
+	}
 	var all []zentao.Bug
 	page := 1
 	for {
@@ -240,6 +291,9 @@ func (c *Client) GetAllBugsContext(ctx context.Context, productID int) ([]zentao
 
 // GetAllBugsByProjectContext 获取项目全部 Bug（支持 context 取消）
 func (c *Client) GetAllBugsByProjectContext(ctx context.Context, projectID int) ([]zentao.Bug, error) {
+	if c.IsSessionMode() {
+		return c.getAllBugsByProjectSession(ctx, projectID)
+	}
 	var all []zentao.Bug
 	page := 1
 	for {

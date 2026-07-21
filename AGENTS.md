@@ -95,6 +95,45 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
 | Offline SQLite cache | ✅ | ✅ |
 | Log viewer / Grafana | ✅ | ✅ |
 
+## Authentication Modes (双认证模式)
+
+应用支持两种禅道认证与数据访问模式，按配置的 `realm` 字段自动切换：
+
+| 模式 | 认证 | 数据访问 | 适用 |
+|------|------|----------|------|
+| **Token 模式**（默认） | 用户名/密码换 REST Token | `/api.php/v1/*` REST 端点（Token 头） | 标准禅道开源版/企业版 |
+| **Session 模式** | `/user-login.html` PHP 会话 | `*.json` 端点（zentaosid cookie） | 禁用 REST API 的禅道实例（如麒麟 pm.kylin.com） |
+
+**配置方式**：
+- `~/.zentao-mini/auth.db` 里 `AuthConfig.Realm` 非空（如 `"kydc"`）→ Session 模式
+- 前端登录表单选择认证域：`kydc`（麒麟 SSO，密码明文）/ `local`（禅道本地，md5 混淆）
+- 环境变量：`ZENTAO_MINI_REALM` / `ZENTAO_REALM`
+
+**实现关键文件**（`backend/core/zentao/`）：
+- `client_auth_mode.go` — `AuthMode` / `RealmKylinSSO` 常量
+- `client_session.go` — `SessionTransport`（登录、cookie jar、双层 JSON 解包、re-login 重试）
+- `client_session_*.go` — 各实体的 `.json → SDK` 映射（bugs/stories/tasks/products/projects/executions/users/builds/efforts/cases/plans/programs/releases/testtasks/tickets/feedbacks）
+- `client_writes*.go` — 写操作（bug/task/story/... 的 create/update/delete/resolve/close/start/finish 等），token + session 双模式
+- `client.go` 的 `NewSessionClient` / `UpdateSessionConfig` / `doSessionJSON` / `doSessionPost` 做模式分发
+
+**Gotchas**：
+- Session 模式下 kylin SSO 短时间内频繁登录会被临时封账号（运营层限制），代码已加 30s 登录限流
+- `.json` 端点每个实体的**分页 URL 段格式不同**（bug/project/execution 互不一致），见各 `client_session_*.go` 的注释
+- 数值字段用 `json.Number` + `UseNumber()` 解码（兼容 int/string 混用）
+- 未认证返回 HTTP 200 + `data.locate` 指向 `user-login`（不是 401），`IsSessionAuthError` 专门识别
+
+## API Endpoints
+
+**读**（GET）：`/api/{products,projects,executions,bugs,builds/{project,execution},stories,tasks,users,users/all,users/current,cases,plans,programs,releases,testtasks,tickets,feedbacks,timelog/{analysis,dashboard,efforts},dashboard,project/overview,personal/timelog,search}`
+
+**写**（POST/PUT/DELETE）：
+- Bug: `/api/bugs`（POST）、`/api/bugs/:id`（PUT/DELETE）、`/api/bugs/:id/{resolve,close,assign,confirm,activate}`（POST）
+- Task: `/api/tasks`（POST）、`/api/tasks/:id`（PUT/DELETE）、`/api/tasks/:id/{start,finish,pause,assign,activate,effort}`（POST）
+- Story: `/api/stories`（POST）、`/api/stories/:id`（PUT/DELETE）、`/api/stories/:id/change`（POST）
+- Plan: `/api/plans`（POST）、`/api/plans/:id`（PUT/DELETE）、`/api/plans/:id/{link-stories,unlink-stories,link-bugs,unlink-bugs}`（POST）
+- Case/Ticket/Feedback: `/api/{cases,tickets,feedbacks}`（POST）、`/:id`（PUT/DELETE），外加 `/api/feedbacks/:id/{assign,close}`（POST）
+- Product/Project/Program/Execution/Build/User: `/api/{products,projects,programs,executions,builds,users}`（POST）、`/:id`（PUT/DELETE）
+
 ## Dependencies
 
 - Go 1.25+（推荐 1.26），Node 24+

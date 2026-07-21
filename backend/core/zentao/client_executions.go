@@ -10,6 +10,24 @@ import (
 
 // GetExecutions 获取执行列表
 func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Execution, error) {
+	if c.IsSessionMode() {
+		all, err := c.getExecutionsSession(context.Background(), projectID)
+		if err != nil {
+			return nil, err
+		}
+		start := (page - 1) * pageSize
+		if start < 0 {
+			start = 0
+		}
+		end := start + pageSize
+		if end > len(all) {
+			end = len(all)
+		}
+		if start >= len(all) {
+			return nil, nil
+		}
+		return all[start:end], nil
+	}
 	cacheKey := DefaultKeyBuilder.Build("zentao:executions", strconv.Itoa(projectID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
 	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
@@ -33,6 +51,24 @@ func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Exec
 
 // GetExecutionsContext 获取执行列表（支持 context 取消）
 func (c *Client) GetExecutionsContext(ctx context.Context, projectID int, page, pageSize int) ([]zentao.Execution, error) {
+	if c.IsSessionMode() {
+		all, err := c.getExecutionsSession(ctx, projectID)
+		if err != nil {
+			return nil, err
+		}
+		start := (page - 1) * pageSize
+		if start < 0 {
+			start = 0
+		}
+		end := start + pageSize
+		if end > len(all) {
+			end = len(all)
+		}
+		if start >= len(all) {
+			return nil, nil
+		}
+		return all[start:end], nil
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -82,6 +118,9 @@ func (c *Client) GetExecutionsByProduct(productID int) ([]ExecutionContext, erro
 
 // GetExecutionsByProductContext 按产品获取所有执行（支持 context 取消）
 func (c *Client) GetExecutionsByProductContext(ctx context.Context, productID int) ([]ExecutionContext, error) {
+	if c.IsSessionMode() {
+		return c.executionsByProductSession(ctx, productID)
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()

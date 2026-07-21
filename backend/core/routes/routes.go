@@ -130,6 +130,7 @@ func registerCustomRoutes(r *server.Hertz, registry *handlers.HandlerRegistry, t
 	r.GET("/metrics", metrics.Handler())
 
 	r.POST("/api/v1/init/upload", registry.GetInitHandler().UploadConfig)
+	r.POST("/api/v1/init/login", registry.GetInitHandler().Login)
 
 	registerBackwardCompatRoutes(r, registry)
 	registerMCPPostRoutes(r, transport)
@@ -147,11 +148,89 @@ func registerBackwardCompatRoutes(r *server.Hertz, registry *handlers.HandlerReg
 	api := r.Group("/api")
 
 	api.POST("/init/upload", registry.GetInitHandler().UploadConfig)
+	api.POST("/init/login", registry.GetInitHandler().Login)
 	api.GET("/init/status", bizhandler.GetInitStatus)
 	api.GET("/init/account", bizhandler.GetAccountInfo)
 
 	registerDomainRoutes(api)
 	registerSchedulerRoutes(api, registry.GetSchedulerHandler())
+
+	// Phase2b 新增实体路由（直接经 registry，不走 biz forwarder，保持简单）
+	api.GET("/cases", registry.GetCaseHandler().GetCases)
+	api.GET("/plans", registry.GetPlanHandler().GetPlans)
+	api.GET("/programs", registry.GetProgramHandler().GetPrograms)
+	api.GET("/releases", registry.GetReleaseHandler().GetReleases)
+	api.GET("/testtasks", registry.GetTestTaskHandler().GetTestTasks)
+	api.GET("/tickets", registry.GetTicketHandler().GetTickets)
+	api.GET("/feedbacks", registry.GetFeedbackHandler().GetFeedbacks)
+
+	// Phase2c 写操作路由
+	wh := registry.GetWriteHandler()
+	// Bug
+	api.POST("/bugs", wh.CreateBug)
+	api.PUT("/bugs/:id", wh.UpdateBug)
+	api.DELETE("/bugs/:id", wh.DeleteBug)
+	api.POST("/bugs/:id/resolve", wh.ResolveBug)
+	api.POST("/bugs/:id/close", wh.CloseBug)
+	api.POST("/bugs/:id/assign", wh.AssignBug)
+	api.POST("/bugs/:id/confirm", wh.ConfirmBug)
+	api.POST("/bugs/:id/activate", wh.ActivateBug)
+	// Task
+	api.POST("/tasks", wh.CreateTask)
+	api.PUT("/tasks/:id", wh.UpdateTask)
+	api.DELETE("/tasks/:id", wh.DeleteTask)
+	api.POST("/tasks/:id/start", wh.StartTask)
+	api.POST("/tasks/:id/finish", wh.FinishTask)
+	api.POST("/tasks/:id/pause", wh.PauseTask)
+	api.POST("/tasks/:id/assign", wh.AssignTask)
+	api.POST("/tasks/:id/activate", wh.ActivateTask)
+	api.POST("/tasks/:id/effort", wh.RecordEffort)
+	// Story
+	api.POST("/stories", wh.CreateStory)
+	api.PUT("/stories/:id", wh.UpdateStory)
+	api.DELETE("/stories/:id", wh.DeleteStory)
+	api.POST("/stories/:id/change", wh.ChangeStory)
+	// Plan
+	api.POST("/plans", wh.CreatePlan)
+	api.PUT("/plans/:id", wh.UpdatePlan)
+	api.DELETE("/plans/:id", wh.DeletePlan)
+	api.POST("/plans/:id/link-stories", wh.LinkStoriesToPlan)
+	api.POST("/plans/:id/unlink-stories", wh.UnlinkStoriesFromPlan)
+	api.POST("/plans/:id/link-bugs", wh.LinkBugsToPlan)
+	api.POST("/plans/:id/unlink-bugs", wh.UnlinkBugsFromPlan)
+	// Case
+	api.POST("/cases", wh.CreateCase)
+	api.PUT("/cases/:id", wh.UpdateCase)
+	api.DELETE("/cases/:id", wh.DeleteCase)
+	// Ticket
+	api.POST("/tickets", wh.CreateTicket)
+	api.PUT("/tickets/:id", wh.UpdateTicket)
+	api.DELETE("/tickets/:id", wh.DeleteTicket)
+	// Feedback
+	api.POST("/feedbacks", wh.CreateFeedback)
+	api.PUT("/feedbacks/:id", wh.UpdateFeedback)
+	api.DELETE("/feedbacks/:id", wh.DeleteFeedback)
+	api.POST("/feedbacks/:id/assign", wh.AssignFeedback)
+	api.POST("/feedbacks/:id/close", wh.CloseFeedback)
+	// Product / Project / Program / Execution / Build / User CRUD
+	api.POST("/products", wh.CreateProduct)
+	api.PUT("/products/:id", wh.UpdateProduct)
+	api.DELETE("/products/:id", wh.DeleteProduct)
+	api.POST("/projects", wh.CreateProject)
+	api.PUT("/projects/:id", wh.UpdateProject)
+	api.DELETE("/projects/:id", wh.DeleteProject)
+	api.POST("/programs", wh.CreateProgram)
+	api.PUT("/programs/:id", wh.UpdateProgram)
+	api.DELETE("/programs/:id", wh.DeleteProgram)
+	api.POST("/executions", wh.CreateExecution)
+	api.PUT("/executions/:id", wh.UpdateExecution)
+	api.DELETE("/executions/:id", wh.DeleteExecution)
+	api.POST("/builds", wh.CreateBuild)
+	api.PUT("/builds/:id", wh.UpdateBuild)
+	api.DELETE("/builds/:id", wh.DeleteBuild)
+	api.POST("/users", wh.CreateUser)
+	api.PUT("/users/:id", wh.UpdateUser)
+	api.DELETE("/users/:id", wh.DeleteUser)
 
 	// 日志查看接口（供前端日志页消费）
 	logHandler := registry.GetLogHandler()

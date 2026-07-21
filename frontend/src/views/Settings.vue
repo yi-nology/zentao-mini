@@ -14,6 +14,14 @@
             <span class="info-value">{{ accountInfo.account }}</span>
           </div>
           <div class="info-row">
+            <span class="info-label">认证模式</span>
+            <span class="info-value">
+              <el-tag size="small" :type="accountInfo.mode === 'session' ? 'warning' : 'info'">
+                {{ authModeLabel }}
+              </el-tag>
+            </span>
+          </div>
+          <div class="info-row">
             <span class="info-label">连接状态</span>
             <span class="info-value">
               <el-tag :type="accountInfo.connected ? 'success' : 'danger'" size="small">
@@ -104,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { getAccountInfo, testZentaoConnection } from '@/api/zentao'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
@@ -120,6 +128,8 @@ interface AccountInfo {
   domain: string
   account: string
   connected: boolean
+  mode?: string
+  realm?: string
 }
 
 interface CacheStatus {
@@ -134,6 +144,16 @@ const accountInfo = ref<AccountInfo | null>(null)
 const latency = ref(0)
 const appVersion = ref('dev')
 const themeMode = ref<ThemeMode>('auto')
+
+// 认证模式标签：session + kydc = 麒麟会话模式，session = 会话模式，token = REST API。
+const authModeLabel = computed<string>(() => {
+  const info = accountInfo.value
+  if (!info) return ''
+  if (info.mode === 'session') {
+    return info.realm ? `会话模式 (${info.realm})` : '会话模式'
+  }
+  return 'Token 模式 (REST API)'
+})
 const notificationEnabled = ref(false)
 const notifPermission = ref<NotificationPermission>('default')
 

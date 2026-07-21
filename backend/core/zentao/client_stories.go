@@ -10,6 +10,9 @@ import (
 
 // GetStoriesByProduct 获取产品的需求列表
 func (c *Client) GetStoriesByProduct(productID int, page, pageSize int) ([]zentao.Story, error) {
+	if c.IsSessionMode() {
+		return c.getStoriesByProductSession(context.Background(), productID, page, pageSize)
+	}
 	cacheKey := DefaultKeyBuilder.Build("zentao:stories", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
 	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
@@ -33,6 +36,9 @@ func (c *Client) GetStoriesByProduct(productID int, page, pageSize int) ([]zenta
 
 // GetStoriesByProject 获取项目的需求列表
 func (c *Client) GetStoriesByProject(projectID int, page, pageSize int) ([]zentao.Story, error) {
+	if c.IsSessionMode() {
+		return c.getStoriesByProjectSession(context.Background(), projectID, page, pageSize)
+	}
 	var response *zentao.StoryListResponse
 	err := c.withTokenRetry("GetStoriesByProject", func(client *zentao.Client) error {
 		var err error
@@ -47,6 +53,9 @@ func (c *Client) GetStoriesByProject(projectID int, page, pageSize int) ([]zenta
 
 // GetStoriesByExecution 获取执行的需求列表
 func (c *Client) GetStoriesByExecution(executionID int, page, pageSize int) ([]zentao.Story, error) {
+	if c.IsSessionMode() {
+		return c.getStoriesByExecutionSession(context.Background(), executionID, page, pageSize)
+	}
 	var response *zentao.StoryListResponse
 	err := c.withTokenRetry("GetStoriesByExecution", func(client *zentao.Client) error {
 		var err error
@@ -72,6 +81,9 @@ func (c *Client) GetStory(storyID int) (*zentao.Story, error) {
 
 // GetAllStories 获取产品全部需求（自动翻页）
 func (c *Client) GetAllStories(productID int) ([]zentao.Story, error) {
+	if c.IsSessionMode() {
+		return c.getAllStoriesSession(context.Background(), productID)
+	}
 	var all []zentao.Story
 	page := 1
 	for {
@@ -90,6 +102,9 @@ func (c *Client) GetAllStories(productID int) ([]zentao.Story, error) {
 
 // GetAllStoriesByProject 获取项目全部需求（自动翻页）
 func (c *Client) GetAllStoriesByProject(projectID int) ([]zentao.Story, error) {
+	if c.IsSessionMode() {
+		return c.getAllStoriesByProjectSession(context.Background(), projectID)
+	}
 	var all []zentao.Story
 	executions, err := c.GetExecutions(projectID, 1, 1000)
 	if err != nil {
@@ -107,6 +122,9 @@ func (c *Client) GetAllStoriesByProject(projectID int) ([]zentao.Story, error) {
 
 // GetStoriesByProductContext 获取产品的需求列表（支持 context 取消）
 func (c *Client) GetStoriesByProductContext(ctx context.Context, productID int, page, pageSize int) ([]zentao.Story, error) {
+	if c.IsSessionMode() {
+		return c.getStoriesByProductSession(ctx, productID, page, pageSize)
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -126,6 +144,9 @@ func (c *Client) GetStoriesByProductContext(ctx context.Context, productID int, 
 
 // GetAllStoriesContext 获取产品全部需求（支持 context 取消，自动翻页）
 func (c *Client) GetAllStoriesContext(ctx context.Context, productID int) ([]zentao.Story, error) {
+	if c.IsSessionMode() {
+		return c.getAllStoriesSession(ctx, productID)
+	}
 	var all []zentao.Story
 	page := 1
 	for {

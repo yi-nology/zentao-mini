@@ -274,6 +274,20 @@ export const uploadInitConfig = (formData: FormData): Promise<ApiResponse<unknow
   })
 }
 
+// 账号密码登录请求体。realm 非空（如 'kydc'）走会话模式，空走 Token 模式。
+export interface LoginPayload {
+  domain: string
+  account: string
+  password: string
+  realm?: string
+}
+
+// 账号密码登录（POST /api/init/login）。
+// 与 uploadInitConfig（加密文件）并存的另一种初始化方式。
+export const loginWithCredentials = (payload: LoginPayload): Promise<ApiResponse<AccountInfo>> => {
+  return api.post('/init/login', payload)
+}
+
 export const testZentaoConnection = (): Promise<ApiResponse<unknown>> => {
   return api.get('/users/current')
 }
@@ -308,6 +322,10 @@ export interface AccountInfo {
   domain: string
   account: string
   connected: boolean
+  // 认证模式：'token'（REST API）或 'session'（PHP *.json 端点）。
+  mode?: string
+  // 会话模式下的认证域（如 'kydc'）。token 模式为空。
+  realm?: string
 }
 
 export const getAccountInfo = (): Promise<ApiResponse<AccountInfo>> => {
@@ -326,3 +344,208 @@ export const search = (params: {
   if (params.pageSize) apiParams.pageSize = params.pageSize
   return api.get('/search', { params: apiParams })
 }
+
+// ---- Phase2b 新增实体（cases/plans/programs/releases/testtasks/tickets/feedbacks）----
+// 这些实体的 wrapper 方法同时支持 token 和 session 两种认证模式。
+
+export interface ExtendedEntityParams {
+  productId?: number
+  page?: number
+  pageSize?: number
+  browseType?: string // 仅 ticket 用
+}
+
+export const getCases = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
+  return api.get('/cases', { params })
+}
+
+export const getPlans = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
+  return api.get('/plans', { params })
+}
+
+export const getPrograms = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
+  return api.get('/programs', { params })
+}
+
+export const getReleases = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
+  return api.get('/releases', { params })
+}
+
+export const getTestTasks = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
+  return api.get('/testtasks', { params })
+}
+
+export const getTickets = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
+  return api.get('/tickets', { params })
+}
+
+export const getFeedbacks = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
+  return api.get('/feedbacks', { params })
+}
+
+// ---- Phase2c 写操作（bug/task/story，token + session 双模式）----
+// 这些端点经 wrapper 的写方法分发，session 模式下走禅道 PHP 表单端点。
+
+// Bug 写操作
+export const resolveBug = (id: number, data: { resolution: string; resolvedBuild?: string; comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/bugs/${id}/resolve`, data)
+}
+export const closeBug = (id: number, data: { comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/bugs/${id}/close`, data)
+}
+export const assignBug = (id: number, data: { assignedTo: string; comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/bugs/${id}/assign`, data)
+}
+export const confirmBug = (id: number, data: { comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/bugs/${id}/confirm`, data)
+}
+export const activateBug = (id: number, data: { assignedTo?: string; comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/bugs/${id}/activate`, data)
+}
+
+// Task 写操作
+export const startTask = (id: number, data: { realStarted?: string; consumed?: number; left?: number; comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/tasks/${id}/start`, data)
+}
+export const finishTask = (id: number, data: { consumed?: number; finishedDate?: string; comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/tasks/${id}/finish`, data)
+}
+export const pauseTask = (id: number, data: { comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/tasks/${id}/pause`, data)
+}
+export const assignTask = (id: number, data: { assignedTo: string; left?: number; comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/tasks/${id}/assign`, data)
+}
+
+// Story 写操作
+export const changeStory = (id: number, data: { spec: string; verify: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/stories/${id}/change`, data)
+}
+
+// ---- Phase2c 扩展写操作（全实体 CRUD）----
+
+// Bug CRUD
+export const createBug = (productId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.post(`/bugs?productId=${productId}`, data)
+}
+export const updateBug = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.put(`/bugs/${id}`, data)
+}
+export const deleteBug = (id: number): Promise<ApiResponse<unknown>> => {
+  return api.delete(`/bugs/${id}`)
+}
+
+// Task CRUD + activate + effort
+export const createTask = (executionId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.post(`/tasks?executionId=${executionId}`, data)
+}
+export const updateTask = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.put(`/tasks/${id}`, data)
+}
+export const deleteTask = (id: number): Promise<ApiResponse<unknown>> => {
+  return api.delete(`/tasks/${id}`)
+}
+export const activateTask = (id: number, data: { consumed?: number; left?: number }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/tasks/${id}/activate`, data)
+}
+export const recordEffort = (id: number, data: { date?: string; consumed: number; left: number; work: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/tasks/${id}/effort`, data)
+}
+
+// Story CRUD
+export const createStory = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.post('/stories', data)
+}
+export const updateStory = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.put(`/stories/${id}`, data)
+}
+export const deleteStory = (id: number): Promise<ApiResponse<unknown>> => {
+  return api.delete(`/stories/${id}`)
+}
+
+// Plan CRUD + link/unlink
+export const createPlan = (productId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.post(`/plans?productId=${productId}`, data)
+}
+export const updatePlan = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.put(`/plans/${id}`, data)
+}
+export const deletePlan = (id: number): Promise<ApiResponse<unknown>> => {
+  return api.delete(`/plans/${id}`)
+}
+export const linkStoriesToPlan = (id: number, storyIds: number[]): Promise<ApiResponse<unknown>> => {
+  return api.post(`/plans/${id}/link-stories`, { storyIds })
+}
+export const unlinkStoriesFromPlan = (id: number, storyIds: number[]): Promise<ApiResponse<unknown>> => {
+  return api.post(`/plans/${id}/unlink-stories`, { storyIds })
+}
+export const linkBugsToPlan = (id: number, bugIds: number[]): Promise<ApiResponse<unknown>> => {
+  return api.post(`/plans/${id}/link-bugs`, { bugIds })
+}
+export const unlinkBugsFromPlan = (id: number, bugIds: number[]): Promise<ApiResponse<unknown>> => {
+  return api.post(`/plans/${id}/unlink-bugs`, { bugIds })
+}
+
+// Case CRUD
+export const createCase = (productId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.post(`/cases?productId=${productId}`, data)
+}
+export const updateCase = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.put(`/cases/${id}`, data)
+}
+export const deleteCase = (id: number): Promise<ApiResponse<unknown>> => {
+  return api.delete(`/cases/${id}`)
+}
+
+// Ticket CRUD
+export const createTicket = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.post('/tickets', data)
+}
+export const updateTicket = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.put(`/tickets/${id}`, data)
+}
+export const deleteTicket = (id: number): Promise<ApiResponse<unknown>> => {
+  return api.delete(`/tickets/${id}`)
+}
+
+// Feedback CRUD + assign/close
+export const createFeedback = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.post('/feedbacks', data)
+}
+export const updateFeedback = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
+  return api.put(`/feedbacks/${id}`, data)
+}
+export const deleteFeedback = (id: number): Promise<ApiResponse<unknown>> => {
+  return api.delete(`/feedbacks/${id}`)
+}
+export const assignFeedback = (id: number, data: { assignedTo: string; comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/feedbacks/${id}/assign`, data)
+}
+export const closeFeedback = (id: number, data: { closedReason: string; comment?: string }): Promise<ApiResponse<unknown>> => {
+  return api.post(`/feedbacks/${id}/close`, data)
+}
+
+// Product / Project / Program / Execution / Build / User CRUD
+export const createProduct = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post('/products', data)
+export const updateProduct = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/products/${id}`, data)
+export const deleteProduct = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/products/${id}`)
+
+export const createProject = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post('/projects', data)
+export const updateProject = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/projects/${id}`, data)
+export const deleteProject = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/projects/${id}`)
+
+export const createProgram = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post('/programs', data)
+export const updateProgram = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/programs/${id}`, data)
+export const deleteProgram = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/programs/${id}`)
+
+export const createExecution = (projectId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post(`/executions?projectId=${projectId}`, data)
+export const updateExecution = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/executions/${id}`, data)
+export const deleteExecution = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/executions/${id}`)
+
+export const createBuild = (projectId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post(`/builds?projectId=${projectId}`, data)
+export const updateBuild = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/builds/${id}`, data)
+export const deleteBuild = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/builds/${id}`)
+
+export const createUser = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post('/users', data)
+export const updateUser = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/users/${id}`, data)
+export const deleteUser = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/users/${id}`)

@@ -7,9 +7,81 @@
         </svg>
       </div>
       <h1 class="init-title">系统初始化</h1>
-      <p class="init-subtitle">请上传加密配置文件以完成系统初始化</p>
 
-      <form @submit.prevent="submitForm" class="init-form">
+      <!-- 模式切换 -->
+      <div class="mode-tabs">
+        <button
+          type="button"
+          class="mode-tab"
+          :class="{ active: activeTab === 'login' }"
+          @click="activeTab = 'login'"
+        >
+          账号密码登录
+        </button>
+        <button
+          type="button"
+          class="mode-tab"
+          :class="{ active: activeTab === 'upload' }"
+          @click="activeTab = 'upload'"
+        >
+          上传加密配置
+        </button>
+      </div>
+
+      <!-- 账号密码登录表单 -->
+      <form v-if="activeTab === 'login'" @submit.prevent="submitLogin" class="init-form login-form">
+        <div class="field">
+          <label class="field-label">禅道地址</label>
+          <input
+            v-model.trim="loginForm.domain"
+            type="text"
+            class="field-input"
+            placeholder="https://pm.kylin.com"
+            autocomplete="url"
+          />
+        </div>
+
+        <div class="field">
+          <label class="field-label">账号</label>
+          <input
+            v-model.trim="loginForm.account"
+            type="text"
+            class="field-input"
+            placeholder="zhangyi01"
+            autocomplete="username"
+          />
+        </div>
+
+        <div class="field">
+          <label class="field-label">密码</label>
+          <input
+            v-model="loginForm.password"
+            type="password"
+            class="field-input"
+            placeholder="••••••••"
+            autocomplete="current-password"
+          />
+        </div>
+
+        <div class="field">
+          <label class="field-label">认证域</label>
+          <select v-model="loginForm.realm" class="field-input">
+            <option value="kydc">麒麟统一认证 (kydc)</option>
+            <option value="local">本地账号 (local)</option>
+          </select>
+          <p class="field-hint">
+            kydc：麒麟 SSO 域，走 PHP 会话登录（适用于禁用 REST API 的禅道实例）<br />
+            local：禅道内置账号库，走 Token 模式 REST API
+          </p>
+        </div>
+
+        <button type="submit" class="init-btn" :disabled="loading || !canSubmitLogin">
+          {{ loading ? '登录中...' : '登录' }}
+        </button>
+      </form>
+
+      <!-- 加密文件上传 -->
+      <form v-else @submit.prevent="submitForm" class="init-form">
         <div class="upload-area" @click="triggerFileInput" @dragover.prevent @drop.prevent="handleDrop">
           <input type="file" ref="fileInput" @change="handleFileChange" accept=".json" style="display: none" />
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40" class="upload-icon">
@@ -57,11 +129,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { uploadInitConfig, testZentaoConnection } from '@/api/zentao'
+import { loginWithCredentials, testZentaoConnection, uploadInitConfig, type LoginPayload } from '@/api/zentao'
 
 const router = useRouter()
+const activeTab = ref<'login' | 'upload'>('login')
+
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
 const loading = ref<boolean>(false)
@@ -69,6 +143,18 @@ const error = ref<string>('')
 const success = ref<string>('')
 const testing = ref<boolean>(false)
 const testResult = ref<string>('')
+
+// 登录表单：默认填麒麟 pm.kylin.com + kydc 域，便于内网用户直接登录。
+const loginForm = reactive<LoginPayload>({
+  domain: 'https://pm.kylin.com',
+  account: '',
+  password: '',
+  realm: 'kydc'
+})
+
+const canSubmitLogin = computed<boolean>(() =>
+  loginForm.domain !== '' && loginForm.account !== '' && loginForm.password !== ''
+)
 
 const triggerFileInput = (): void => { fileInput.value?.click() }
 
@@ -96,6 +182,33 @@ const formatFileSize = (bytes: number): string => {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
 }
 
+const normErr = (err: unknown, prefix: string): string => {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (msg.includes('Network')) return '网络错误，请检查网络连接后重试。'
+  if (msg.includes('timeout')) return '请求超时，请稍后重试。'
+  return prefix + msg
+}
+
+const submitLogin = async (): Promise<void> => {
+  if (!canSubmitLogin.value) { error.value = '请填写禅道地址、账号和密码'; return }
+  loading.value = true; error.value = ''; success.value = ''
+  try {
+    // local 域 = Token 模式，传 realm 空串让后端走 REST。
+    const payload: LoginPayload = { ...loginForm }
+    if (payload.realm === 'local') payload.realm = ''
+    const response = await loginWithCredentials(payload)
+    if (response.code !== 200) throw new Error(response.message || '登录失败')
+    success.value = '登录成功！系统已准备就绪，即将跳转到主页...'
+    setTimeout(() => { router.push('/') }, 1500)
+  } catch (err) {
+    // 后端登录失败返回 400 + message，已被 axios reject；这里直接展示。
+    // 注意：登录失败不会触发 401 全局重定向（后端用 400 而非 401）。
+    const anyErr = err as { response?: { data?: { message?: string } } }
+    const msg = anyErr?.response?.data?.message || (err instanceof Error ? err.message : String(err))
+    error.value = msg
+  } finally { loading.value = false }
+}
+
 const submitForm = async (): Promise<void> => {
   if (!selectedFile.value) { error.value = '请选择加密配置文件'; return }
   loading.value = true; error.value = ''; success.value = ''
@@ -106,8 +219,7 @@ const submitForm = async (): Promise<void> => {
     success.value = '初始化成功！系统已准备就绪，即将跳转到主页...'
     setTimeout(() => { router.push('/') }, 2000)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    error.value = msg.includes('Network') ? '网络错误，请检查网络连接后重试。' : msg.includes('timeout') ? '请求超时，请稍后重试。' : '初始化失败：' + msg
+    error.value = normErr(err, '初始化失败：')
   } finally { loading.value = false }
 }
 
@@ -117,7 +229,9 @@ const testZentao = async (): Promise<void> => {
     const response = await testZentaoConnection()
     if (response.code !== 200) throw new Error(response.message || '测试失败')
     testResult.value = JSON.stringify(response, null, 2)
-  } catch (err) { testResult.value = '测试失败: ' + (err instanceof Error ? err.message : String(err)) } finally { testing.value = false }
+  } catch (err) {
+    testResult.value = '测试失败: ' + (err instanceof Error ? err.message : String(err))
+  } finally { testing.value = false }
 }
 </script>
 
@@ -141,7 +255,7 @@ const testZentao = async (): Promise<void> => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
+  gap: 28px;
 }
 
 .init-icon {
@@ -162,18 +276,74 @@ const testZentao = async (): Promise<void> => {
   margin: 0;
 }
 
-.init-subtitle {
+.mode-tabs {
+  display: flex;
+  width: 100%;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
   font-size: 14px;
+  font-weight: 500;
   color: var(--color-text-secondary);
-  margin: 0;
-  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.mode-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.mode-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
 }
 
 .init-form {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
+}
+
+.login-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.field-input {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-card);
+  transition: border-color var(--transition-fast);
+  font-family: inherit;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 2px 0 0;
+  line-height: 1.5;
 }
 
 .upload-area {

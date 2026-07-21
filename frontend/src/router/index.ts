@@ -41,6 +41,24 @@ const routes: AppRoute[] = [
         meta: { title: '任务查询' }
       },
       {
+        path: 'cases',
+        name: 'Cases',
+        component: () => import('../views/Cases.vue'),
+        meta: { title: '测试用例' }
+      },
+      {
+        path: 'tickets',
+        name: 'Tickets',
+        component: () => import('../views/Tickets.vue'),
+        meta: { title: '工单查询' }
+      },
+      {
+        path: 'feedbacks',
+        name: 'Feedbacks',
+        component: () => import('../views/Feedbacks.vue'),
+        meta: { title: '反馈查询' }
+      },
+      {
         path: 'timelog',
         name: 'Timelog',
         component: () => import('../views/Timelog.vue'),

@@ -124,8 +124,38 @@
         </el-descriptions>
         <div class="dialog-actions">
           <el-button @click="openZentaoTask(currentTask.id)">在禅道中查看</el-button>
+          <el-button size="small" type="primary" @click="handleTaskAction('start', currentTask.id)">开始</el-button>
+          <el-button size="small" type="success" @click="handleTaskAction('finish', currentTask.id)">完成</el-button>
+          <el-button size="small" type="warning" @click="handleTaskAction('pause', currentTask.id)">暂停</el-button>
+          <el-button size="small" @click="handleTaskAction('activate', currentTask.id)">激活</el-button>
+          <el-button size="small" @click="handleTaskAction('effort', currentTask.id)">记录工时</el-button>
         </div>
       </div>
+    </el-dialog>
+
+    <!-- 任务动作对话框（开始/完成/暂停/激活/工时） -->
+    <el-dialog v-model="taskActionDialogVisible" :title="taskActionTitle" width="480px" append-to-body>
+      <el-form label-width="90px">
+        <el-form-item v-if="taskActionType === 'start' || taskActionType === 'finish' || taskActionType === 'activate'" label="本次消耗">
+          <el-input-number v-model="taskActionForm.consumed" :min="0" :step="0.5" :precision="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item v-if="taskActionType === 'start' || taskActionType === 'activate'" label="剩余">
+          <el-input-number v-model="taskActionForm.left" :min="0" :step="0.5" :precision="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item v-if="taskActionType === 'effort'" label="日期">
+          <el-date-picker v-model="taskActionForm.date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item v-if="taskActionType === 'effort'" label="工作内容">
+          <el-input v-model="taskActionForm.work" type="textarea" :rows="2" />
+        </el-form-item>
+        <el-form-item v-if="taskActionType !== 'effort'" label="备注">
+          <el-input v-model="taskActionForm.comment" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="taskActionDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="taskActionLoading" @click="submitTaskAction">提交</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -135,7 +165,7 @@ import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getExecutions, getTasks, getTaskStatusOptions, getUsers } from '@/api/zentao'
+import { getExecutions, getTasks, getTaskStatusOptions, getUsers, startTask, finishTask, pauseTask, activateTask, recordEffort } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Task, User, Execution, SelectOption } from '@/types/api'
 import { useRoute, useRouter } from 'vue-router'
@@ -251,6 +281,59 @@ const openZentaoTask = async (taskId: number): Promise<void> => {
     const { openExternalLink } = await import('@/composables/useExternalLink')
     await openExternalLink(url)
   } catch { window.open(url, '_blank', 'noopener,noreferrer') }
+}
+
+// ----- Task 写操作（开始/完成/暂停/激活/记录工时）-----
+type TaskActionType = 'start' | 'finish' | 'pause' | 'activate' | 'effort'
+const taskActionDialogVisible = ref(false)
+const taskActionLoading = ref(false)
+const taskActionType = ref<TaskActionType>('start')
+const taskActionTaskId = ref(0)
+const taskActionForm = reactive<{ consumed: number; left: number; date: string; work: string; comment: string }>({
+  consumed: 0, left: 0, date: '', work: '', comment: ''
+})
+const taskActionTitle = computed(() => {
+  const map: Record<TaskActionType, string> = {
+    start: '开始任务', finish: '完成任务', pause: '暂停任务', activate: '激活任务', effort: '记录工时'
+  }
+  return map[taskActionType.value]
+})
+
+const handleTaskAction = (type: TaskActionType, id: number): void => {
+  taskActionType.value = type
+  taskActionTaskId.value = id
+  taskActionForm.consumed = 0
+  taskActionForm.left = 0
+  taskActionForm.date = ''
+  taskActionForm.work = ''
+  taskActionForm.comment = ''
+  taskActionDialogVisible.value = true
+}
+
+const submitTaskAction = async (): Promise<void> => {
+  taskActionLoading.value = true
+  try {
+    const id = taskActionTaskId.value
+    if (taskActionType.value === 'start') {
+      await startTask(id, { consumed: taskActionForm.consumed, left: taskActionForm.left, comment: taskActionForm.comment })
+    } else if (taskActionType.value === 'finish') {
+      await finishTask(id, { consumed: taskActionForm.consumed, comment: taskActionForm.comment })
+    } else if (taskActionType.value === 'pause') {
+      await pauseTask(id, { comment: taskActionForm.comment })
+    } else if (taskActionType.value === 'activate') {
+      await activateTask(id, { consumed: taskActionForm.consumed, left: taskActionForm.left })
+    } else if (taskActionType.value === 'effort') {
+      await recordEffort(id, { date: taskActionForm.date, consumed: taskActionForm.consumed, left: taskActionForm.left, work: taskActionForm.work })
+    }
+    ElMessage.success('操作成功')
+    taskActionDialogVisible.value = false
+    fetchTasks()
+  } catch (err) {
+    const anyErr = err as { response?: { data?: { message?: string } } }
+    ElMessage.error(anyErr?.response?.data?.message || '操作失败')
+  } finally {
+    taskActionLoading.value = false
+  }
 }
 
 onMounted(() => {
