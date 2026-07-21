@@ -17,10 +17,11 @@
     </el-select>
     <el-select
       :model-value="selectedProject"
-      placeholder="请选择项目"
+      :placeholder="selectedProduct ? '请选择项目' : '请先选择产品'"
       clearable
       filterable
       :disabled="!selectedProduct"
+      :loading="projectLoading"
       style="width: 200px"
       @update:model-value="handleProjectChange"
     >
@@ -55,10 +56,12 @@ const emit = defineEmits<{
 
 const productOptions = ref<Product[]>([])
 const projectOptions = ref<Project[]>([])
+const projectLoading = ref(false)
 const selectedProduct = ref<number | string>('')
 const selectedProject = ref<number | string>('')
 
-const fetchProducts = async (): Promise<void> => {
+// 加载产品列表（一次性）
+const loadProductList = async (): Promise<void> => {
   try {
     const res = await getProducts()
     productOptions.value = res.data || []
@@ -67,31 +70,18 @@ const fetchProducts = async (): Promise<void> => {
   }
 }
 
-const fetchProjects = async (productId: string | number): Promise<void> => {
+// 按产品加载项目（联动的核心：选产品时按 productId 重新拉项目列表）
+const loadProjectListByProduct = async (productId: number | string): Promise<void> => {
+  projectLoading.value = true
   try {
-    const params = productId ? { productId: productId } : {}
-    const res = await getProjects(params)
+    const res = await getProjects({ productId })
     projectOptions.value = res.data || []
   } catch (error) {
-    console.error('获取项目列表失败:', error)
+    console.error('按产品加载项目列表失败:', error)
+    projectOptions.value = []
+  } finally {
+    projectLoading.value = false
   }
-}
-
-const handleProductChange = async (productId: string | number): Promise<void> => {
-  selectedProduct.value = productId ?? ''
-  selectedProject.value = ''
-  projectOptions.value = []
-
-  if (productId) {
-    await fetchProjects(productId)
-  }
-
-  emitSelection()
-}
-
-const handleProjectChange = (projectId: string | number): void => {
-  selectedProject.value = projectId ?? ''
-  emitSelection()
 }
 
 const emitSelection = (): void => {
@@ -103,32 +93,45 @@ const emitSelection = (): void => {
   emit('change', selection)
 }
 
-watch(() => props.modelValue, (newVal) => {
-  if (newVal) {
-    const newProduct = newVal.product ?? ''
-    const newProject = newVal.project ?? ''
+// 用户选产品（含清空）
+const handleProductChange = async (productId: number | string | null | undefined): Promise<void> => {
+  const newProduct = productId ?? ''
+  selectedProduct.value = newProduct
+  selectedProject.value = ''
+  projectOptions.value = []
 
-    if (newProduct !== selectedProduct.value) {
-      selectedProduct.value = newProduct
-      selectedProject.value = newProject
-      if (newProduct) {
-        fetchProjects(newProduct)
-      }
-    }
+  if (newProduct) {
+    await loadProjectListByProduct(newProduct)
   }
-}, { immediate: true, deep: true })
 
-onMounted(() => {
-  fetchProducts()
-  if (props.modelValue && props.modelValue.product) {
-    const productId = props.modelValue.product
-    const projectId = props.modelValue.project
-    selectedProduct.value = productId ?? ''
-    selectedProject.value = projectId ?? ''
-    if (productId) {
-      fetchProjects(productId)
+  emitSelection()
+}
+
+const handleProjectChange = (projectId: number | string | null | undefined): void => {
+  selectedProject.value = projectId ?? ''
+  emitSelection()
+}
+
+onMounted(async () => {
+  await loadProductList()
+  // 从 URL / 外部状态回填 product 时，按 product 联动加载项目
+  const initialProduct = props.modelValue?.product
+  if (initialProduct) {
+    selectedProduct.value = initialProduct
+    if (props.modelValue?.project) {
+      selectedProject.value = props.modelValue.project
     }
+    await loadProjectListByProduct(initialProduct)
   }
+})
+
+// 监听外部 modelValue 变化（如 URL 变化）：产品变了 → 重新拉项目列表
+watch(() => props.modelValue?.product, async (newProduct) => {
+  if (newProduct == null) return
+  if (newProduct === selectedProduct.value) return
+  selectedProduct.value = newProduct
+  selectedProject.value = props.modelValue?.project ?? ''
+  await loadProjectListByProduct(newProduct)
 })
 </script>
 
