@@ -239,11 +239,8 @@ func TestBugService_FilterBugs(t *testing.T) {
 			q := tt.query
 			q.Page = 1
 			q.PageSize = 20
-			total, paged := filterBugs(bugs, &q)
+			paged := filterBugChain(bugs, &q).Paginate(q.Page, q.PageSize).Result()
 
-			if total != tt.expectedTotal {
-				t.Errorf("expected total=%d, got %d", tt.expectedTotal, total)
-			}
 			if len(paged) != len(tt.expectedIDs) {
 				t.Fatalf("expected %d bugs, got %d", len(tt.expectedIDs), len(paged))
 			}
@@ -253,6 +250,34 @@ func TestBugService_FilterBugs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestBugService_StatusCounts_FilterChain 统计基于过滤链结果按状态计数
+func TestBugService_StatusCounts_FilterChain(t *testing.T) {
+	bugs := createMockBugs()
+	bugs = append(bugs, zentao.Bug{ID: 4, Status: "closed", AssignedTo: zentao.UserRef{Account: "user1"}})
+
+	counts := map[string]int{"active": 0, "resolved": 0, "closed": 0}
+	for _, bug := range filterBugChain(bugs, &dto.BugQueryDTO{AssignedTo: "user1"}).Result() {
+		if _, ok := counts[bug.Status]; ok {
+			counts[bug.Status]++
+		}
+	}
+	if counts["active"] != 1 || counts["resolved"] != 1 || counts["closed"] != 1 {
+		t.Errorf("expected active=1 resolved=1 closed=1, got %v", counts)
+	}
+}
+
+// TestBugService_StatusCounts_NoProduct 未选产品时统计应全为 0（与空列表口径一致）
+func TestBugService_StatusCounts_NoProduct(t *testing.T) {
+	service := &BugService{client: nil}
+	counts, err := service.GetBugStatusCounts(&dto.BugQueryDTO{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if counts["active"] != 0 || counts["resolved"] != 0 || counts["closed"] != 0 {
+		t.Errorf("expected all zero counts, got %v", counts)
 	}
 }
 

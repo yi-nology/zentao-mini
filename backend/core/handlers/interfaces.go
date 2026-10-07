@@ -15,6 +15,7 @@ import (
 
 type BugServicer interface {
 	GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error)
+	GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]int, error)
 	AddBugComment(bugID int, comment string) (*zentao.Bug, error)
 	TransitionBug(bugID int, input *service.BugTransitionInput) (*zentao.Bug, error)
 }
@@ -31,6 +32,7 @@ type TaskServicer interface {
 
 type StoryServicer interface {
 	GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, error)
+	GetStoryStatusCounts(query *dto.StoryQueryDTO) (map[string]int, error)
 }
 
 type ProductServicer interface {
