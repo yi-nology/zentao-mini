@@ -181,6 +181,8 @@ interface ResultGroup {
 const route = useRoute()
 const router = useRouter()
 const globalSelection = reactive<GlobalSelection>({ product: null, project: null })
+// 记住上次选择的产品/项目（URL 无显式参数时恢复），免去每次访问重新挑选
+const SELECTION_STORAGE_KEY = 'zentao-mini-global-selection'
 const appVersion = ref('...')
 const accountInfo = ref<{ domain: string; account: string; connected: boolean } | null>(null)
 
@@ -203,6 +205,15 @@ onMounted(async () => {
   const qProject = route.query.project
   if (qProduct) globalSelection.product = Number(qProduct)
   if (qProject) globalSelection.project = Number(qProject)
+
+  // URL 没带产品/项目时，恢复上次的选择
+  if (!qProduct && !qProject) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SELECTION_STORAGE_KEY) || '{}') as Partial<GlobalSelection>
+      if (typeof saved.product === 'number' && saved.product > 0) globalSelection.product = saved.product
+      if (typeof saved.project === 'number' && saved.project > 0) globalSelection.project = saved.project
+    } catch { /* 忽略损坏的本地数据 */ }
+  }
 
   try {
     const res = await api.get('/version') as ApiResponse<{ version: string }>
@@ -383,6 +394,9 @@ const handleSelectionChange = (selection: SelectionChangePayload): void => {
 }
 
 watch(() => [globalSelection.product, globalSelection.project], () => {
+  try {
+    localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify({ product: globalSelection.product, project: globalSelection.project }))
+  } catch { /* 存储不可用时忽略 */ }
   const childQuery = { ...route.query }
   delete childQuery.product
   delete childQuery.project

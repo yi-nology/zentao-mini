@@ -155,8 +155,8 @@ async function testTasks(page) {
   }
 
   // 统计药丸
-  const pills = await page.locator('.stat-pill').count()
-  h.record(s, '统计药丸(.stat-pill)', pills >= 4 ? 'pass' : 'warn', `数量 ${pills}`)
+  const pills = await page.locator('.stat-seg').count()
+  h.record(s, '统计分段(.stat-seg)', pills >= 4 ? 'pass' : 'warn', `数量 ${pills}`)
 
   // 详情
   try {
