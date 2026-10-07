@@ -202,6 +202,15 @@ watch(autoRefresh, (v) => {
   font-size: 12px; color: var(--color-text-secondary); cursor: pointer; user-select: none;
 }
 
+/* 原生 checkbox 仅作状态承载，视觉上交给 .toggle-track */
+.auto-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
 .toggle-track {
   width: 32px; height: 18px; border-radius: 9px; background: var(--color-border);
   position: relative; transition: background 0.2s;

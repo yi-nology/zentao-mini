@@ -1,5 +1,24 @@
 <template>
   <div class="page-container">
+    <!-- Stats Summary：分段式统计卡，点击段落即按状态筛选（列表默认不含已关闭，
+         总计口径与分段之和不同，故不设"总计"段，列表总数看工具栏"共 N 条"） -->
+    <div class="stats-bar">
+      <button type="button" class="stat-seg stat-seg--active" :class="{ active: filterForm.status === 'active' }" title="点击只看激活" @click="setStatusFilter('active')">
+        <span class="stat-seg-value">{{ statusCounts.active }}</span>
+        <span class="stat-seg-label">激活</span>
+      </button>
+      <div class="stat-divider" />
+      <button type="button" class="stat-seg stat-seg--resolved" :class="{ active: filterForm.status === 'resolved' }" title="点击只看已解决" @click="setStatusFilter('resolved')">
+        <span class="stat-seg-value">{{ statusCounts.resolved }}</span>
+        <span class="stat-seg-label">已解决</span>
+      </button>
+      <div class="stat-divider" />
+      <button type="button" class="stat-seg stat-seg--closed" :class="{ active: filterForm.status === 'closed' }" title="点击只看已关闭" @click="setStatusFilter('closed')">
+        <span class="stat-seg-value">{{ statusCounts.closed }}</span>
+        <span class="stat-seg-label">已关闭</span>
+      </button>
+    </div>
+
     <div class="filter-card">
       <el-form :inline="true" :model="filterForm" class="filter-form">
         <el-form-item label="指派人">
@@ -72,6 +91,7 @@
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
+            :shortcuts="dateShortcuts"
             style="width: 240px"
           />
         </el-form-item>
@@ -98,7 +118,8 @@
           <el-button type="primary" size="small" @click="handleViewDetails" :disabled="selectedBugs.length === 0">
             查看详情
           </el-button>
-          <el-dropdown split-button type="success" size="small" @click="handleExport('excel')" @command="handleExport" :disabled="selectedBugs.length === 0">
+          <span v-if="selectedBugs.length > 0 || pagination.total > 0" class="export-hint">{{ selectedBugs.length > 0 ? `导出已选的 ${selectedBugs.length} 条` : `导出当前筛选的全部 ${pagination.total} 条` }}</span>
+          <el-dropdown split-button type="success" size="small" :loading="exporting" :disabled="selectedBugs.length === 0 && pagination.total === 0" @click="handleExport('excel')" @command="handleExport">
             导出 Excel
             <template #dropdown>
               <el-dropdown-menu>
@@ -116,10 +137,12 @@
         border
         stripe
         style="width: 100%"
+        :empty-text="listEmptyText"
         :default-sort="defaultSort"
         @select="handleSelect"
         @select-all="handleSelectAll"
         @sort-change="handleSortChange"
+        @row-click="handleRowClick"
       >
         <el-table-column type="selection" width="46" fixed="left" />
         <template v-for="col in visibleColumns" :key="col.key">
@@ -358,6 +381,38 @@ const pagination = reactive<Pagination>({
   total: 0
 })
 
+const statusCounts = ref<Record<'active' | 'resolved' | 'closed', number>>({ active: 0, resolved: 0, closed: 0 })
+const exporting = ref<boolean>(false)
+// 导出走全量分页拉取（后端单页上限 100）
+const EXPORT_PAGE_SIZE = 100
+
+const dateShortcuts = [
+  { text: '近7天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 6); return [start, end] } },
+  { text: '近30天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 29); return [start, end] } },
+  { text: '近90天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 89); return [start, end] } }
+]
+
+// 未选产品时不发请求，页面展示引导文案
+const hasScope = (): boolean => !!globalSelection.product
+
+const listEmptyText = computed(() => (hasScope() ? '暂无数据' : '请先在顶部选择产品'))
+
+// 点击统计段落 = 快捷设置状态筛选（总计 = 清除状态）
+const setStatusFilter = (status: string): void => {
+  if (filterForm.status === status) return
+  filterForm.status = status
+  pagination.page = 1
+  syncRoute()
+  fetchBugs()
+}
+
+// 点击行任意处打开详情（标题链接、勾选框、按钮除外）
+const handleRowClick = (row: Bug, _column: unknown, event?: Event): void => {
+  const target = event?.target as HTMLElement | null
+  if (target?.closest('a, button, label, .el-checkbox')) return
+  handleViewDetail(row)
+}
+
 const assignedToOptions = computed(() => {
   const assignees = new Map<string, { value: string; label: string }>()
   userOptions.value.forEach((user: User) => {
@@ -422,6 +477,12 @@ const fetchBuilds = async (): Promise<void> => {
 }
 
 const fetchBugs = async (): Promise<void> => {
+  if (!hasScope()) {
+    bugList.value = []
+    pagination.total = 0
+    statusCounts.value = { active: 0, resolved: 0, closed: 0 }
+    return
+  }
   loading.value = true
   try {
     const params = {
@@ -441,6 +502,14 @@ const fetchBugs = async (): Promise<void> => {
     const paginatedData = res.data
     bugList.value = paginatedData.list || []
     pagination.total = paginatedData.total || 0
+    // 统计卡为服务端按全量（分页前）统计，避免随翻页跳变
+    if (paginatedData.statusCounts) {
+      statusCounts.value = {
+        active: paginatedData.statusCounts.active ?? 0,
+        resolved: paginatedData.statusCounts.resolved ?? 0,
+        closed: paginatedData.statusCounts.closed ?? 0
+      }
+    }
     // 从 bug 列表提取版本作为兜底（当 builds 接口因权限不可用时）
     const seen = new Map<string, Build>()
     bugList.value.forEach((bug: Bug) => {
@@ -520,6 +589,7 @@ watch(() => globalSelection.product, (newProduct: number | null) => {
   } else {
     bugList.value = []
     pagination.total = 0
+    statusCounts.value = { active: 0, resolved: 0, closed: 0 }
   }
 }, { immediate: true })
 
@@ -609,8 +679,10 @@ const handleViewDetail = (row: Bug): void => {
   detailDialogVisible.value = true
 }
 
+// 导出：有勾选导勾选，无勾选导当前筛选全量（而非仅当前页）
 const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
-  if (selectedBugs.value.length === 0) return
+  if (exporting.value) return
+  if (selectedBugs.value.length === 0 && pagination.total === 0) return
   const { exportData, timestampedFilename } = await import('@/utils/export')
   type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
   const cols: ExportColumn<Bug>[] = [
@@ -627,15 +699,41 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
     { header: '创建时间', access: bug => formatDate(bug.openedDate) },
     { header: '描述', access: bug => bug.steps || '' }
   ]
-  const filename = timestampedFilename('Bug列表')
+  exporting.value = true
   try {
-    await exportData(filename, selectedBugs.value, cols, format, { title: 'Bug 列表' })
-    ElMessage.success(`导出 ${selectedBugs.value.length} 个Bug成功`)
+    let list: Bug[] = selectedBugs.value
+    if (list.length === 0) {
+      const baseParams = {
+        productId: globalSelection.product ?? undefined,
+        projectId: globalSelection.project ?? undefined,
+        assignedTo: filterForm.assignedTo,
+        status: filterForm.status,
+        version: filterForm.version,
+        type: filterForm.type,
+        startDate: filterForm.dateRange[0] || '',
+        endDate: filterForm.dateRange[1] || '',
+        specificDate: filterForm.specificDate
+      }
+      const pageCount = Math.ceil(pagination.total / EXPORT_PAGE_SIZE)
+      list = []
+      for (let p = 1; p <= pageCount; p++) {
+        const res = await getBugs({ ...baseParams, page: p, pageSize: EXPORT_PAGE_SIZE })
+        const pageList = res.data.list || []
+        list.push(...pageList)
+        if (pageList.length < EXPORT_PAGE_SIZE) break
+      }
+    }
+    if (list.length === 0) { ElMessage.warning('没有可导出的数据'); return }
+    const filename = timestampedFilename('Bug列表')
+    await exportData(filename, list, cols, format, { title: 'Bug 列表' })
+    if (list === selectedBugs.value) ElMessage.success(`导出已选 ${list.length} 个 Bug 成功`)
+    else if (list.length < pagination.total) ElMessage.warning(`筛选结果 ${pagination.total} 条，已导出前 ${list.length} 条`)
+    else ElMessage.success(`已导出全部 ${list.length} 个 Bug`)
   } catch (error) {
     console.error('导出失败:', error)
     const msg = error instanceof Error ? error.message : '导出失败'
     ElMessage.error(msg)
-  }
+  } finally { exporting.value = false }
 }
 
 const openZentaoLink = async (url: string): Promise<void> => {
@@ -670,6 +768,63 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Stats Bar：单卡片分段式统计，段落可点击筛选 */
+.stats-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.stat-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 22px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  transition: background var(--transition-fast);
+}
+
+.stat-seg:hover {
+  background: var(--color-bg-hover);
+}
+
+.stat-seg.active {
+  background: var(--color-primary-light);
+}
+
+.stat-seg-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+.stat-seg-label {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.stat-seg--active .stat-seg-value { color: var(--color-danger); }
+.stat-seg--resolved .stat-seg-value { color: var(--color-success); }
+.stat-seg--closed .stat-seg-value { color: var(--color-text-tertiary); }
+
+.stat-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--color-border);
+}
+
 .bug-title {
   color: var(--color-primary);
   text-decoration: none;
@@ -680,6 +835,17 @@ onMounted(() => {
 .bug-title:hover {
   text-decoration: underline;
   color: var(--color-primary-hover);
+}
+
+/* 点击行打开详情 */
+:deep(.el-table__row) {
+  cursor: pointer;
+}
+
+.export-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-right: 8px;
 }
 
 .result-count {

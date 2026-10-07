@@ -550,6 +550,9 @@ const getTaskStatusLabel = (status: string): string => {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   padding: var(--space-lg);
+  /* 防止 Chart.js canvas 的 min-content 把 1fr 轨道撑宽导致整页横向溢出 */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chart-card-header {
@@ -600,6 +603,7 @@ const getTaskStatusLabel = (status: string): string => {
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .list-header {

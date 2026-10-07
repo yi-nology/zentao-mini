@@ -205,8 +205,11 @@ const rowClassName = ({ row }: { row: LogEntry }): string => {
 
 const formatTime = (t: string): string => {
   if (!t) return ''
-  // ISO8601 已经可读，直接返回（前端按本地时区显示）
-  return t
+  // 原始 ISO8601 带毫秒+时区太长会在列内折行，转本地时间 "YYYY-MM-DD HH:mm:ss"
+  const d = new Date(t)
+  if (Number.isNaN(d.getTime())) return t
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 onMounted(() => {
@@ -250,6 +253,7 @@ onBeforeUnmount(() => {
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 12px;
   color: var(--color-text-secondary);
+  white-space: nowrap;
 }
 .log-caller {
   font-family: ui-monospace, SFMono-Regular, monospace;

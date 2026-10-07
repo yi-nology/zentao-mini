@@ -1,5 +1,38 @@
 <template>
   <div class="page-container">
+    <!-- Stats Summary：分段式统计卡，点击段落即按状态筛选 -->
+    <div class="stats-bar">
+      <button type="button" class="stat-seg" :class="{ active: filterForm.status === '' }" title="点击清除状态筛选" @click="setStatusFilter('')">
+        <span class="stat-seg-value">{{ pagination.total }}</span>
+        <span class="stat-seg-label">总计</span>
+      </button>
+      <div class="stat-divider" />
+      <button type="button" class="stat-seg stat-seg--draft" :class="{ active: filterForm.status === 'draft' }" title="点击只看草稿" @click="setStatusFilter('draft')">
+        <span class="stat-seg-value">{{ statusCounts.draft }}</span>
+        <span class="stat-seg-label">草稿</span>
+      </button>
+      <div class="stat-divider" />
+      <button type="button" class="stat-seg stat-seg--active" :class="{ active: filterForm.status === 'active' }" title="点击只看激活" @click="setStatusFilter('active')">
+        <span class="stat-seg-value">{{ statusCounts.active }}</span>
+        <span class="stat-seg-label">激活</span>
+      </button>
+      <div class="stat-divider" />
+      <button type="button" class="stat-seg stat-seg--reviewing" :class="{ active: filterForm.status === 'reviewing' }" title="点击只看评审中" @click="setStatusFilter('reviewing')">
+        <span class="stat-seg-value">{{ statusCounts.reviewing }}</span>
+        <span class="stat-seg-label">评审中</span>
+      </button>
+      <div class="stat-divider" />
+      <button type="button" class="stat-seg stat-seg--changed" :class="{ active: filterForm.status === 'changed' }" title="点击只看已变更" @click="setStatusFilter('changed')">
+        <span class="stat-seg-value">{{ statusCounts.changed }}</span>
+        <span class="stat-seg-label">已变更</span>
+      </button>
+      <div class="stat-divider" />
+      <button type="button" class="stat-seg stat-seg--closed" :class="{ active: filterForm.status === 'closed' }" title="点击只看已关闭" @click="setStatusFilter('closed')">
+        <span class="stat-seg-value">{{ statusCounts.closed }}</span>
+        <span class="stat-seg-label">已关闭</span>
+      </button>
+    </div>
+
     <div class="filter-card">
       <el-form :inline="true" :model="filterForm" class="filter-form">
         <el-form-item label="指派人">
@@ -13,7 +46,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="时间范围">
-          <el-date-picker v-model="filterForm.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 240px" />
+          <el-date-picker v-model="filterForm.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" :shortcuts="dateShortcuts" style="width: 240px" />
         </el-form-item>
         <el-form-item label="具体日期">
           <el-date-picker v-model="filterForm.specificDate" type="date" placeholder="选择日期" style="width: 160px" />
@@ -28,9 +61,11 @@
     <div class="table-card">
       <div class="table-header">
         <span v-if="selectedStories.length > 0">已选择 {{ selectedStories.length }} 个需求</span>
+        <span v-else class="result-count">共 {{ pagination.total }} 条</span>
         <div class="header-actions">
           <el-button type="primary" size="small" @click="handleViewDetails" :disabled="selectedStories.length === 0">查看详情</el-button>
-          <el-dropdown split-button type="success" size="small" @click="handleExport('excel')" @command="handleExport" :disabled="selectedStories.length === 0">
+          <span v-if="selectedStories.length > 0 || pagination.total > 0" class="export-hint">{{ selectedStories.length > 0 ? `导出已选的 ${selectedStories.length} 条` : `导出当前筛选的全部 ${pagination.total} 条` }}</span>
+          <el-dropdown split-button type="success" size="small" :loading="exporting" :disabled="selectedStories.length === 0 && pagination.total === 0" @click="handleExport('excel')" @command="handleExport">
             导出 Excel
             <template #dropdown>
               <el-dropdown-menu>
@@ -42,7 +77,7 @@
           </el-dropdown>
         </div>
       </div>
-      <el-table v-loading="loading" :data="filteredStoryList" border stripe style="width: 100%" @select="handleSelect" @select-all="handleSelectAll">
+      <el-table v-loading="loading" :data="storyList" border stripe style="width: 100%" :empty-text="listEmptyText" @select="handleSelect" @select-all="handleSelectAll" @row-click="handleRowClick">
         <el-table-column type="selection" width="46" />
         <el-table-column prop="id" label="ID" width="78" align="center" />
         <el-table-column prop="title" label="标题" min-width="240" show-overflow-tooltip>
@@ -124,32 +159,74 @@ const detailDialogVisible = ref<boolean>(false)
 const currentStory = ref<Story | null>(null)
 const pagination = reactive<Pagination>({ page: 1, pageSize: 20, total: 0 })
 
+const statusCounts = ref<Record<'draft' | 'active' | 'reviewing' | 'changed' | 'closed', number>>({ draft: 0, active: 0, reviewing: 0, changed: 0, closed: 0 })
+const exporting = ref<boolean>(false)
+// 导出走全量分页拉取（后端单页上限 100）
+const EXPORT_PAGE_SIZE = 100
+
+const dateShortcuts = [
+  { text: '近7天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 6); return [start, end] } },
+  { text: '近30天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 29); return [start, end] } },
+  { text: '近90天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 89); return [start, end] } }
+]
+
+// 未选产品/项目时不发请求，页面展示引导文案
+const hasScope = (): boolean => !!(globalSelection.product || globalSelection.project)
+
+const listEmptyText = computed(() => (hasScope() ? '暂无数据' : '请先在顶部选择产品或项目'))
+
+// 点击统计段落 = 快捷设置状态筛选（总计 = 清除状态）
+const setStatusFilter = (status: string): void => {
+  if (filterForm.status === status) return
+  filterForm.status = status
+  pagination.page = 1
+  syncRoute()
+  fetchStories()
+}
+
+// 点击行任意处打开详情（标题链接、勾选框、按钮除外）
+const handleRowClick = (row: Story, _column: unknown, event?: Event): void => {
+  const target = event?.target as HTMLElement | null
+  if (target?.closest('a, button, label, .el-checkbox')) return
+  handleViewDetail(row)
+}
+
 const fetchUsers = async (): Promise<void> => {
   try { userOptions.value = (await getUsers()) || [] } catch (error) { console.error('获取用户列表失败:', error) }
 }
 
+// 状态筛选走后端（此前只在前端过滤当前页，跨页统计失真）
 const fetchStories = async (): Promise<void> => {
+  if (!hasScope()) {
+    storyList.value = []
+    pagination.total = 0
+    statusCounts.value = { draft: 0, active: 0, reviewing: 0, changed: 0, closed: 0 }
+    return
+  }
   loading.value = true
   try {
-    const params = { page: pagination.page, pageSize: pagination.pageSize, productId: globalSelection.product ?? undefined, projectId: globalSelection.project ?? undefined, assignedTo: filterForm.assignedTo, startDate: filterForm.dateRange[0] || '', endDate: filterForm.dateRange[1] || '', specificDate: filterForm.specificDate }
+    const params = { page: pagination.page, pageSize: pagination.pageSize, productId: globalSelection.product ?? undefined, projectId: globalSelection.project ?? undefined, assignedTo: filterForm.assignedTo, status: filterForm.status, startDate: filterForm.dateRange[0] || '', endDate: filterForm.dateRange[1] || '', specificDate: filterForm.specificDate }
     const res = await getStories(params)
     storyList.value = res.data.list || []
     pagination.total = res.data.total || 0
+    // 统计卡为服务端按全量（分页前）统计，避免随翻页跳变
+    if (res.data.statusCounts) {
+      statusCounts.value = {
+        draft: res.data.statusCounts.draft ?? 0,
+        active: res.data.statusCounts.active ?? 0,
+        reviewing: res.data.statusCounts.reviewing ?? 0,
+        changed: res.data.statusCounts.changed ?? 0,
+        closed: res.data.statusCounts.closed ?? 0
+      }
+    }
   } catch (error) { console.error('获取需求列表失败:', error); ElMessage.error('获取需求列表失败') } finally { loading.value = false }
 }
 
 watch(() => globalSelection.product, (newProduct: number | null) => {
-  if (newProduct) { pagination.page = 1; storyList.value = []; pagination.total = 0; fetchStories() } else { storyList.value = []; pagination.total = 0 }
+  if (newProduct) { pagination.page = 1; storyList.value = []; pagination.total = 0; fetchStories() } else { storyList.value = []; pagination.total = 0; statusCounts.value = { draft: 0, active: 0, reviewing: 0, changed: 0, closed: 0 } }
 }, { immediate: true })
 
 watch(() => globalSelection.project, () => { if (globalSelection.product) { pagination.page = 1; fetchStories() } })
-
-const filteredStoryList = computed(() => {
-  return storyList.value.filter((story: Story) => {
-    if (filterForm.status && story.status !== filterForm.status) return false
-    return true
-  })
-})
 
 const handleSearch = (): void => {
   if (!globalSelection.product && !globalSelection.project) { ElMessage.warning('请先在顶部选择产品或项目'); return }
@@ -179,8 +256,10 @@ const handleSelectAll = (selection: Story[]): void => { selectedStories.value = 
 const handleViewDetails = (): void => { if (selectedStories.value.length > 0) { currentStory.value = selectedStories.value[0]; detailDialogVisible.value = true } }
 const handleViewDetail = (row: Story): void => { currentStory.value = row; detailDialogVisible.value = true }
 
+// 导出：有勾选导勾选，无勾选导当前筛选全量（而非仅当前页）
 const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
-  if (selectedStories.value.length === 0) return
+  if (exporting.value) return
+  if (selectedStories.value.length === 0 && pagination.total === 0) return
   const { exportData, timestampedFilename } = await import('@/utils/export')
   type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
   const cols: ExportColumn<Story>[] = [
@@ -191,13 +270,29 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
     { header: '优先级', access: s => s.pri },
     { header: '指派人', access: s => s.assignedTo?.realname || s.assignedTo?.account || '' }
   ]
+  exporting.value = true
   try {
-    await exportData(timestampedFilename('需求列表'), selectedStories.value, cols, format, { title: '需求列表' })
-    ElMessage.success(`导出 ${selectedStories.value.length} 个需求成功`)
+    let list: Story[] = selectedStories.value
+    if (list.length === 0) {
+      const baseParams = { productId: globalSelection.product ?? undefined, projectId: globalSelection.project ?? undefined, assignedTo: filterForm.assignedTo, status: filterForm.status, startDate: filterForm.dateRange[0] || '', endDate: filterForm.dateRange[1] || '', specificDate: filterForm.specificDate }
+      const pageCount = Math.ceil(pagination.total / EXPORT_PAGE_SIZE)
+      list = []
+      for (let p = 1; p <= pageCount; p++) {
+        const res = await getStories({ ...baseParams, page: p, pageSize: EXPORT_PAGE_SIZE })
+        const pageList = res.data.list || []
+        list.push(...pageList)
+        if (pageList.length < EXPORT_PAGE_SIZE) break
+      }
+    }
+    if (list.length === 0) { ElMessage.warning('没有可导出的数据'); return }
+    await exportData(timestampedFilename('需求列表'), list, cols, format, { title: '需求列表' })
+    if (list === selectedStories.value) ElMessage.success(`导出已选 ${list.length} 个需求成功`)
+    else if (list.length < pagination.total) ElMessage.warning(`筛选结果 ${pagination.total} 条，已导出前 ${list.length} 条`)
+    else ElMessage.success(`已导出全部 ${list.length} 个需求`)
   } catch (e) {
     const msg = e instanceof Error ? e.message : '导出失败'
     ElMessage.error(msg)
-  }
+  } finally { exporting.value = false }
 }
 
 const openZentaoLink = async (url: string): Promise<void> => {
@@ -222,8 +317,97 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Stats Bar：单卡片分段式统计，段落可点击筛选 */
+.stats-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.stat-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 20px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  transition: background var(--transition-fast);
+}
+
+.stat-seg:hover {
+  background: var(--color-bg-hover);
+}
+
+.stat-seg.active {
+  background: var(--color-primary-light);
+}
+
+.stat-seg-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+.stat-seg-label {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.stat-seg--draft .stat-seg-value,
+.stat-seg--closed .stat-seg-value { color: var(--color-text-tertiary); }
+.stat-seg--active .stat-seg-value { color: var(--color-success); }
+.stat-seg--reviewing .stat-seg-value,
+.stat-seg--changed .stat-seg-value { color: var(--color-warning); }
+
+.stat-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--color-border);
+}
+
 .story-title { color: var(--color-primary); text-decoration: none; cursor: pointer; transition: color var(--transition-fast); }
 .story-title:hover { text-decoration: underline; color: var(--color-primary-hover); }
+
+/* 点击行打开详情 */
+:deep(.el-table__row) {
+  cursor: pointer;
+}
+
+.export-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-right: 8px;
+}
+
+.result-count {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .story-detail { line-height: 1.6; padding: 8px; }
 .story-detail :deep(.el-descriptions__label) { font-weight: 600; color: var(--color-text-primary); }
 </style>
