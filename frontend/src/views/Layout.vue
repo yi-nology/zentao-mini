@@ -137,7 +137,6 @@ import { useRoute, useRouter } from 'vue-router'
 import ProductSelector from '@/components/ProductSelector.vue'
 import { search, getAccountInfo } from '@/api/zentao'
 import api from '@/api/api'
-import { useDesktopNotification } from '@/composables/useDesktopNotification'
 import { useAuth } from '@/composables/useAuth'
 import type { SearchItem, ApiResponse } from '@/types/api'
 
@@ -154,9 +153,6 @@ const handleLogout = async (): Promise<void> => {
     router.push('/')
   }
 }
-
-// 启用桌面通知监听（仅在 Wails 模式生效）
-useDesktopNotification()
 
 interface GlobalSelection {
   product: number | null

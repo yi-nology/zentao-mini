@@ -240,8 +240,8 @@ func (s *SQLiteStore) Close() error {
 
 // EntityType 常量，定义支持的缓存实体类型
 const (
-	EntityBugs    = "bugs"
-	EntityStories = "stories"
-	EntityTasks   = "tasks"
+	EntityBugs      = "bugs"
+	EntityStories   = "stories"
+	EntityTasks     = "tasks"
 	EntityDashboard = "dashboard"
 )

@@ -28,9 +28,9 @@ func NewCacheService(store storage.Store) *CacheService {
 // CacheResult 缓存查询结果
 type CacheResult struct {
 	Data      []byte
-	FromCache bool       // true = 来自本地缓存（可能过期），false = 来自回源
-	CachedAt  time.Time  // 缓存时间（FromCache=true 时有意义）
-	Stale     bool       // true = 来自过期缓存（离线 fallback 场景）
+	FromCache bool      // true = 来自本地缓存（可能过期），false = 来自回源
+	CachedAt  time.Time // 缓存时间（FromCache=true 时有意义）
+	Stale     bool      // true = 来自过期缓存（离线 fallback 场景）
 }
 
 // GetOrLoad 带缓存 fallback 的查询

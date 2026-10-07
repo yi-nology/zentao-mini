@@ -36,8 +36,8 @@ type Manager struct {
 	secret   []byte
 	ttl      time.Duration
 
-	mu         sync.Mutex
-	failures   map[string]*failureInfo
+	mu       sync.Mutex
+	failures map[string]*failureInfo
 }
 
 type failureInfo struct {

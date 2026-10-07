@@ -5,7 +5,7 @@ import "fmt"
 // BuildQueryDTO 版本（Build）查询请求参数
 // 查询版本必须指定项目或执行，二者至少需要一个
 type BuildQueryDTO struct {
-	ProjectID   int `form:"projectId" json:"projectId"`   // 项目 ID（与 ExecutionID 二选一）
+	ProjectID   int `form:"projectId" json:"projectId"`     // 项目 ID（与 ExecutionID 二选一）
 	ExecutionID int `form:"executionId" json:"executionID"` // 执行/迭代 ID（与 ProjectID 二选一）
 }
 

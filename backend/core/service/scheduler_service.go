@@ -414,7 +414,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 		zap.Int("webhookSuccess", successCount),
 		zap.Int("webhookEnabled", enabledCount))
 
-	// 发布事件：桌面通知等订阅者会消费（仅在 Wails 模式生效）
+	// 发布事件:供事件总线订阅者消费(网页版当前由 webhook 推送承担通知职责)
 	topic := event.TaskCompleted
 	if logEntry.Status == "failed" {
 		topic = event.TaskFailed

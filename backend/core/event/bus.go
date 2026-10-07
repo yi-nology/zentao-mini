@@ -1,5 +1,5 @@
 // Package event 提供进程内事件总线
-// 用于解耦后端业务层（如 scheduler）与前端推送层（如 Wails runtime）
+// 用于解耦后端业务层(如 scheduler)与推送/Webhook 层
 package event
 
 import (

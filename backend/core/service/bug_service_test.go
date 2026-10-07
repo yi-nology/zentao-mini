@@ -5,6 +5,7 @@ import (
 
 	"github.com/yi-nology/common/biz/zentao"
 
+	"github.com/yi-nology/zentao-mini/backend/core/dto"
 	"github.com/yi-nology/zentao-mini/backend/core/utils"
 	"github.com/yi-nology/zentao-mini/backend/core/vo"
 )
@@ -180,6 +181,76 @@ func TestBugService_Pagination(t *testing.T) {
 			}
 			if len(paged) != tt.expectedLen {
 				t.Errorf("expected len=%d, got %d", tt.expectedLen, len(paged))
+			}
+		})
+	}
+}
+
+// TestBugService_FilterBugs tests the in-memory filtering pipeline used by GetBugs
+func TestBugService_FilterBugs(t *testing.T) {
+	bugs := createMockBugs()
+	// 追加一个 closed 状态的 bug，验证 assignedTo 过滤也能覆盖 closed.
+	const closedStatus = "closed"
+	bugs = append(bugs, zentao.Bug{
+		ID:         4,
+		Project:    10,
+		Product:    100,
+		Title:      "Bug 4",
+		Status:     closedStatus,
+		OpenedDate: "2024-01-18 09:00:00",
+		AssignedTo: zentao.UserRef{Account: "user1", Realname: "User 1"},
+		OpenedBy:   zentao.UserRef{Account: "user2", Realname: "User 2"},
+	})
+
+	tests := []struct {
+		name          string
+		query         dto.BugQueryDTO
+		expectedIDs   []int
+		expectedTotal int
+	}{
+		{
+			name:          "assignedTo only",
+			query:         dto.BugQueryDTO{AssignedTo: "user1"},
+			expectedIDs:   []int{1, 2, 4},
+			expectedTotal: 3,
+		},
+		{
+			name:          "assignedTo + status combined",
+			query:         dto.BugQueryDTO{AssignedTo: "user1", Status: "active"},
+			expectedIDs:   []int{1},
+			expectedTotal: 1,
+		},
+		{
+			name:          "assignedTo with no matches",
+			query:         dto.BugQueryDTO{AssignedTo: "nosuchuser"},
+			expectedIDs:   []int{},
+			expectedTotal: 0,
+		},
+		{
+			name:          "status only",
+			query:         dto.BugQueryDTO{Status: "active"},
+			expectedIDs:   []int{1, 3},
+			expectedTotal: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := tt.query
+			q.Page = 1
+			q.PageSize = 20
+			total, paged := filterBugs(bugs, &q)
+
+			if total != tt.expectedTotal {
+				t.Errorf("expected total=%d, got %d", tt.expectedTotal, total)
+			}
+			if len(paged) != len(tt.expectedIDs) {
+				t.Fatalf("expected %d bugs, got %d", len(tt.expectedIDs), len(paged))
+			}
+			for i, want := range tt.expectedIDs {
+				if paged[i].ID != want {
+					t.Errorf("expected paged[%d].ID=%d, got %d", i, want, paged[i].ID)
+				}
 			}
 		})
 	}

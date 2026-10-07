@@ -372,17 +372,8 @@ const assignedToOptions = computed(() => {
 })
 
 const filteredBugList = computed(() => {
-  const list = bugList.value.filter((bug: Bug) => {
-    if (filterForm.assignedTo) {
-      const assigned = bug.assignedTo
-      if (!assigned) return false
-      const account = typeof assigned === 'object' ? assigned.account : assigned
-      const realname = typeof assigned === 'object' ? assigned.realname : assigned
-      if (account !== filterForm.assignedTo && realname !== filterForm.assignedTo) return false
-    }
-    // 状态、版本、类型已由后端筛选，这里不再二次过滤，以保证分页 total 准确
-    return true
-  })
+  // 指派人/状态/版本/类型/时间均已由后端筛选，这里不再二次过滤，以保证分页 total 准确
+  const list = bugList.value
 
   // 本地排序（仅对当前页数据生效）
   if (sortState.prop && sortState.order) {
@@ -438,6 +429,7 @@ const fetchBugs = async (): Promise<void> => {
       pageSize: pagination.pageSize,
       productId: globalSelection.product ?? undefined,
       projectId: globalSelection.project ?? undefined,
+      assignedTo: filterForm.assignedTo,
       status: filterForm.status,
       version: filterForm.version,
       type: filterForm.type,

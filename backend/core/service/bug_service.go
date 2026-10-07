@@ -31,21 +31,11 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 
 	// 如果有产品ID，按产品查询
 	if query.ProductID != 0 {
-		// 版本/类型/状态过滤需要获取所有bug（含closed），在内存中过滤
+		// 指派人/版本/类型/状态过滤需要获取所有bug（含closed），在内存中过滤
 		// 注意：closed 状态的 bug 不会被禅道默认接口返回，
 		// 必须用 status=all 全量获取（含 closed）后在内存过滤
-		if query.Version != "" || query.Type != "" || query.Status != "" {
+		if query.AssignedTo != "" || query.Version != "" || query.Type != "" || query.Status != "" {
 			bugs, err = s.client.GetAllBugsIncludeClosed(query.ProductID)
-		} else if query.AssignedTo != "" {
-			// 指派人过滤使用SearchBugs减少内存消耗
-			params := zentao.BugSearchParams{
-				ProductID:  query.ProductID,
-				Status:     query.Status,
-				AssignedTo: query.AssignedTo,
-				Limit:      1000,
-				Page:       1,
-			}
-			bugs, err = s.client.SearchBugs(params)
 		} else if query.ProjectID != 0 {
 			// 如果只有项目ID，使用GetBugsByProject
 			bugs, err = s.client.GetBugsByProject(query.ProductID, query.ProjectID, 1, 1000)
@@ -62,13 +52,34 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 		bugs = []zentao.Bug{}
 	}
 
-	// 使用链式过滤器进行筛选
+	total, pagedBugs := filterBugs(bugs, query)
+
+	list := s.convertToVO(pagedBugs)
+
+	return &vo.PaginatedVO{
+		List:     list,
+		Total:    total,
+		Page:     query.Page,
+		PageSize: query.PageSize,
+	}, nil
+}
+
+// filterBugs 对全量 bug 列表应用筛选条件并分页.
+// 返回筛选后的总数和当前页数据，保证前端分页 total 准确.
+func filterBugs(bugs []zentao.Bug, query *dto.BugQueryDTO) (int, []zentao.Bug) {
 	chainFilter := utils.NewChainFilter(bugs)
 
-	// 按状态筛选（version/type 分支下 bugs 包含全部状态，需在内存过滤）
+	// 按状态筛选
 	if query.Status != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
 			return item.Status == query.Status
+		})
+	}
+
+	// 按指派人筛选
+	if query.AssignedTo != "" {
+		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+			return item.AssignedTo.Account == query.AssignedTo
 		})
 	}
 
@@ -105,20 +116,9 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 		})
 	}
 
-	// 获取总数
 	total := chainFilter.Count()
-
-	// 执行分页
-	pagedBugs := chainFilter.Paginate(query.Page, query.PageSize).Result()
-
-	list := s.convertToVO(pagedBugs)
-
-	return &vo.PaginatedVO{
-		List:     list,
-		Total:    total,
-		Page:     query.Page,
-		PageSize: query.PageSize,
-	}, nil
+	paged := chainFilter.Paginate(query.Page, query.PageSize).Result()
+	return total, paged
 }
 
 // convertToVO 将zentao.Bug转换为vo.BugVO

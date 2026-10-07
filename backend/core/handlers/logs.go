@@ -39,8 +39,8 @@ func (h *LogHandler) GetLogs(ctx context.Context, c *app.RequestContext) {
 		entries = []*logger.LogEntry{}
 	}
 	errors.Success(c, map[string]interface{}{
-		"entries": entries,
-		"total":   len(entries),
+		"entries":     entries,
+		"total":       len(entries),
 		"buffer_size": logger.GetRingBuffer().Size(),
 	})
 }
