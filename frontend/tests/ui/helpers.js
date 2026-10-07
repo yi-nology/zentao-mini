@@ -197,11 +197,30 @@ function summarize() {
   return fail > 0 ? 1 : 0
 }
 
+// 平台管理员登录（写操作需要）。直接调后端登录接口，Cookie 会存入浏览器 context。
+const ADMIN_USER = process.env.ADMIN_USER || 'admin'
+const ADMIN_PASS = process.env.ADMIN_PASS || 'admin'
+
+async function ensureLogin(page) {
+  const res = await page.request.post(BASE + '/api/auth/login', {
+    data: { username: ADMIN_USER, password: ADMIN_PASS },
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (res.status() !== 200) {
+    throw new Error(`管理员登录失败: HTTP ${res.status()}（默认 admin/admin，可用 ADMIN_USER/ADMIN_PASS 覆盖）`)
+  }
+  return res
+}
+
+async function ensureLogout(page) {
+  await page.request.post(BASE + '/api/auth/logout').catch(() => {})
+}
+
 module.exports = {
   BASE, SHOT_DIR, report,
   suite, record, recordIssue,
   newPage, sharedSession, keepAlive, ensureProduct,
-  openApp,
+  openApp, ensureLogin, ensureLogout, ADMIN_USER, ADMIN_PASS,
   elSelect, selectProduct,
   shot, waitTableRows, waitLoadingDone, readToast,
   summarize,

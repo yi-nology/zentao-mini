@@ -109,6 +109,14 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
 
 - `~/.zentao-mini/cron.db` — JSON 存储定时任务和执行日志
 - `~/.zentao-mini/cache.db` — SQLite 离线缓存（可安全删除）
+- `~/.zentao-mini/auth.db` — 加密的禅道连接配置（默认主目录，可通过 `auth.db_path` 覆盖）
+
+## Platform auth & MCP skills
+
+- **平台访问控制**（`backend/core/auth`）：匿名只读（GET 放行），登录管理员读写。凭据 `auth.admin.username/password`（默认 admin/admin，env `ZENTAO_MINI_AUTH_ADMIN_USERNAME/PASSWORD`）。MCP 端点 `/mcp*` 豁免平台认证（自治 mcp.token）。
+- **Bug 写能力**（2026-10-07）：`POST /api/bugs/:id/comments`（纯评论：禅道 v1 API 无备注端点，走 Web 会话通道复刻 `action-comment` 表单）与 `POST /api/bugs/:id/transitions`（confirm/resolve/close/activate/assign，v1 API，均可附 comment）；均需平台管理员登录，成功返回 Bug 最新快照。MCP 写工具 `add_bug_comment` / `transition_bug`（annotations readOnlyHint=false；`mcp.read_only` 与 `IsWriteAction` 拦截）。新增写动作时同步维护 tools.go 的 writeTools 与 server.go 的 IsWriteAction。
+- **标准 MCP 协议**（`backend/core/mcp/jsonrpc.go`）：仅支持**最新协议 2026-07-28**（无握手、每请求 `params._meta` 携带版本，缺失/旧版本返回 -32022；`server/discover` 通告；stdio 与 `POST /mcp` 双通道）。不提供旧协议版本兼容。zentao-mini 自有 `{"action":...}` 简化协议兼容保留。stdio 日志强制走 stderr 不污染协议流。
+- **对接 Skill**：`skills/zentao-mini/`（SKILL.md + references/api.md + references/mcp.md）——可直接分发或放入 Agent 的技能目录，教 AI 客户端对接禅道数据。改 MCP 工具/REST 后同步更新。
 
 ## Known Issues / Migration Notes
 

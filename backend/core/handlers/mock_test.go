@@ -3,7 +3,10 @@ package handlers
 import (
 	"context"
 
+	"github.com/yi-nology/common/biz/zentao"
+
 	"github.com/yi-nology/zentao-mini/backend/core/dto"
+	"github.com/yi-nology/zentao-mini/backend/core/service"
 	"github.com/yi-nology/zentao-mini/backend/core/vo"
 )
 
@@ -23,6 +26,14 @@ func (m *MockBugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error
 	return m.Result, m.Err
 }
 
+func (m *MockBugService) AddBugComment(bugID int, comment string) (*zentao.Bug, error) {
+	return &zentao.Bug{ID: bugID}, nil
+}
+
+func (m *MockBugService) TransitionBug(bugID int, input *service.BugTransitionInput) (*zentao.Bug, error) {
+	return &zentao.Bug{ID: bugID, Status: input.Action}, nil
+}
+
 type MockTaskService struct {
 	Result *vo.PaginatedVO
 	Err    error
@@ -34,6 +45,10 @@ func (m *MockTaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, er
 	m.Called = true
 	m.Query = query
 	return m.Result, m.Err
+}
+
+func (m *MockTaskService) GetTaskStatusCounts(query *dto.TaskQueryDTO) (map[string]int, error) {
+	return map[string]int{"doing": 1, "wait": 1, "done": 1, "closed": 0}, nil
 }
 
 type MockStoryService struct {
@@ -129,10 +144,10 @@ type MockDashboardService struct {
 	SearchResult    *vo.SearchVO
 	Err             error
 	DashboardCalled bool
-	OverviewCalled bool
-	ProductIDArg   int
-	StartDateArg   string
-	EndDateArg     string
+	OverviewCalled  bool
+	ProductIDArg    int
+	StartDateArg    string
+	EndDateArg      string
 }
 
 func (m *MockDashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {

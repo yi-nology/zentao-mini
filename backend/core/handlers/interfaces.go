@@ -3,7 +3,10 @@ package handlers
 import (
 	"context"
 
+	"github.com/yi-nology/common/biz/zentao"
+
 	"github.com/yi-nology/zentao-mini/backend/core/dto"
+	"github.com/yi-nology/zentao-mini/backend/core/service"
 	"github.com/yi-nology/zentao-mini/backend/core/vo"
 )
 
@@ -12,6 +15,8 @@ import (
 
 type BugServicer interface {
 	GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error)
+	AddBugComment(bugID int, comment string) (*zentao.Bug, error)
+	TransitionBug(bugID int, input *service.BugTransitionInput) (*zentao.Bug, error)
 }
 
 type BuildServicer interface {
@@ -21,6 +26,7 @@ type BuildServicer interface {
 
 type TaskServicer interface {
 	GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
+	GetTaskStatusCounts(query *dto.TaskQueryDTO) (map[string]int, error)
 }
 
 type StoryServicer interface {

@@ -26,6 +26,10 @@ type Client struct {
 	mu          sync.RWMutex
 	connected   atomic.Bool
 	refreshing  atomic.Bool
+	webSession  struct {
+		mu      sync.Mutex
+		session webSession
+	}
 }
 
 const tokenTTL = 23 * time.Hour
@@ -49,6 +53,18 @@ func NewClient(server, account, password string) *Client {
 		password:  NewSecureString(password),
 		server:    server,
 		token:     NewSecureString(""),
+	}
+	// 已配置完整凭据时启动即建立连接，
+	// 避免首次打开心跳/仪表盘前 IsConnected() 一直为 false 造成"未连接"误报
+	if server != "" && account != "" {
+		go func() {
+			// NewClient 可能在 logger/metrics 初始化前被调用（如 mcp 入口、单元测试），
+			// 预连接失败或 panic 都不允许带崩进程
+			defer func() { _ = recover() }()
+			if _, err := client.RefreshToken(); err != nil {
+				logger.Warn("启动时连接禅道失败", zap.Error(err))
+			}
+		}()
 	}
 	go client.startTokenRefreshTask()
 	return client
@@ -147,6 +163,20 @@ func (c *Client) RefreshToken() (string, error) {
 	return tokenStr, nil
 }
 
+// wrapTokenError 把 token 获取失败的常见误配翻译成可操作的提示，
+// 最典型的就是服务器启用了 https 却配了 http:// 地址：POST 会被 301 到
+// HTML 页面，SDK 解析时报 "invalid character '<'"，用户完全看不出原因。
+func wrapTokenError(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "invalid character") {
+		return fmt.Errorf("%w（禅道服务器返回了非 JSON 内容：常见原因是服务器启用了 https，但配置的是 http:// 地址，请检查服务器地址）", err)
+	}
+	return err
+}
+
 func (c *Client) doRefreshToken() (string, error) {
 	c.mu.RLock()
 	account := c.account
@@ -166,7 +196,7 @@ func (c *Client) doRefreshToken() (string, error) {
 	}
 
 	if err != nil {
-		return "", err
+		return "", wrapTokenError(err)
 	}
 
 	c.mu.Lock()
@@ -198,8 +228,12 @@ func (c *Client) UpdateConfig(server, account, password string) error {
 	c.sdkClient.SetTimeout(120 * time.Second)
 	c.token.Set("")
 	c.tokenExpiry.Store(0)
-	GlobalCache.Clear()
 	c.mu.Unlock()
+
+	// 清缓存放在临界区外：Clear 需要 cache 全局写锁，若在持有 client.mu 时调用，
+	// 与"缓存加载协程持 cache 锁等待 client.mu 刷新 token"形成互相等待死锁
+	GlobalCache.Clear()
+	c.ResetWebSession()
 
 	go func() {
 		if _, err := c.RefreshToken(); err != nil {

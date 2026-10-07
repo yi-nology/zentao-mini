@@ -99,6 +99,10 @@ func getOutputWriter(outputPath string) zapcore.WriteSyncer {
 	if outputPath == "" || outputPath == "stdout" {
 		return zapcore.AddSync(os.Stdout)
 	}
+	// stdio MCP 等场景下日志必须走 stderr，避免污染 stdout 协议流
+	if outputPath == "stderr" {
+		return zapcore.AddSync(os.Stderr)
+	}
 
 	file, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

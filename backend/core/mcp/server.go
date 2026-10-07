@@ -76,6 +76,10 @@ func (s *MCPServer) HandleAction(action string, params map[string]interface{}) (
 		return s.handleGetUsers(params)
 	case "get_timelog":
 		return s.handleGetTimelog(params)
+	case "add_bug_comment":
+		return s.handleAddBugComment(params)
+	case "transition_bug":
+		return s.handleTransitionBug(params)
 	default:
 		return nil, &ActionError{Action: action, Message: "unknown action"}
 	}
@@ -91,11 +95,12 @@ func (e *ActionError) Error() string {
 	return e.Message + ": " + e.Action
 }
 
-// IsWriteAction 判断 action 是否为写操作（用于只读模式拦截）
-// 当前 MCP 全为查询接口，写操作为未来扩展（如 create_*/update_*/delete_*）预留.
+// IsWriteAction 判断 action 是否为写操作（用于只读模式拦截）。
+// 与 tools.go 的 writeTools 保持一致。
 func IsWriteAction(action string) bool {
 	switch action {
-	case "create_product", "create_project", "create_bug", "create_story", "create_task",
+	case "add_bug_comment", "transition_bug",
+		"create_product", "create_project", "create_bug", "create_story", "create_task",
 		"update_product", "update_project", "update_bug", "update_story", "update_task",
 		"delete_product", "delete_project", "delete_bug", "delete_story", "delete_task":
 		return true

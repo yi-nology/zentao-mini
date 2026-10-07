@@ -170,10 +170,13 @@ func (h *SchedulerHandler) PreviewReport(ctx context.Context, c *app.RequestCont
 		ProductName       string   `json:"productName"`
 		StatusFilter      string   `json:"statusFilter"`
 		AgingDays         int      `json:"agingDays"`
+		CheckHours        float64  `json:"checkHours"`
+		Period            string   `json:"period"`
 		Keyword           string   `json:"keyword"`
 		ExternalInfo      string   `json:"externalInfo"`
 		MessageHeader     string   `json:"messageHeader"`
 		PriorityAssignees []string `json:"priorityAssignees"`
+		ViewURL           string   `json:"viewURL"`
 	}
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "请求参数格式错误")
@@ -191,14 +194,14 @@ func (h *SchedulerHandler) PreviewReport(ctx context.Context, c *app.RequestCont
 
 	switch reportType {
 	case "requirement":
-		report, err := h.reportService.GenerateRequirementReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees)
+		report, err := h.reportService.GenerateRequirementReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees, req.ViewURL)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return
 		}
 		errors.Success(c, report)
 	case "task":
-		report, err := h.reportService.GenerateTaskReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees)
+		report, err := h.reportService.GenerateTaskReport(req.ProductID, req.ProjectID, req.ProjectName, req.ProductName, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees, req.ViewURL)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return
@@ -209,14 +212,21 @@ func (h *SchedulerHandler) PreviewReport(ctx context.Context, c *app.RequestCont
 		if agingDays <= 0 {
 			agingDays = 7
 		}
-		report, err := h.reportService.GenerateBugAgingReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, agingDays, req.Keyword, req.ExternalInfo, req.PriorityAssignees, req.MessageHeader)
+		report, err := h.reportService.GenerateBugAgingReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, agingDays, req.Keyword, req.ExternalInfo, req.PriorityAssignees, req.MessageHeader, req.ViewURL)
+		if err != nil {
+			errors.Error(c, errors.ExternalError("禅道API", err))
+			return
+		}
+		errors.Success(c, report)
+	case "daily-report-check":
+		report, err := h.reportService.GenerateDailyReportCheck(req.ProductID, req.ProductName, req.CheckHours, req.Period, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees, req.ViewURL)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return
 		}
 		errors.Success(c, report)
 	default:
-		report, err := h.reportService.GenerateBugReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees)
+		report, err := h.reportService.GenerateBugReport(req.ProductID, req.ProjectID, req.ProjectName, req.StatusFilter, req.Keyword, req.ExternalInfo, req.MessageHeader, req.PriorityAssignees, req.ViewURL)
 		if err != nil {
 			errors.Error(c, errors.ExternalError("禅道API", err))
 			return

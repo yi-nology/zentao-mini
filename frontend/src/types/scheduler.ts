@@ -21,10 +21,12 @@ export interface SchedulerTask {
   statusFilter: string
   reportType: string
   agingDays: number
+  checkHours: number
   priorityAssignees: string[]
   messageHeader: string
   keyword: string
   externalInfo: string
+  viewURL: string
   lastRunAt: string | null
   lastRunStatus: string
   createdAt: string
@@ -63,6 +65,7 @@ export interface AssigneeBugStats {
   serious: number
   moderate: number
   minor: number
+  suggest: number
 }
 
 export interface BugReport {
@@ -105,6 +108,7 @@ export const CRON_PRESETS = [
   { label: '每天 9:00', expr: '0 9 * * *' },
   { label: '工作日 9:00', expr: '0 9 * * 1-5' },
   { label: '每周一 9:00', expr: '0 9 * * 1' },
+  { label: '每月18日 9:00', expr: '0 9 18 * *' },
   { label: '每天 9+14点', expr: '0 9,14 * * *' },
   { label: '每8小时', expr: '0 */8 * * *' },
   { label: '每30分钟', expr: '*/30 * * * *' },
@@ -122,6 +126,7 @@ export const REPORT_TYPE_OPTIONS = [
   { label: '需求进度播报', value: 'requirement', icon: '📋', color: '#4F6BF6' },
   { label: '任务进度播报', value: 'task', icon: '✅', color: '#22C55E' },
   { label: 'Bug 超时提醒', value: 'bug-aging', icon: '⏰', color: '#F59E0B' },
+  { label: '日报完成度检查', value: 'daily-report-check', icon: '📝', color: '#8B5CF6' },
 ] as const
 
 export const AGING_DAYS_OPTIONS = [
@@ -141,6 +146,7 @@ export interface AssigneeStoryStats {
   closed: number
   resolved: number
   accepted: number
+  reviewing: number
 }
 
 export interface RequirementReport {
@@ -179,5 +185,36 @@ export interface TaskProgressReport {
   totalConsumed: number
   overallProgress: number
   details: TaskProgressStats[]
+  message: string
+}
+
+export interface DailyMissingDay {
+  date: string
+  hours: number
+}
+
+export interface AssigneeDailyCheckStats {
+  assignee: string
+  account: string
+  workdays: number
+  okDays: number
+  missingDays: DailyMissingDay[]
+  totalHours: number
+  noEffort: boolean
+}
+
+export interface DailyReportCheckReport {
+  title: string
+  timestamp: string
+  productName: string
+  periodStart: string
+  periodEnd: string
+  workdays: number
+  checkHours: number
+  totalPeople: number
+  okCount: number
+  issueCount: number
+  totalMissing: number
+  details: AssigneeDailyCheckStats[]
   message: string
 }

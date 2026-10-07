@@ -127,7 +127,7 @@ func TestStdioTransport_Disabled(t *testing.T) {
 	}
 }
 
-func TestStdioTransport_TokenRequired(t *testing.T) {
+func TestStdioTransport_TokenFromEnv(t *testing.T) {
 	h := newStdioTestHarness()
 	GetMCPModeManager().InitFromConfig(config.MCPConfig{
 		Enabled: true,
@@ -135,23 +135,19 @@ func TestStdioTransport_TokenRequired(t *testing.T) {
 	})
 
 	h.startListen()
-	// 不带 token → 应被拒
+	// stdio 的 Token 由宿主客户端经启动环境注入（ZENTAO_MINI_MCP_TOKEN），
+	// 标准 MCP 客户端无法在每条消息里携带 Token，因此不再逐消息校验：
+	// 配置了 Token 的 stdio 会话视为已持有凭证，消息直接放行
 	h.sendRequest(map[string]interface{}{"action": "ping"})
-	time.Sleep(50 * time.Millisecond)
-	// 带正确 token → 应通过
-	h.sendRequest(map[string]interface{}{"action": "ping", "params": map[string]interface{}{"token": "stdio-secret"}})
 	time.Sleep(50 * time.Millisecond)
 	h.finish()
 
 	resps := h.responses()
-	if len(resps) < 2 {
-		t.Fatalf("expected 2 responses, got %d: %v", len(resps), resps)
+	if len(resps) < 1 {
+		t.Fatalf("expected 1 response, got %d: %v", len(resps), resps)
 	}
-	if resps[0]["status"] != "error" {
-		t.Errorf("first request without token should fail, got %v", resps[0]["status"])
-	}
-	if resps[1]["status"] != "ok" {
-		t.Errorf("second request with token should succeed, got %v", resps[1]["status"])
+	if resps[0]["status"] != "ok" {
+		t.Errorf("stdio message should pass without per-message token, got %v", resps[0])
 	}
 }
 

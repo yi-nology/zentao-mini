@@ -67,6 +67,13 @@ func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, er
 		})
 	}
 
+	// 按状态筛选
+	if query.Status != "" {
+		chainFilter = chainFilter.Filter(func(item zentao.Story) bool {
+			return strings.EqualFold(item.Status, query.Status)
+		})
+	}
+
 	// 按时间范围或具体日期筛选
 	if query.StartDate != "" || query.EndDate != "" || query.SpecificDate != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Story) bool {

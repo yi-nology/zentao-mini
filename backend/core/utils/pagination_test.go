@@ -153,6 +153,30 @@ func TestPaginate(t *testing.T) {
 			expectedStart: 80,
 			expectedEnd:   95,
 		},
+		{
+			name:          "page为0时按第一页处理",
+			total:         100,
+			page:          0,
+			pageSize:      1,
+			expectedStart: 0,
+			expectedEnd:   1,
+		},
+		{
+			name:          "page为负数时按第一页处理",
+			total:         100,
+			page:          -2,
+			pageSize:      20,
+			expectedStart: 0,
+			expectedEnd:   20,
+		},
+		{
+			name:          "pageSize为0时按默认值处理",
+			total:         100,
+			page:          2,
+			pageSize:      0,
+			expectedStart: DefaultPageSize,
+			expectedEnd:   DefaultPageSize * 2,
+		},
 	}
 
 	for _, tt := range tests {
@@ -207,6 +231,13 @@ func TestPaginateSlice(t *testing.T) {
 			page:     1,
 			pageSize: 3,
 			expected: []int{},
+		},
+		{
+			name:     "page为0时不panic并返回第一页",
+			slice:    []int{1, 2, 3, 4, 5},
+			page:     0,
+			pageSize: 1,
+			expected: []int{1},
 		},
 	}
 

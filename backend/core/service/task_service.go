@@ -36,6 +36,45 @@ func NewTaskService(client *myzentao.Client) *TaskService {
 // 3. 应用筛选条件（指派人、状态、时间范围）
 // 4. 分页处理
 func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error) {
+	chainFilter, err := s.filterTasks(query)
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取总数
+	total := chainFilter.Count()
+
+	// 执行分页
+	pagedTasks := chainFilter.Paginate(query.Page, query.PageSize).Result()
+
+	list := s.convertToVO(pagedTasks)
+
+	return &vo.PaginatedVO{
+		List:     list,
+		Total:    total,
+		Page:     query.Page,
+		PageSize: query.PageSize,
+	}, nil
+}
+
+// GetTaskStatusCounts 返回应用筛选条件后（不分页）的各状态任务数量，供统计卡使用
+func (s *TaskService) GetTaskStatusCounts(query *dto.TaskQueryDTO) (map[string]int, error) {
+	chainFilter, err := s.filterTasks(query)
+	if err != nil {
+		return nil, err
+	}
+
+	counts := map[string]int{"doing": 0, "wait": 0, "done": 0, "closed": 0}
+	for _, task := range chainFilter.Result() {
+		if _, ok := counts[task.Status]; ok {
+			counts[task.Status]++
+		}
+	}
+	return counts, nil
+}
+
+// filterTasks 拉取任务（带缓存）并应用指派人/状态/时间范围筛选，返回全量筛选结果
+func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[zentao.Task], error) {
 	var allTasks []zentao.Task
 	var err error
 
@@ -85,21 +124,7 @@ func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 			return item.OpenedDate
 		})
 	}
-
-	// 获取总数
-	total := chainFilter.Count()
-
-	// 执行分页
-	pagedTasks := chainFilter.Paginate(query.Page, query.PageSize).Result()
-
-	list := s.convertToVO(pagedTasks)
-
-	return &vo.PaginatedVO{
-		List:     list,
-		Total:    total,
-		Page:     query.Page,
-		PageSize: query.PageSize,
-	}, nil
+	return chainFilter, nil
 }
 
 // convertToVO 将zentao.Task转换为vo.TaskVO

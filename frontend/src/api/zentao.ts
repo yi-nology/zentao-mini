@@ -163,7 +163,8 @@ export const getStoryStatusOptions = (): SelectOption[] => {
     { label: '草稿', value: 'draft' },
     { label: '激活', value: 'active' },
     { label: '已变更', value: 'changed' },
-    { label: '已关闭', value: 'closed' }
+    { label: '已关闭', value: 'closed' },
+    { label: '评审中', value: 'reviewing' }
   ]
 }
 

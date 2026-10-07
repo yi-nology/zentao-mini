@@ -128,7 +128,7 @@
             <th>耗时</th>
             <th>状态</th>
             <th>数量</th>
-            <th>高级别</th>
+            <th>严重级别</th>
             <th>指派人</th>
             <th>Webhook结果</th>
             <th>错误信息</th>
@@ -227,6 +227,19 @@
             </div>
           </div>
 
+          <div class="form-row" v-if="form.reportType === 'daily-report-check'">
+            <div class="form-group form-half">
+              <label>每工作日最低工时（小时）</label>
+              <input v-model.number="form.checkHours" type="number" min="0.5" step="0.5" class="form-input" />
+              <div class="hint-text">按周一至周五判定；定时执行自动检查上月16日～本月15日（如每月18日跑即检查刚结束的周期）</div>
+            </div>
+            <div class="form-group form-half">
+              <label>检查月份（仅用于预览）</label>
+              <input v-model="form.period" type="month" class="form-input" />
+              <div class="hint-text">所选月份为周期截止月（该月15日止）；留空预览最近周期（上月16日～本月15日）</div>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="form-group form-half">
               <label>消息关键词</label>
@@ -235,8 +248,16 @@
             </div>
             <div class="form-group form-half">
               <label>消息头备注</label>
-              <input v-model="form.messageHeader" class="form-input" placeholder="如：详情查看 https://..." />
-              <div class="hint-text">会显示在消息标题下方，所有报告类型通用</div>
+              <input v-model="form.messageHeader" class="form-input" placeholder="如：本周重点回归模块" />
+              <div class="hint-text">自定义备注，显示在消息标题下方；详情链接请用下方「回访地址」</div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>回访地址</label>
+              <input v-model="form.viewURL" class="form-input" placeholder="如：https://zentao.kylin.me" />
+              <div class="hint-text">填写后推送消息自动附带「查看详情」链接，直达对应的产品/项目页面（Bug 报告还会为每条超时 Bug 附上禅道详情直链），无需再手工粘贴地址到备注</div>
             </div>
           </div>
 
@@ -349,7 +370,7 @@
               <span>{{ runResult.bugTotal }}</span>
             </div>
             <div v-if="runResult.highSeverity > 0" class="result-row">
-              <span class="result-label">高级别：</span>
+              <span class="result-label">严重级别：</span>
               <span>{{ runResult.highSeverity }}</span>
             </div>
             <div v-if="runResult.webhookResults?.length > 0" class="result-webhooks">
@@ -380,7 +401,7 @@ import {
 import type { PreviewParams } from '@/api/scheduler'
 import { getProducts, getProjects } from '@/api/zentao'
 import { ElMessageBox } from 'element-plus'
-import type { SchedulerTask, TaskExecutionLog, WebhookResult, WebhookConfig, RequirementReport, TaskProgressReport, BugReport, BugAgingReport } from '@/types/scheduler'
+import type { SchedulerTask, TaskExecutionLog, WebhookResult, WebhookConfig, RequirementReport, TaskProgressReport, BugReport, BugAgingReport, DailyReportCheckReport } from '@/types/scheduler'
 import { CRON_PRESETS, STATUS_OPTIONS, REPORT_TYPE_OPTIONS, AGING_DAYS_OPTIONS } from '@/types/scheduler'
 
 interface Product { id: number; name: string }
@@ -402,7 +423,7 @@ const runResultVisible = ref(false)
 const runResult = ref<TaskExecutionLog | null>(null)
 
 const previewLoading = ref(false)
-const previewResult = ref<RequirementReport | TaskProgressReport | BugReport | BugAgingReport | null>(null)
+const previewResult = ref<RequirementReport | TaskProgressReport | BugReport | BugAgingReport | DailyReportCheckReport | null>(null)
 const previewError = ref('')
 
 const form = reactive<{
@@ -416,10 +437,14 @@ const form = reactive<{
   statusFilter: string
   reportType: string
   agingDays: number
+  checkHours: number
+  /** 日报检查预览用的检查月份（YYYY-MM），不随任务保存 */
+  period: string
   priorityAssignees: string[]
   messageHeader: string
   keyword: string
   externalInfo: string
+  viewURL: string
   enabled: boolean
   webhooks: WebhookConfig[]
 }>({
@@ -433,10 +458,13 @@ const form = reactive<{
   statusFilter: 'active',
   reportType: 'bug',
   agingDays: 7,
+  checkHours: 8,
+  period: '',
   priorityAssignees: [],
   messageHeader: '',
   keyword: '提醒',
   externalInfo: '',
+  viewURL: '',
   enabled: true,
   webhooks: [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }],
 })
@@ -455,6 +483,7 @@ const namePlaceholder = computed(() => {
     requirement: '如：需求进度播报',
     task: '如：任务进度播报',
     'bug-aging': '如：Bug超时提醒',
+    'daily-report-check': '如：月度日报完成度检查',
   }
   return m[form.reportType] || '任务名称'
 })
@@ -517,10 +546,13 @@ const resetForm = () => {
   form.statusFilter = 'active'
   form.reportType = 'bug'
   form.agingDays = 7
+  form.checkHours = 8
+  form.period = ''
   form.priorityAssignees = []
   form.messageHeader = ''
   form.keyword = '提醒'
   form.externalInfo = ''
+  form.viewURL = ''
   form.enabled = true
   form.webhooks = [{ id: '', name: '', url: '', enabled: true, platform: 'generic', secret: '', skipSSL: false }]
   testResult.value = null
@@ -546,9 +578,12 @@ const openEditDialog = (task: SchedulerTask) => {
   form.statusFilter = task.statusFilter
   form.reportType = task.reportType || 'bug'
   form.agingDays = task.agingDays || 7
+  form.checkHours = task.checkHours || 8
+  form.period = ''
   form.priorityAssignees = task.priorityAssignees || []
   form.messageHeader = task.messageHeader || ''
   form.externalInfo = task.externalInfo || ''
+  form.viewURL = task.viewURL || ''
   form.keyword = task.keyword || '提醒'
   form.enabled = task.enabled
   form.webhooks = task.webhooks.map(w => ({ ...w }))
@@ -574,10 +609,12 @@ const handleSubmit = async () => {
       statusFilter: form.statusFilter,
       reportType: form.reportType || 'bug',
       agingDays: form.agingDays || 7,
+      checkHours: form.reportType === 'daily-report-check' ? (form.checkHours || 8) : 0,
       priorityAssignees: form.priorityAssignees || [],
       messageHeader: form.messageHeader || '',
       keyword: form.keyword,
       externalInfo: form.externalInfo,
+      viewURL: (form.viewURL || '').trim(),
       webhooks: form.webhooks.filter(w => w.url).map(w => ({
         id: w.id || '',
         name: w.name,
@@ -659,10 +696,13 @@ const handlePreview = async () => {
       productName: form.productName,
       statusFilter: form.statusFilter,
       agingDays: form.agingDays || 7,
+      checkHours: form.checkHours || 8,
+      period: form.period || '',
       keyword: form.keyword,
       externalInfo: form.externalInfo,
       messageHeader: form.messageHeader || '',
       priorityAssignees: form.priorityAssignees || [],
+      viewURL: (form.viewURL || '').trim(),
     }
     const res = await previewReport(params)
     previewResult.value = res.data
@@ -690,7 +730,7 @@ const runStatusLabel = (s: string) => {
 }
 
 const reportTypeLabel = (t: string) => {
-  const m: Record<string, string> = { bug: 'Bug报告', requirement: '需求播报', task: '任务播报', 'bug-aging': '超时提醒' }
+  const m: Record<string, string> = { bug: 'Bug报告', requirement: '需求播报', task: '任务播报', 'bug-aging': '超时提醒', 'daily-report-check': '日报检查' }
   return m[t] || t
 }
 
@@ -700,6 +740,7 @@ const reportTypeDesc = (t: string) => {
     requirement: '需求状态分布与指派人进度播报',
     task: '任务进度与工时消耗播报，含完成率统计',
     'bug-aging': '停留超时的Bug按责任人分组强提醒，含具体停留天数',
+    'daily-report-check': '按工作日检查每人日报工时是否达标（默认8h），未达标逐人列出缺失日期',
   }
   return m[t] || ''
 }
@@ -871,6 +912,7 @@ watch(() => activeTab.value, (tab) => {
 .report-bug { background: var(--color-danger-light); color: var(--color-danger); }
 .report-requirement { background: var(--color-primary-light); color: var(--color-primary); }
 .report-task { background: var(--color-success-light); color: var(--color-success); }
+.report-daily-report-check { background: #ede9fe; color: #7c3aed; }
 
 .cron-code {
   background: var(--color-bg-hover);

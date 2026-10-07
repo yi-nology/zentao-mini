@@ -53,6 +53,15 @@ func Paginate(total, page, pageSize int) (start, end int) {
 		return 0, 0
 	}
 
+	// 内部调用方（如健康检查）可能传 Page=0 或非法 PageSize，
+	// HTTP 层的中间件兜不到这里，必须在此收敛，否则 start 会算出负数导致 slice 越界 panic
+	if page < 1 {
+		page = DefaultPage
+	}
+	if pageSize < 1 {
+		pageSize = DefaultPageSize
+	}
+
 	start = (page - 1) * pageSize
 	if start >= total {
 		return 0, 0

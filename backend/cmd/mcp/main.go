@@ -57,7 +57,8 @@ func main() {
 	}
 	cfg := config.Get()
 
-	// 初始化日志（stdio 模式下日志写到 stderr，避免污染 stdout JSON 流）
+	// stdio 模式下 stdout 是 JSON-RPC 协议流，日志必须走 stderr，否则污染协议导致客户端握手失败
+	cfg.Log.OutputPath = "stderr"
 	if err := logger.Init(&cfg.Log); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)

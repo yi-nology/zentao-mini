@@ -55,3 +55,8 @@ zentao-mini-local-new
 
 # 本地配置
 /.env
+
+# Local test/tooling artifacts
+.playwright-mcp/
+.v2c/
+gui-test-screenshots/

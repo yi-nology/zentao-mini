@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -71,6 +73,14 @@ type AuthConfig struct {
 	ConfigPath string `mapstructure:"config_path"`
 	// 认证数据库路径
 	DBPath string `mapstructure:"db_path"`
+	// 平台访问控制：匿名=只读，登录管理员=读写
+	Admin AuthAdminConfig `mapstructure:"admin"`
+}
+
+// AuthAdminConfig 平台管理员账号（用于登录后获得读写权限）
+type AuthAdminConfig struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 // SecurityConfig 安全配置.
@@ -123,7 +133,7 @@ func Init(configPath string, envPrefix string) error {
 	envKeys := []string{
 		"server.type", "server.port", "server.read_timeout", "server.write_timeout", "server.shutdown_timeout",
 		"zentao.server", "zentao.account", "zentao.password", "zentao.token_refresh_interval", "zentao.request_timeout",
-		"auth.db_path", "auth.config_path",
+		"auth.db_path", "auth.config_path", "auth.admin.username", "auth.admin.password",
 		"log.level", "log.format", "log.enable_caller", "log.enable_stacktrace",
 		"rate_limit.requests_per_minute", "rate_limit.block_duration_minutes",
 		"mcp.enabled", "mcp.transport", "mcp.token", "mcp.read_only", "mcp.actions",
@@ -182,9 +192,18 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("zentao.token_refresh_interval", 12)
 	v.SetDefault("zentao.request_timeout", 120)
 
-	// 认证配置
-	v.SetDefault("auth.config_path", "./auth_config.enc")
-	v.SetDefault("auth.db_path", "./auth.db")
+	// 认证配置：默认落在用户主目录，与 cache.db/cron.db 一致（见 AGENTS.md 数据文件约定）。
+	// 用相对路径会导致换目录启动就"忘记"配置。
+	authDataDir := "./.zentao-mini"
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		authDataDir = filepath.Join(homeDir, ".zentao-mini")
+	}
+	v.SetDefault("auth.config_path", filepath.Join(authDataDir, "auth_config.enc"))
+	v.SetDefault("auth.db_path", filepath.Join(authDataDir, "auth.db"))
+	// 平台管理员：匿名访问只读，登录后读写。默认 admin/admin，生产环境务必通过配置文件或
+	// ZENTAO_MINI_AUTH_ADMIN_USERNAME / ZENTAO_MINI_AUTH_ADMIN_PASSWORD 覆盖
+	v.SetDefault("auth.admin.username", "admin")
+	v.SetDefault("auth.admin.password", "admin")
 
 	// 日志配置
 	v.SetDefault("log.level", "info")
@@ -193,8 +212,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("log.enable_stacktrace", false)
 
 	// 限流配置
-	v.SetDefault("rate_limit.requests_per_minute", 60)
-	v.SetDefault("rate_limit.block_duration_minutes", 5)
+	// 限流默认值与 errors.DefaultRateLimitConfig 保持一致：
+	// 600/分钟（前端单页会并发请求多个接口，60 极易误伤）、封禁 1 分钟（5 分钟相当于把用户踢出）
+	v.SetDefault("rate_limit.requests_per_minute", 600)
+	v.SetDefault("rate_limit.block_duration_minutes", 1)
 
 	// MCP 配置
 	v.SetDefault("mcp.enabled", true)

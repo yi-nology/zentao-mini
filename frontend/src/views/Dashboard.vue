@@ -9,11 +9,11 @@
       <div class="time-range">
         <span class="time-range-label">时间范围：</span>
         <el-radio-group v-model="timeRange" size="small">
-          <el-radio-button label="7d">近 7 天</el-radio-button>
-          <el-radio-button label="30d">近 30 天</el-radio-button>
-          <el-radio-button label="90d">近 90 天</el-radio-button>
-          <el-radio-button label="all">全部</el-radio-button>
-          <el-radio-button label="custom">自定义</el-radio-button>
+          <el-radio-button value="7d">近 7 天</el-radio-button>
+          <el-radio-button value="30d">近 30 天</el-radio-button>
+          <el-radio-button value="90d">近 90 天</el-radio-button>
+          <el-radio-button value="all">全部</el-radio-button>
+          <el-radio-button value="custom">自定义</el-radio-button>
         </el-radio-group>
         <el-date-picker
           v-if="timeRange === 'custom'"

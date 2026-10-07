@@ -46,6 +46,13 @@ auth:
   # 认证数据库路径
   db_path: "./auth.db"
 
+  # 平台访问控制：匿名用户只读（仅 GET 查询），登录管理员账号后获得读写权限
+  # （定时任务增删改/执行、清空日志/缓存、上传初始化配置等写操作）
+  # 也可通过环境变量 ZENTAO_MINI_AUTH_ADMIN_USERNAME / ZENTAO_MINI_AUTH_ADMIN_PASSWORD 设置
+  admin:
+    username: "admin"
+    password: "admin"  # 生产环境务必修改！
+
 # ==================== 安全配置 ====================
 security:
   # 加密密钥（必须设置，用于加密存储的认证信息）
@@ -85,6 +92,25 @@ rate_limit:
   
   # 超限后的封禁时长（分钟）
   block_duration_minutes: 5
+
+# ==================== MCP 配置 ====================
+mcp:
+  # MCP 服务总开关（stdio 入口不受此限制）
+  enabled: true
+  
+  # 传输模式: http（主服务内）/ stdio（独立进程）/ both
+  transport: http
+  
+  # 分级权限：未配置 token 时匿名客户端仅可调用只读工具（查询类）；
+  # 配置 token 后，携带正确 token 的调用可执行写工具（add_bug_comment/transition_bug）。
+  # 也可通过环境变量 ZENTAO_MINI_MCP_TOKEN 或 MCP_TOKEN 设置
+  # token: "your-mcp-token"
+  
+  # 服务级只读策略：true 时即使持有效 token 也拒绝写工具（403）
+  read_only: false
+  
+  # action 白名单（可选，留空允许全部）
+  # actions: ["ping", "get_products", "get_bugs"]
 
 # ==================== 配置说明 ====================
 # 1. 配置优先级：环境变量 > 配置文件 > 默认值

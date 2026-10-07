@@ -8,12 +8,16 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/yi-nology/common/biz/zentao"
 )
 
 // GetBugs 获取产品的 Bug 列表
+// 旧版禅道（自建/开源老版本）会把 assignedTo/openedBy 返回为纯字符串账号，
+// SDK 的 UserRef 结构解析会直接报 "cannot unmarshal string" 使整个列表失败，
+// 此时降级到本地容错解析（字符串包装成 UserRef 对象）。
 func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error) {
 	cacheKey := DefaultKeyBuilder.Build("zentao:bugs", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
@@ -22,6 +26,13 @@ func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error
 		err := c.withTokenRetry("GetBugs", func(client *zentao.Client) error {
 			var err error
 			response, err = client.GetBugs(productID, page, pageSize)
+			if err != nil && isUnmarshalTypeError(err) {
+				var fallback *zentao.BugListResponse
+				fallback, err = c.getBugsTolerant(productID, page, pageSize)
+				if err == nil {
+					response = fallback
+				}
+			}
 			return err
 		})
 		if err != nil {
@@ -36,32 +47,131 @@ func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error
 	return result.([]zentao.Bug), nil
 }
 
-// GetBugsByProject 根据项目 ID 过滤 Bug 列表
-func (c *Client) GetBugsByProject(productID, projectID int, page, pageSize int) ([]zentao.Bug, error) {
-	var response *zentao.BugListResponse
-	err := c.withTokenRetry("GetBugsByProject", func(client *zentao.Client) error {
-		var err error
-		response, err = client.GetBugsByProject(productID, projectID, page, pageSize)
-		return err
-	})
+func isUnmarshalTypeError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "cannot unmarshal") || strings.Contains(msg, "解析响应失败")
+}
+
+// getBugsTolerant 绕过 SDK 的严格 UserRef 解析：
+// 原始响应里 assignedTo/openedBy 为字符串时包装成 {"account": <字符串>} 再解到 zentao.BugListResponse。
+func (c *Client) getBugsTolerant(productID, page, pageSize int) (*zentao.BugListResponse, error) {
+	token, err := c.getToken()
 	if err != nil {
 		return nil, err
 	}
-	return response.Bugs, nil
+	c.mu.RLock()
+	server := c.server
+	c.mu.RUnlock()
+	if server == "" {
+		return nil, fmt.Errorf("禅道服务器地址为空")
+	}
+
+	httpClient := &http.Client{
+		Timeout: 120 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	url := fmt.Sprintf("%s/api.php/v1/products/%d/bugs?page=%d&limit=%d", server, productID, page, pageSize)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Token", token)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("请求禅道 bug 列表失败: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("请求失败, 状态码: %d, 响应: %s", resp.StatusCode, string(body))
+	}
+
+	var result zentao.BugListResponse
+	if err := json.Unmarshal(normalizeBugUserRefs(body), &result); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v", err)
+	}
+	return &result, nil
+}
+
+// normalizeBugUserRefs 把 bugs 数组中字符串形式的 assignedTo/openedBy 规范成对象形式，
+// 兼容旧版禅道的返回格式；响应结构不符时原样返回。
+func normalizeBugUserRefs(body []byte) []byte {
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return body
+	}
+	rawBugs, ok := doc["bugs"]
+	if !ok {
+		return body
+	}
+	var bugs []map[string]json.RawMessage
+	if err := json.Unmarshal(rawBugs, &bugs); err != nil {
+		return body
+	}
+	changed := false
+	for i, bug := range bugs {
+		for _, field := range []string{"assignedTo", "openedBy"} {
+			raw, exists := bug[field]
+			if !exists {
+				continue
+			}
+			var account string
+			if err := json.Unmarshal(raw, &account); err == nil {
+				bug[field], _ = json.Marshal(map[string]string{"account": account})
+				changed = true
+			}
+		}
+		bugs[i] = bug
+	}
+	if !changed {
+		return body
+	}
+	doc["bugs"], _ = json.Marshal(bugs)
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+// GetBugsByProject 根据项目 ID 过滤 Bug 列表
+// 复用 GetBugs（含旧版禅道字符串 assignedTo 容错），在内存中过滤，与 SDK 语义一致
+func (c *Client) GetBugsByProject(productID, projectID int, page, pageSize int) ([]zentao.Bug, error) {
+	bugs, err := c.GetBugs(productID, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]zentao.Bug, 0)
+	for _, bug := range bugs {
+		if bug.Project == projectID {
+			filtered = append(filtered, bug)
+		}
+	}
+	return filtered, nil
 }
 
 // GetBugsByStatus 根据状态过滤 Bug 列表
 func (c *Client) GetBugsByStatus(productID int, status string, page, pageSize int) ([]zentao.Bug, error) {
-	var response *zentao.BugListResponse
-	err := c.withTokenRetry("GetBugsByStatus", func(client *zentao.Client) error {
-		var err error
-		response, err = client.GetBugsByStatus(productID, status, page, pageSize)
-		return err
-	})
+	bugs, err := c.GetBugs(productID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
-	return response.Bugs, nil
+	filtered := make([]zentao.Bug, 0)
+	for _, bug := range bugs {
+		if bug.Status == status {
+			filtered = append(filtered, bug)
+		}
+	}
+	return filtered, nil
 }
 
 // SearchBugs 搜索 Bug（支持多条件过滤）

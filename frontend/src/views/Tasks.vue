@@ -18,6 +18,10 @@
         <span class="stat-pill-label">已完成</span>
         <span class="stat-pill-value">{{ statusCounts.done }}</span>
       </div>
+      <div class="stat-pill stat-pill--closed">
+        <span class="stat-pill-label">已关闭</span>
+        <span class="stat-pill-value">{{ statusCounts.closed }}</span>
+      </div>
     </div>
 
     <div class="filter-card">
@@ -64,8 +68,8 @@
         </div>
       </div>
       <el-table v-loading="loading" :data="taskList" border stripe style="width: 100%" :row-class-name="tableRowClassName">
-        <el-table-column prop="id" label="ID" width="80" align="center" />
-        <el-table-column prop="name" label="标题" min-width="220">
+        <el-table-column prop="id" label="ID" width="78" align="center" />
+        <el-table-column prop="name" label="标题" min-width="240">
           <template #default="{ row }">
             <a href="javascript:void(0)" @click="openZentaoTask(row.id)" class="task-title">{{ row.name }}</a>
           </template>
@@ -95,7 +99,7 @@
             <el-progress :percentage="getProgress(row.estimate, row.consumed)" :status="getProgressStatus(row.estimate, row.consumed)" :stroke-width="8" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="80" align="center">
+        <el-table-column label="操作" width="70" align="center">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openTaskDetail(row)">详情</el-button>
           </template>
@@ -158,13 +162,7 @@ const detailDialogVisible = ref<boolean>(false)
 const currentTask = ref<Task | null>(null)
 const pagination = reactive<Pagination>({ page: 1, pageSize: 20, total: 0 })
 
-const statusCounts = computed(() => {
-  const counts = { doing: 0, wait: 0, done: 0 }
-  taskList.value.forEach(t => {
-    if (t.status in counts) counts[t.status as keyof typeof counts]++
-  })
-  return counts
-})
+const statusCounts = ref<Record<'doing' | 'wait' | 'done' | 'closed', number>>({ doing: 0, wait: 0, done: 0, closed: 0 })
 
 const assignedToOptions = computed(() => {
   const assignees = new Map<string, { value: string; label: string }>()
@@ -219,6 +217,15 @@ const fetchTasks = async (): Promise<void> => {
     const res = await getTasks(params)
     taskList.value = res.data.list || []
     pagination.total = res.data.total || 0
+    // 统计卡为服务端按全量（分页前）统计，避免随翻页跳变
+    if (res.data.statusCounts) {
+      statusCounts.value = {
+        doing: res.data.statusCounts.doing ?? 0,
+        wait: res.data.statusCounts.wait ?? 0,
+        done: res.data.statusCounts.done ?? 0,
+        closed: res.data.statusCounts.closed ?? 0
+      }
+    }
   } catch (error) { console.error('获取任务列表失败:', error); ElMessage.error('获取任务列表失败') } finally { loading.value = false }
 }
 
@@ -304,6 +311,8 @@ onMounted(() => {
 .stat-pill--doing .stat-pill-value { color: var(--color-primary); }
 .stat-pill--wait .stat-pill-value { color: var(--color-warning); }
 .stat-pill--done .stat-pill-value { color: var(--color-success); }
+
+.stat-pill--closed .stat-pill-value { color: var(--color-text-tertiary); }
 
 /* Filter */
 .filter-card {

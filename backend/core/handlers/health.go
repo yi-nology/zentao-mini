@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -109,6 +110,16 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 		wg.Add(1)
 		go func(idx int, c checkFn) {
 			defer wg.Done()
+			// 健康检查在独立 goroutine 中运行，HTTP 层的 Recovery 中间件覆盖不到；
+			// 单项检查 panic 必须降级为 fail 项，否则会带崩整个进程
+			defer func() {
+				if r := recover(); r != nil {
+					results[idx] = CheckItem{
+						Status:  "fail",
+						Message: fmt.Sprintf("检查项内部错误: %v", r),
+					}
+				}
+			}()
 			item := c.fn()
 			item.Name = c.name
 			results[idx] = item
@@ -217,7 +228,29 @@ func (h *HealthHandler) checkBugs() CheckItem {
 
 func (h *HealthHandler) checkStories() CheckItem {
 	start := time.Now()
-	result, err := h.storyService.GetStories(&dto.StoryQueryDTO{PageSize: 1})
+	// 需求必须挂在产品/项目/执行下；健康检查没有全局筛选上下文，
+	// 不传 ID 会被 StoryService 直接拒绝，这里自动取第一个产品兜底
+	query := &dto.StoryQueryDTO{PageSize: 1}
+	if query.ProductID == 0 && query.ProjectID == 0 && query.ExecutionID == 0 {
+		products, err := h.productService.GetProducts()
+		if err != nil {
+			return CheckItem{
+				Status:    "fail",
+				Message:   "获取产品列表失败: " + err.Error(),
+				LatencyMs: time.Since(start).Milliseconds(),
+			}
+		}
+		if len(products) == 0 {
+			return CheckItem{
+				Status:    "ok",
+				Count:     0,
+				Message:   "无产品，跳过需求检查",
+				LatencyMs: time.Since(start).Milliseconds(),
+			}
+		}
+		query.ProductID = products[0].ID
+	}
+	result, err := h.storyService.GetStories(query)
 	if err != nil {
 		return CheckItem{
 			Status:    "fail",
@@ -235,7 +268,29 @@ func (h *HealthHandler) checkStories() CheckItem {
 
 func (h *HealthHandler) checkTasks() CheckItem {
 	start := time.Now()
-	result, err := h.taskService.GetTasks(&dto.TaskQueryDTO{PageSize: 1})
+	// 与 checkStories 同理：禅道 /tasks 接口必须带产品或执行上下文，
+	// 健康检查没有全局筛选上下文，自动取第一个产品兜底
+	query := &dto.TaskQueryDTO{PageSize: 1}
+	if query.ProductID == 0 && query.ExecutionID == 0 {
+		products, err := h.productService.GetProducts()
+		if err != nil {
+			return CheckItem{
+				Status:    "fail",
+				Message:   "获取产品列表失败: " + err.Error(),
+				LatencyMs: time.Since(start).Milliseconds(),
+			}
+		}
+		if len(products) == 0 {
+			return CheckItem{
+				Status:    "ok",
+				Count:     0,
+				Message:   "无产品，跳过任务检查",
+				LatencyMs: time.Since(start).Milliseconds(),
+			}
+		}
+		query.ProductID = products[0].ID
+	}
+	result, err := h.taskService.GetTasks(query)
 	if err != nil {
 		return CheckItem{
 			Status:    "fail",

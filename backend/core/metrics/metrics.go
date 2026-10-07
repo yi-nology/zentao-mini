@@ -65,6 +65,10 @@ func getCacheCounter(cacheType string) *cacheCounter {
 }
 
 func Init() error {
+	// 幂等：全局注册器重复注册同名采集器会 panic，测试与多入口场景可能多次调用
+	if globalMetrics != nil {
+		return nil
+	}
 	m := &Metrics{
 		RequestsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{

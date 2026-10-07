@@ -18,7 +18,7 @@ async function run(page) {
       { label: '任务查询', path: '/tasks' },
       { label: '工时统计', path: '/timelog' },
       { label: '定时任务', path: '/scheduler' },
-      { label: '心跳检测', path: '/health' },
+      { label: '心跳检测', path: '/health-check' },
       { label: 'MCP 对接', path: '/mcp-guide' },
       { label: '设置', path: '/settings' },
       { label: '仪表盘', path: '/dashboard' },
@@ -27,13 +27,16 @@ async function run(page) {
     for (const item of navMap) {
       await page.keyboard.press('Escape').catch(() => {}) // 清理可能残留的弹窗
       const link = page.locator('.nav-menu .nav-item', { hasText: item.label }).first()
-      await link.click()
-      // 等 URL path 变化 + 适当间隔（避免上一次导航过渡期点击落空）
-      await page.waitForFunction(
-        (exp) => location.pathname === exp,
-        item.path,
-        { timeout: 6000 },
-      ).catch(() => {})
+      // 上一个页面可能仍在初始化（Vue 重渲染窗口内点击会被静默吞掉），未跳转则重试点击
+      let reached = false
+      for (let attempt = 0; attempt < 3 && !reached; attempt++) {
+        await link.click()
+        reached = await page.waitForFunction(
+          (exp) => location.pathname === exp,
+          item.path,
+          { timeout: 3000 },
+        ).then(() => true).catch(() => false)
+      }
       // 心跳检测页会发起较慢的 /api/healthz，进入后多等一会，避免下一次点击落在导航过渡期
       const waitMs = item.label === '心跳检测' ? 1500 : 700
       await page.waitForTimeout(waitMs)

@@ -153,6 +153,9 @@ func (s *SchedulerService) CreateTask(task *models.SchedulerTask) error {
 	if task.ReportType == "bug-aging" && task.AgingDays <= 0 {
 		task.AgingDays = 7
 	}
+	if task.ReportType == "daily-report-check" && task.CheckHours <= 0 {
+		task.CheckHours = 8
+	}
 	for i := range task.Webhooks {
 		if task.Webhooks[i].ID == "" {
 			task.Webhooks[i].ID = uuid.New().String()
@@ -191,6 +194,9 @@ func (s *SchedulerService) UpdateTask(task *models.SchedulerTask) error {
 	}
 	if task.ReportType == "bug-aging" && task.AgingDays <= 0 {
 		task.AgingDays = 7
+	}
+	if task.ReportType == "daily-report-check" && task.CheckHours <= 0 {
+		task.CheckHours = 8
 	}
 	for i := range task.Webhooks {
 		if task.Webhooks[i].ID == "" {
@@ -300,7 +306,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 
 	switch reportType {
 	case "requirement":
-		report, err := s.report.GenerateRequirementReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees)
+		report, err := s.report.GenerateRequirementReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees, task.ViewURL)
 		if err != nil {
 			reportErr = err
 		} else {
@@ -308,7 +314,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 			logEntry.BugTotal = report.Total
 		}
 	case "task":
-		report, err := s.report.GenerateTaskReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees)
+		report, err := s.report.GenerateTaskReport(task.ProductID, task.ProjectID, task.ProjectName, task.ProductName, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees, task.ViewURL)
 		if err != nil {
 			reportErr = err
 		} else {
@@ -322,7 +328,7 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 		if agingDays <= 0 {
 			agingDays = 7
 		}
-		report, err := s.report.GenerateBugAgingReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, agingDays, task.Keyword, task.ExternalInfo, task.PriorityAssignees, task.MessageHeader)
+		report, err := s.report.GenerateBugAgingReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, agingDays, task.Keyword, task.ExternalInfo, task.PriorityAssignees, task.MessageHeader, task.ViewURL)
 		if err != nil {
 			reportErr = err
 		} else {
@@ -330,8 +336,19 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 			logEntry.BugTotal = report.Total
 			logEntry.AssigneeCount = len(report.Details)
 		}
+	case "daily-report-check":
+		// 定时执行时检查上月 16 日 ~ 本月 15 日（每月 18 日跑即检查刚结束的周期）；period 由预览接口手动指定
+		report, err := s.report.GenerateDailyReportCheck(task.ProductID, task.ProductName, task.CheckHours, "", task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees, task.ViewURL)
+		if err != nil {
+			reportErr = err
+		} else {
+			message = report.Message
+			logEntry.BugTotal = report.IssueCount
+			logEntry.HighSeverity = report.TotalMissing
+			logEntry.AssigneeCount = report.TotalPeople
+		}
 	default: // "bug"
-		report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees)
+		report, err := s.report.GenerateBugReport(task.ProductID, task.ProjectID, task.ProjectName, task.StatusFilter, task.Keyword, task.ExternalInfo, task.MessageHeader, task.PriorityAssignees, task.ViewURL)
 		if err != nil {
 			reportErr = err
 		} else {

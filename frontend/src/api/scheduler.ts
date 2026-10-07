@@ -8,6 +8,7 @@ import type {
   TaskProgressReport,
   BugReport,
   BugAgingReport,
+  DailyReportCheckReport,
 } from '@/types/scheduler'
 
 export const listTasks = (): Promise<ApiResponse<SchedulerTask[]>> =>
@@ -45,11 +46,15 @@ export interface PreviewParams {
   productName: string
   statusFilter: string
   agingDays?: number
+  checkHours?: number
+  /** 日报检查的检查周期截止月（YYYY-MM），为空则检查最近周期（上月16日～本月15日） */
+  period?: string
   keyword: string
   externalInfo: string
   messageHeader?: string
   priorityAssignees?: string[]
+  viewURL?: string
 }
 
-export const previewReport = (params: PreviewParams): Promise<ApiResponse<RequirementReport | TaskProgressReport | BugReport | BugAgingReport>> =>
+export const previewReport = (params: PreviewParams): Promise<ApiResponse<RequirementReport | TaskProgressReport | BugReport | BugAgingReport | DailyReportCheckReport>> =>
   api.post('/scheduler/preview', params)

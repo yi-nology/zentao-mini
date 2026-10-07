@@ -6,6 +6,8 @@ const suites = [
   ['./test-dashboard-timelog', 'Dashboard/Timelog'],
   ['./test-lists', '业务列表页'],
   ['./test-misc', 'Scheduler/Health/MCP/Settings/Init'],
+  ['./test-logs-init', 'Logs/InitGuide上传'],
+  ['./test-auth', '认证与权限（独立会话）'],
 ]
 
 // 用一个有真实数据的产品打开首页（product=200：bugs=3 stories=8 tasks=172），
@@ -19,6 +21,10 @@ const TEST_PRODUCT = process.env.TEST_PRODUCT || '200'
 
   const { browser, page } = await h.sharedSession()
   try {
+    console.log('▶ 初始化：管理员登录（写操作套件需要）')
+    await h.ensureLogin(page)
+    console.log('  ✓ 已登录管理员\n')
+
     console.log('▶ 初始化：打开应用（带测试产品 query）')
     await page.goto(h.BASE + '/?product=' + TEST_PRODUCT, { waitUntil: 'domcontentloaded', timeout: 30000 })
     await page.waitForSelector('.nav-menu', { timeout: 20000 })

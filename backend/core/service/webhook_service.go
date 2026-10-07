@@ -46,6 +46,7 @@ type AssigneeDetailPayload struct {
 	Serious      int    `json:"serious"`
 	Moderate     int    `json:"moderate"`
 	Minor        int    `json:"minor"`
+	Suggest      int    `json:"suggest"`
 }
 
 func detectPlatform(url string) string {
@@ -75,6 +76,7 @@ func (s *WebhookService) buildPayload(report *models.BugReport) WebhookPayload {
 			Serious:      d.Serious,
 			Moderate:     d.Moderate,
 			Minor:        d.Minor,
+			Suggest:      d.Suggest,
 		})
 	}
 	return WebhookPayload{

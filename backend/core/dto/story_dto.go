@@ -5,6 +5,7 @@ type StoryQueryDTO struct {
 	ProjectID    int    `form:"projectId" json:"projectId"`
 	ExecutionID  int    `form:"executionId" json:"executionId"`
 	AssignedTo   string `form:"assignedTo" json:"assignedTo"`
+	Status       string `form:"status" json:"status"`
 	StartDate    string `form:"startDate" json:"startDate"`
 	EndDate      string `form:"endDate" json:"endDate"`
 	SpecificDate string `form:"specificDate" json:"specificDate"`

@@ -23,12 +23,14 @@ type SchedulerTask struct {
 	ProjectName       string          `json:"projectName"`
 	ProductName       string          `json:"productName"`
 	StatusFilter      string          `json:"statusFilter"`
-	ReportType        string          `json:"reportType"`        // bug | requirement | task | bug-aging
+	ReportType        string          `json:"reportType"`        // bug | requirement | task | bug-aging | daily-report-check
 	AgingDays         int             `json:"agingDays"`         // bug-aging 超时天数阈值，默认 7
+	CheckHours        float64         `json:"checkHours"`        // daily-report-check 每工作日最低工时阈值，默认 8
 	PriorityAssignees []string        `json:"priorityAssignees"` // 优先展示的人员账号列表
 	MessageHeader     string          `json:"messageHeader"`     // 消息头备注，如"详情查看 xxxx"
 	Keyword           string          `json:"keyword"`
 	ExternalInfo      string          `json:"externalInfo"`
+	ViewURL           string          `json:"viewURL"` // 回访地址（如 https://zentao.kylin.me），推送时自动附加"查看详情"深链
 	LastRunAt         *time.Time      `json:"lastRunAt"`
 	LastRunStatus     string          `json:"lastRunStatus"`
 	CreatedAt         time.Time       `json:"createdAt"`
@@ -67,6 +69,7 @@ type AssigneeBugStats struct {
 	Serious      int    `json:"serious"`
 	Moderate     int    `json:"moderate"`
 	Minor        int    `json:"minor"`
+	Suggest      int    `json:"suggest"` // 5级=建议（禅道自定义第五档）
 }
 
 type BugReport struct {
@@ -86,14 +89,15 @@ type CronDB struct {
 }
 
 type AssigneeStoryStats struct {
-	Assignee string `json:"assignee"`
-	Account  string `json:"account"`
-	Total    int    `json:"total"`
-	Active   int    `json:"active"`
-	Changed  int    `json:"changed"`
-	Closed   int    `json:"closed"`
-	Resolved int    `json:"resolved"`
-	Accepted int    `json:"accepted"`
+	Assignee  string `json:"assignee"`
+	Account   string `json:"account"`
+	Total     int    `json:"total"`
+	Active    int    `json:"active"`
+	Changed   int    `json:"changed"`
+	Closed    int    `json:"closed"`
+	Resolved  int    `json:"resolved"`
+	Accepted  int    `json:"accepted"`
+	Reviewing int    `json:"reviewing"`
 }
 
 type RequirementReport struct {
@@ -158,4 +162,38 @@ type BugAgingReport struct {
 	AgingDays   int                     `json:"agingDays"`
 	Details     []AssigneeBugAgingStats `json:"details"`
 	Message     string                  `json:"message"`
+}
+
+// ========== 日报完成度检查（daily-report-check）==========
+
+// DailyMissingDay 单个未达标工作日：Hours=0 表示当日未填报，>0 表示填报不足阈值
+type DailyMissingDay struct {
+	Date  string  `json:"date"`
+	Hours float64 `json:"hours"`
+}
+
+type AssigneeDailyCheckStats struct {
+	Assignee    string            `json:"assignee"`
+	Account     string            `json:"account"`
+	Workdays    int               `json:"workdays"`    // 应填报的工作日数
+	OkDays      int               `json:"okDays"`      // 达标天数
+	MissingDays []DailyMissingDay `json:"missingDays"` // 未达标日期明细
+	TotalHours  float64           `json:"totalHours"`  // 周期内总工时
+	NoEffort    bool              `json:"noEffort"`    // 周期内无任何工时记录（整月未填报）
+}
+
+type DailyReportCheckReport struct {
+	Title        string                    `json:"title"`
+	Timestamp    string                    `json:"timestamp"`
+	ProductName  string                    `json:"productName"`
+	PeriodStart  string                    `json:"periodStart"`
+	PeriodEnd    string                    `json:"periodEnd"`
+	Workdays     int                       `json:"workdays"`
+	CheckHours   float64                   `json:"checkHours"`
+	TotalPeople  int                       `json:"totalPeople"`
+	OkCount      int                       `json:"okCount"`
+	IssueCount   int                       `json:"issueCount"`
+	TotalMissing int                       `json:"totalMissing"` // 未达标人日总数
+	Details      []AssigneeDailyCheckStats `json:"details"`
+	Message      string                    `json:"message"`
 }

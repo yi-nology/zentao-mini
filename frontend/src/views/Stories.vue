@@ -43,9 +43,9 @@
         </div>
       </div>
       <el-table v-loading="loading" :data="filteredStoryList" border stripe style="width: 100%" @select="handleSelect" @select-all="handleSelectAll">
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" align="center" />
-        <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
+        <el-table-column type="selection" width="46" />
+        <el-table-column prop="id" label="ID" width="78" align="center" />
+        <el-table-column prop="title" label="标题" min-width="240" show-overflow-tooltip>
           <template #default="{ row }">
             <a href="javascript:void(0)" @click="openZentaoLink(buildZentaoUrl(`story-view-${row.id}.html`))" class="story-title">{{ row.title }}</a>
           </template>
@@ -63,10 +63,10 @@
         <el-table-column prop="stage" label="阶段" width="100" align="center">
           <template #default="{ row }">{{ getStageLabel(row.stage) }}</template>
         </el-table-column>
-        <el-table-column prop="assignedTo" label="指派人" width="100" align="center">
+        <el-table-column prop="assignedTo" label="指派人" width="90" align="center">
           <template #default="{ row }">{{ row.assignedTo?.realname || row.assignedTo?.account || row.assignedTo || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="80" align="center">
+        <el-table-column label="操作" width="70" align="center">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleViewDetail(row)">查看</el-button>
           </template>
@@ -170,8 +170,8 @@ const syncRoute = (): void => {
   if (pagination.pageSize !== 20) q.pageSize = String(pagination.pageSize)
   router.replace({ query: q })
 }
-const getStatusType = (status: string): string => ({ draft: 'info', active: 'success', changed: 'warning', closed: 'info' }[status] || 'info')
-const getStatusLabel = (status: string): string => ({ draft: '草稿', active: '激活', changed: '已变更', closed: '已关闭' }[status] || status)
+const getStatusType = (status: string): string => ({ draft: 'info', active: 'success', changed: 'warning', closed: 'info', reviewing: 'warning' }[status] || 'info')
+const getStatusLabel = (status: string): string => ({ draft: '草稿', active: '激活', changed: '已变更', closed: '已关闭', reviewing: '评审中' }[status] || status)
 const getPriorityType = (pri: number): string => (pri === 1 ? 'danger' : pri === 2 ? 'warning' : pri === 3 ? 'primary' : 'info')
 const getStageLabel = (stage: string): string => ({ wait: '等待', planned: '已计划', projected: '已立项', developing: '研发中', developed: '研发完毕', testing: '测试中', tested: '测试完毕', verified: '已验收', released: '已发布' }[stage] || stage)
 const handleSelect = (selection: Story[]): void => { selectedStories.value = selection }

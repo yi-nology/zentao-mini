@@ -121,7 +121,7 @@
         @select-all="handleSelectAll"
         @sort-change="handleSortChange"
       >
-        <el-table-column type="selection" width="55" fixed="left" />
+        <el-table-column type="selection" width="46" fixed="left" />
         <template v-for="col in visibleColumns" :key="col.key">
           <el-table-column
             :prop="col.key"
@@ -167,7 +167,7 @@
             </template>
           </el-table-column>
         </template>
-        <el-table-column label="操作" width="80" align="center" fixed="right">
+        <el-table-column label="操作" width="70" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleViewDetail(row)">
               查看
@@ -195,7 +195,7 @@
           <el-descriptions-item label="ID">{{ currentBug.id }}</el-descriptions-item>
           <el-descriptions-item label="标题">{{ currentBug.title }}</el-descriptions-item>
           <el-descriptions-item label="产品">{{ productMap[currentBug.product] || currentBug.product }}</el-descriptions-item>
-          <el-descriptions-item label="项目">{{ currentBug.project }}</el-descriptions-item>
+          <el-descriptions-item label="项目">{{ projectMap[currentBug.project] || currentBug.project }}</el-descriptions-item>
           <el-descriptions-item label="版本">
             <template v-if="currentBug.openedBuild && currentBug.openedBuild.length > 0">
               {{ currentBug.openedBuild.join(', ') }}
@@ -203,7 +203,7 @@
             <template v-else>-</template>
           </el-descriptions-item>
           <el-descriptions-item label="状态">{{ getStatusLabel(currentBug.status) }}</el-descriptions-item>
-          <el-descriptions-item label="严重程度">{{ currentBug.severity }}</el-descriptions-item>
+          <el-descriptions-item label="严重程度">{{ getSeverityLabel(currentBug.severity) }}</el-descriptions-item>
           <el-descriptions-item label="类型">{{ currentBug.type ? getTypeLabel(currentBug.type) : '-' }}</el-descriptions-item>
           <el-descriptions-item label="指派人">{{ currentBug.assignedTo?.realname || currentBug.assignedTo?.account || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDate(currentBug.openedDate) }}</el-descriptions-item>
@@ -221,7 +221,7 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getBugs, getBuildsByProject, getBugStatusOptions, getUsers, getProducts } from '@/api/zentao'
+import { getBugs, getBuildsByProject, getBugStatusOptions, getUsers, getProducts, getProjects } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
@@ -262,13 +262,13 @@ interface BugColumnConfig extends ColumnConfig {
 }
 
 const defaultBugColumns: BugColumnConfig[] = [
-  { key: 'id', label: 'ID', visible: true, width: 80, sortable: true },
-  { key: 'title', label: '标题', visible: true, minWidth: 200, align: 'left', showOverflowTooltip: true },
-  { key: 'openedBuild', label: '版本', visible: true, width: 120 },
+  { key: 'id', label: 'ID', visible: true, width: 78, sortable: true },
+  { key: 'title', label: '标题', visible: true, minWidth: 240, align: 'left', showOverflowTooltip: true },
+  { key: 'openedBuild', label: '版本', visible: true, width: 125, showOverflowTooltip: true },
   { key: 'status', label: '状态', visible: true, width: 90, sortable: true },
   { key: 'severity', label: '严重程度', visible: true, width: 90, sortable: true },
-  { key: 'type', label: '类型', visible: true, width: 110 },
-  { key: 'assignedTo', label: '指派人', visible: true, width: 100 },
+  { key: 'type', label: '类型', visible: true, width: 100, showOverflowTooltip: true },
+  { key: 'assignedTo', label: '指派人', visible: true, width: 90 },
   { key: 'openedDate', label: '创建时间', visible: true, width: 150, sortable: true }
 ]
 
@@ -314,6 +314,17 @@ const fetchProductNames = async (): Promise<void> => {
     const map: Record<number, string> = {}
     products.forEach(p => { map[p.id] = p.name })
     productMap.value = map
+  } catch { /* ignore */ }
+}
+
+// 详情弹窗中项目 ID → 名称（当前产品下的项目全量拉一次）
+const projectMap = ref<Record<number, string>>({})
+const fetchProjectNames = async (productId: number): Promise<void> => {
+  try {
+    const res = await getProjects({ productId })
+    const map: Record<number, string> = {}
+    ;(res.data || []).forEach(p => { map[p.id] = p.name })
+    projectMap.value = map
   } catch { /* ignore */ }
 }
 const typeOptions = computed(() => {
@@ -512,6 +523,7 @@ watch(() => globalSelection.product, (newProduct: number | null) => {
     pagination.page = 1
     bugList.value = []
     pagination.total = 0
+    fetchProjectNames(newProduct)
     fetchBugs()
   } else {
     bugList.value = []

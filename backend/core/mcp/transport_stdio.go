@@ -66,11 +66,29 @@ func (t *StdioTransport) listen(ctx context.Context) {
 		default:
 		}
 
-		var request map[string]interface{}
-		if err := decoder.Decode(&request); err != nil {
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); err != nil {
 			if err == io.EOF {
 				break
 			}
+			t.sendError(encoder, fmt.Sprintf("Invalid request: %v", err))
+			continue
+		}
+
+		// 标准 MCP JSON-RPC 2.0（Claude Desktop / Cursor / Claude Code 等）
+		if IsJSONRPCRequest(raw) {
+			resp, _, _ := t.server.HandleJSONRPC(raw, func(action string) (bool, string) {
+				return checkAccessStdio(action, nil)
+			})
+			if resp != nil {
+				t.send(encoder, resp)
+			}
+			continue
+		}
+
+		// 旧 JSON Lines 协议：{"action":"...","params":{...}}
+		var request map[string]interface{}
+		if err := json.Unmarshal(raw, &request); err != nil {
 			t.sendError(encoder, fmt.Sprintf("Invalid request: %v", err))
 			continue
 		}
@@ -94,9 +112,13 @@ func (t *StdioTransport) listen(ctx context.Context) {
 	}
 }
 
-// checkAccessStdio stdio 传输的访问控制检查
+// checkAccessStdio stdio 传输的访问控制检查（与 HTTP checkAccess 同一分级模型）
 // 返回 (blocked, message)：blocked 为 true 时 message 为拒绝原因
-// 检查顺序与 HTTP checkAccess 一致：总开关 → Token → 白名单 → 只读.
+//
+//   - 总开关 → 读操作匿名放行 → 写操作需要进程持有 MCP Token（ZENTAO_MINI_MCP_TOKEN env）
+//
+// stdio 的 Token 经启动环境注入即视为凭证持有者：标准 MCP 客户端无法在每条
+// 消息里附带 Token，环境注入是唯一通道。未配置 Token 时写工具拒绝（只读模式）。
 func checkAccessStdio(action string, params map[string]interface{}) (bool, string) {
 	mgr := GetMCPModeManager()
 
@@ -104,27 +126,27 @@ func checkAccessStdio(action string, params map[string]interface{}) (bool, strin
 		return true, "MCP service is disabled"
 	}
 
-	if mgr.HasToken() {
-		token, _ := params["__token"].(string)
-		if token == "" {
-			// 兼容：token 也可放在顶层 "token" 字段
-			token, _ = params["token"].(string)
-		}
-		if !mgr.VerifyToken(token) {
-			return true, "unauthorized: invalid or missing token"
-		}
-	}
-
 	if action == "" {
 		return false, ""
 	}
 
-	if !mgr.IsActionAllowed(action) {
-		return true, "action not allowed: " + action
+	if !IsWriteAction(action) {
+		if !mgr.IsActionAllowed(action) {
+			return true, "action not allowed: " + action
+		}
+		return false, ""
 	}
 
-	if mgr.IsReadOnly() && IsWriteAction(action) {
-		return true, "read-only mode: write action blocked: " + action
+	if mgr.IsReadOnly() {
+		return true, "read-only mode (mcp.read_only=true): write action blocked: " + action
+	}
+
+	if !mgr.HasToken() {
+		return true, "write action '" + action + "' requires an MCP token: anonymous stdio sessions are read-only (set ZENTAO_MINI_MCP_TOKEN in the client env to enable writes)"
+	}
+
+	if !mgr.IsActionAllowed(action) {
+		return true, "action not allowed: " + action
 	}
 
 	return false, ""

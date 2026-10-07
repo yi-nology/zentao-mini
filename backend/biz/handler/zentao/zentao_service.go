@@ -90,6 +90,16 @@ func Search(ctx context.Context, c *app.RequestContext) {
 	dashboardHandler.Search(ctx, c)
 }
 
+// ─── Bug write routes ───
+
+func AddBugComment(ctx context.Context, c *app.RequestContext) {
+	bugHandler.AddBugComment(ctx, c)
+}
+
+func TransitionBug(ctx context.Context, c *app.RequestContext) {
+	bugHandler.TransitionBug(ctx, c)
+}
+
 // ─── Init routes ───
 
 func GetInitStatus(ctx context.Context, c *app.RequestContext) {
