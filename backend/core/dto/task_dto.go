@@ -1,7 +1,5 @@
 package dto
 
-import "fmt"
-
 type TaskQueryDTO struct {
 	ProductID   int    `form:"productId" json:"productId"`
 	ExecutionID int    `form:"executionId" json:"executionId"`
@@ -22,9 +20,6 @@ func (dto *TaskQueryDTO) Validate() error {
 	}
 	if dto.PageSize > MaxPageSize {
 		dto.PageSize = MaxPageSize
-	}
-	if dto.ProductID <= 0 {
-		return fmt.Errorf("需要选择产品")
 	}
 	return nil
 }

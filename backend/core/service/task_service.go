@@ -86,7 +86,7 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	} else if query.ProductID != 0 {
 		cacheKey := "tasks:all:product:" + fmt.Sprint(query.ProductID)
 		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentao.Task, error) {
 			return s.fetchAllTasks(query.ProductID)
@@ -95,6 +95,7 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 			return nil, err
 		}
 	}
+	// 未指定产品/执行时不请求禅道（与 BugService 口径一致），返回空列表
 
 	// 使用链式过滤器进行筛选
 	chainFilter := utils.NewChainFilter(allTasks)

@@ -186,7 +186,7 @@ func TestBugService_Pagination(t *testing.T) {
 	}
 }
 
-// TestBugService_FilterBugs tests the in-memory filtering pipeline used by GetBugs
+// TestBugService_FilterBugs tests the in-memory filtering pipeline used by GetBugs.
 func TestBugService_FilterBugs(t *testing.T) {
 	bugs := createMockBugs()
 	// 追加一个 closed 状态的 bug，验证 assignedTo 过滤也能覆盖 closed.

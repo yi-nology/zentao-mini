@@ -147,12 +147,15 @@ func TestTaskHandler_GetTasks_MissingProductID(t *testing.T) {
 
 	c := performGET(t, h.GetTasks, "/api/v1/tasks?page=1&pageSize=20")
 
-	if mock.Called {
-		t.Error("expected GetTasks NOT to be called (validation should fail)")
+	// 空产品是合法查询：service 收到空查询返回空列表（与 bugs 口径一致），不再报错
+	if c.Response.StatusCode() != http.StatusOK {
+		t.Errorf("status = %d, want %d", c.Response.StatusCode(), http.StatusOK)
 	}
-	code := getResponseCode(t, c)
-	if code == 20000 {
-		t.Error("expected error response for missing productID")
+	if !mock.Called {
+		t.Error("expected GetTasks to be called with empty query")
+	}
+	if mock.Query == nil || mock.Query.ProductID != 0 {
+		t.Error("expected ProductID=0 to pass through to service")
 	}
 }
 
