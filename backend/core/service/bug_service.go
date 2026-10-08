@@ -178,7 +178,7 @@ func filterBugChain(bugs []zentao.Bug, query *dto.BugQueryDTO) *utils.ChainFilte
 		})
 	}
 
-	// 按时间范围或具体日期筛选
+	// 按时间范围或具体日期筛选（创建日期 openedDate）
 	if query.StartDate != "" || query.EndDate != "" || query.SpecificDate != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
 			filtered := utils.FilterByDateRangeOrSpecific(
@@ -187,6 +187,20 @@ func filterBugChain(bugs []zentao.Bug, query *dto.BugQueryDTO) *utils.ChainFilte
 				query.EndDate,
 				query.SpecificDate,
 				func(b zentao.Bug) string { s, _ := b.OpenedDate.(string); return s },
+			)
+			return len(filtered) > 0
+		})
+	}
+
+	// 按解决日期窗筛选（resolvedDate；扁鹊批次二百三十四：「今天解决了多少」的承接面，
+	// 与 StartDate/EndDate 作用的 openedDate 相互独立可叠加——「今天新增且今天解决」）。
+	if query.ResolvedStartDate != "" || query.ResolvedEndDate != "" {
+		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+			filtered := utils.FilterByDateRange(
+				[]zentao.Bug{item},
+				query.ResolvedStartDate,
+				query.ResolvedEndDate,
+				func(b zentao.Bug) string { s, _ := b.ResolvedDate.(string); return s },
 			)
 			return len(filtered) > 0
 		})

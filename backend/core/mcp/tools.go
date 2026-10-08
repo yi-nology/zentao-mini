@@ -110,7 +110,7 @@ var Tools = []Tool{
 	{
 		Name:        "get_bugs",
 		Title:       "Bug 列表",
-		Description: "获取 Bug 列表，支持产品/状态/指派人/严重度过滤与分页。列表为轻量形态（steps 剥标签截断 300 字），完整重现步骤用 get_bug 按 ID 取；响应带 total，翻页用 page/pageSize 拿全量勿拿首页当全部",
+		Description: "获取 Bug 列表，支持产品/状态/指派人/严重度/日期窗过滤与分页。列表为轻量形态（steps 剥标签截断 300 字），完整重现步骤用 get_bug 按 ID 取；响应带 total，翻页用 page/pageSize 拿全量勿拿首页当全部。日期窗：startDate/endDate/specificDate 按创建日 openedDate 过滤（「今天新增多少」），resolvedStartDate/resolvedEndDate 按解决日 resolvedDate 过滤（「今天解决多少」），均 YYYY-MM-DD 可选",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
@@ -129,6 +129,26 @@ var Tools = []Tool{
 				"severity": {
 					Type:        "string",
 					Description: "严重度 1-5（可选；禅道口径 1致命/2严重/3普通/4轻微/5建议）",
+				},
+				"startDate": {
+					Type:        "string",
+					Description: "创建日期起（可选，YYYY-MM-DD，按 openedDate 过滤）",
+				},
+				"endDate": {
+					Type:        "string",
+					Description: "创建日期止（可选，YYYY-MM-DD，按 openedDate 过滤）",
+				},
+				"specificDate": {
+					Type:        "string",
+					Description: "创建日期单日（可选，YYYY-MM-DD，与 startDate/endDate 同域、优先）",
+				},
+				"resolvedStartDate": {
+					Type:        "string",
+					Description: "解决日期起（可选，YYYY-MM-DD，按 resolvedDate 过滤——「今天解决了多少」）",
+				},
+				"resolvedEndDate": {
+					Type:        "string",
+					Description: "解决日期止（可选，YYYY-MM-DD，按 resolvedDate 过滤）",
 				},
 				"page": {
 					Type:        "string",
@@ -202,6 +222,29 @@ var Tools = []Tool{
 					Description: "结束日期，格式 YYYY-MM-DD（可选）",
 				},
 			},
+		},
+	},
+	{
+		Name:        "get_bug_actions",
+		Title:       "Bug 动作历史",
+		Description: "获取指定 Bug 的动作历史/流转记录（opened/resolved/closed/assigned/commented 等，只读）。dateFrom/dateTo 按动作日期过滤（YYYY-MM-DD，可选）；响应带 total 与按 action 分组计数（counts，流转统计免二次加工）",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"bugId": {
+					Type:        "string",
+					Description: "Bug ID（必填）",
+				},
+				"dateFrom": {
+					Type:        "string",
+					Description: "动作日期起（可选，YYYY-MM-DD）",
+				},
+				"dateTo": {
+					Type:        "string",
+					Description: "动作日期止（可选，YYYY-MM-DD）",
+				},
+			},
+			Required: []string{"bugId"},
 		},
 	},
 	{

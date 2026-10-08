@@ -76,6 +76,8 @@ func (s *MCPServer) HandleAction(action string, params map[string]interface{}) (
 		return s.handleGetUsers(params)
 	case "get_timelog":
 		return s.handleGetTimelog(params)
+	case "get_bug_actions":
+		return s.handleGetBugActions(params)
 	case "add_bug_comment":
 		return s.handleAddBugComment(params)
 	case "transition_bug":

@@ -131,3 +131,12 @@ func ParseID(raw string) (int, error) {
 	}
 	return id, nil
 }
+
+// GetBugActions 获取 Bug 动作历史（流转/处置记录，只读）——「今天流转多少」与处置
+// 审计的承接面（扁鹊批次二百三十四）。走 Web 会话通道 api-getModel，错误原样透出。
+func (s *BugService) GetBugActions(bugID int) ([]myzentao.BugAction, error) {
+	if bugID <= 0 {
+		return nil, validationError("无效的 Bug ID: %d", bugID)
+	}
+	return s.client.GetBugActions(bugID)
+}

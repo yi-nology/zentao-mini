@@ -106,6 +106,24 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 			query.PageSize = n
 		}
 	}
+	// 日期窗（扁鹊批次二百三十四）：startDate/endDate 作用于 openedDate（创建），
+	// resolvedStartDate/resolvedEndDate 作用于 resolvedDate（解决）——「今天新增多少/
+	// 解决多少」的承接面；specificDate 与 startDate 同域（单日快写）。YYYY-MM-DD。
+	if v, ok := params["startDate"]; ok {
+		query.StartDate = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if v, ok := params["endDate"]; ok {
+		query.EndDate = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if v, ok := params["specificDate"]; ok {
+		query.SpecificDate = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if v, ok := params["resolvedStartDate"]; ok {
+		query.ResolvedStartDate = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if v, ok := params["resolvedEndDate"]; ok {
+		query.ResolvedEndDate = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
 	if query.Page <= 0 {
 		query.Page = 1
 	}
