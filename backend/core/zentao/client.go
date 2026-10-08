@@ -257,6 +257,33 @@ func (c *Client) GetAccount() string {
 	return c.account
 }
 
+// refreshOrWait 刷新 Token；若另一协程正在刷新则等待其完成（最长 15 秒）而不是立即失败。
+// 定时任务常在同一分钟同时触发（如工作日 9 点多个报告），Token 恰好过期时会并发 401
+// → 同时抢刷新，输家若直接放弃整条推送就会失败（2026-10-08 每日bug 线上故障根因）。
+func (c *Client) refreshOrWait(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if c.refreshing.CompareAndSwap(false, true) {
+		defer c.refreshing.Store(false)
+		_, err := c.doRefreshToken()
+		return err
+	}
+	for i := 0; i < 150; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		time.Sleep(100 * time.Millisecond)
+		if !c.refreshing.Load() {
+			// 持锁者已完成刷新（无论成败），调用方用新 Token 重试
+			return nil
+		}
+	}
+	return fmt.Errorf("等待其他协程完成Token刷新超时（15s）")
+}
+
 func (c *Client) withTokenRetry(operation string, call func(*zentao.Client) error) error {
 	if _, err := c.getToken(); err != nil {
 		return err
@@ -276,7 +303,7 @@ func (c *Client) withTokenRetry(operation string, call func(*zentao.Client) erro
 		zap.Error(err),
 	)
 
-	if _, refreshErr := c.RefreshToken(); refreshErr != nil {
+	if refreshErr := c.refreshOrWait(nil); refreshErr != nil {
 		return fmt.Errorf("%s失败，刷新Token失败: %w，原始错误: %v", operation, refreshErr, err)
 	}
 
@@ -317,7 +344,7 @@ func (c *Client) withTokenRetryContext(ctx context.Context, operation string, ca
 		zap.Error(err),
 	)
 
-	if _, refreshErr := c.RefreshToken(); refreshErr != nil {
+	if refreshErr := c.refreshOrWait(ctx); refreshErr != nil {
 		return fmt.Errorf("%s失败，刷新Token失败: %w，原始错误: %v", operation, refreshErr, err)
 	}
 

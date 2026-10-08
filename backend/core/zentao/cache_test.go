@@ -91,3 +91,30 @@ func TestGetOrLoadWithLockKeyIsolation(t *testing.T) {
 		t.Fatalf("同 key 并发加载应去重为 1 次, 实际 %d 次", n)
 	}
 }
+
+// 回归：并发 401 时 RefreshToken 的 CAS 输家不应立即报"刷新进行中"放弃，
+// 而应等待持锁者完成后复用结果（2026-10-08 每日bug 定时推送线上故障）。
+func TestRefreshOrWaitWaitsForInFlightRefresh(t *testing.T) {
+	c := NewClient("", "", "")
+	c.refreshing.Store(true) // 模拟另一协程正在刷新
+
+	done := make(chan error, 1)
+	go func() { done <- c.refreshOrWait(nil) }()
+
+	time.Sleep(300 * time.Millisecond)
+	select {
+	case err := <-done:
+		t.Fatalf("持锁未释放时不应返回: %v", err)
+	default:
+	}
+
+	c.refreshing.Store(false) // 持锁者完成
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("等待刷新完成后应返回 nil: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("refreshOrWait 未在持锁者完成后及时返回")
+	}
+}
