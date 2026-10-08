@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/yi-nology/common/biz/zentao"
@@ -314,4 +315,61 @@ func TestBugService_VOTypes(t *testing.T) {
 
 	// Verify type assertion works
 	var _ vo.BugVO = voItem
+}
+
+// TestFilterBugChain_Severity（v1.5.0 MCP 扩面配套）：severity 在模型里是
+// interface{}（JSON 数字/字符串双形态），过滤须归一后比较；0=不过滤。
+func TestFilterBugChain_Severity(t *testing.T) {
+	bugs := []zentao.Bug{
+		{ID: 1, Severity: float64(2), AssignedTo: zentao.UserRef{Account: "zhangyi01"}},
+		{ID: 2, Severity: "2", AssignedTo: zentao.UserRef{Account: "zhangyi01"}},
+		{ID: 3, Severity: float64(3), AssignedTo: zentao.UserRef{Account: "zhangyi01"}},
+		{ID: 4, Severity: nil, AssignedTo: zentao.UserRef{Account: "zhangyi01"}},
+	}
+	query := &dto.BugQueryDTO{Severity: 2}
+	got := filterBugChain(bugs, query).Result()
+	if len(got) != 2 || got[0].ID != 1 || got[1].ID != 2 {
+		t.Fatalf("severity=2 应命中数字与字符串双形态两条，实得 %d 条", len(got))
+	}
+
+	query = &dto.BugQueryDTO{}
+	if got = filterBugChain(bugs, query).Result(); len(got) != 4 {
+		t.Fatalf("severity=0 应不过滤，实得 %d 条", len(got))
+	}
+}
+
+// TestBugService_LiteSteps（v1.5.0）：Lite 列表剥 HTML 标签+折叠空白，超 300 字符
+// 截断带指引标记——MCP 列表面不再背完整富文本（实弹 689KB 截断根因）。
+func TestBugService_LiteSteps(t *testing.T) {
+	long := "<p>" + string([]rune("重现步骤一二三四五六七八九十")) + "<br/></p><pre>" +
+		string([]rune("长堆栈信息")) + " a=b</pre>"
+	for len([]rune(long)) < 500 {
+		long += "补"
+	}
+	bug := zentao.Bug{ID: 1, Title: "t", Steps: long}
+	service := &BugService{client: nil}
+
+	full := service.convertToVO([]zentao.Bug{bug})
+	if full[0].Steps != long {
+		t.Fatalf("非 Lite 形态 Steps 应原样保留")
+	}
+
+	list := service.convertToVO([]zentao.Bug{bug})
+	applyLiteSteps(list)
+	lite := list[0].Steps
+	if strings.Contains(lite, "<p>") || strings.Contains(lite, "<br/>") {
+		t.Fatalf("Lite Steps 应剥 HTML 标签: %q", lite[:80])
+	}
+	if len([]rune(lite)) > 340 {
+		t.Fatalf("Lite Steps 应截断至 ~300 字: %d", len([]rune(lite)))
+	}
+	if !strings.Contains(lite, "get_bug") {
+		t.Fatalf("Lite 截断应带 get_bug 指引标记: %q", lite[len(lite)-40:])
+	}
+
+	short := service.convertToVO([]zentao.Bug{zentao.Bug{ID: 2, Steps: "<p>第一步 打开页面</p>"}})
+	applyLiteSteps(short)
+	if short[0].Steps != "第一步 打开页面" {
+		t.Fatalf("短 steps 应剥标签保留全文: %q", short[0].Steps)
+	}
 }

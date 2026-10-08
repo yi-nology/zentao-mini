@@ -1,6 +1,10 @@
 package service
 
 import (
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/yi-nology/common/biz/zentao"
 
 	"github.com/yi-nology/zentao-mini/backend/core/dto"
@@ -58,6 +62,9 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	paged := chainFilter.Paginate(query.Page, query.PageSize).Result()
 
 	list := s.convertToVO(paged)
+	if query.Lite {
+		applyLiteSteps(list)
+	}
 
 	return &vo.PaginatedVO{
 		List:     list,
@@ -65,6 +72,45 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 		Page:     query.Page,
 		PageSize: query.PageSize,
 	}, nil
+}
+
+// severityToInt 禅道 Bug.severity 是 interface{}（JSON 数字/字符串双形态实弹在案：
+// 上游不同接口返回形态不一），归一为 int；nil/非法值返回 0。
+func severityToInt(v interface{}) int {
+	switch t := v.(type) {
+	case float64:
+		return int(t)
+	case int:
+		return t
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(t))
+		if err != nil {
+			return 0
+		}
+		return n
+	}
+	return 0
+}
+
+// liteSteps 轻量 Steps：剥 HTML 标签、折叠空白、超 300 字符截断并带指引标记。
+// 列表面（MCP）不需要完整富文本——实弹 2026-10-08：单产品 76 条 active 全量
+// steps 即 689KB，超出引擎上下文承载被截断，真正的重现步骤详情应走 get_bug。
+func liteSteps(s string) string {
+	stripped := regexp.MustCompile(`<[^>]*>`).ReplaceAllString(s, " ")
+	stripped = strings.Join(strings.Fields(stripped), " ")
+	const maxLen = 300
+	if len([]rune(stripped)) <= maxLen {
+		return stripped
+	}
+	runes := []rune(stripped)
+	return string(runes[:maxLen]) + "…［步骤已截断，完整重现步骤用 get_bug 按 ID 取］"
+}
+
+// applyLiteSteps 原地轻量化列表 VO 的 Steps 字段。
+func applyLiteSteps(list []vo.BugVO) {
+	for i := range list {
+		list[i].Steps = liteSteps(list[i].Steps)
+	}
 }
 
 // GetBugStatusCounts 返回应用筛选条件后（不分页）的各状态 Bug 数量，供统计卡使用。
@@ -103,6 +149,13 @@ func filterBugChain(bugs []zentao.Bug, query *dto.BugQueryDTO) *utils.ChainFilte
 	if query.AssignedTo != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
 			return item.AssignedTo.Account == query.AssignedTo
+		})
+	}
+
+	// 按严重度筛选（1-5；severity 在模型里是 interface{}，经 severityToInt 归一）
+	if query.Severity != 0 {
+		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+			return severityToInt(item.Severity) == query.Severity
 		})
 	}
 

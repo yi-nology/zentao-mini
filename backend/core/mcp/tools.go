@@ -110,7 +110,7 @@ var Tools = []Tool{
 	{
 		Name:        "get_bugs",
 		Title:       "Bug 列表",
-		Description: "获取 Bug 列表，可按产品 ID 和状态过滤",
+		Description: "获取 Bug 列表，支持产品/状态/指派人/严重度过滤与分页。列表为轻量形态（steps 剥标签截断 300 字），完整重现步骤用 get_bug 按 ID 取；响应带 total，翻页用 page/pageSize 拿全量勿拿首页当全部",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
@@ -121,6 +121,22 @@ var Tools = []Tool{
 				"status": {
 					Type:        "string",
 					Description: "Bug 状态（可选，如 active, resolved, closed）",
+				},
+				"assignedTo": {
+					Type:        "string",
+					Description: "指派人账号（可选，如 zhangyi01；按账号精确匹配）",
+				},
+				"severity": {
+					Type:        "string",
+					Description: "严重度 1-5（可选；禅道口径 1致命/2严重/3普通/4轻微/5建议）",
+				},
+				"page": {
+					Type:        "string",
+					Description: "页码（可选，缺省 1）",
+				},
+				"pageSize": {
+					Type:        "string",
+					Description: "每页条数（可选，缺省 100，上界 100）",
 				},
 			},
 		},

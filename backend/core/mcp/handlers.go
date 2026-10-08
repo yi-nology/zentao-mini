@@ -3,6 +3,7 @@ package mcp
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/yi-nology/zentao-mini/backend/core/dto"
 )
@@ -75,8 +76,10 @@ func (s *MCPServer) handleGetExecutions(params map[string]interface{}) (interfac
 }
 
 // handleGetBugs 获取 Bug 列表.
+// MCP 面缺省 Lite=true（Steps 剥标签截断）——完整重现步骤走 get_bug 按 ID 取；
+// 分页/过滤齐备（assignedTo=账号、severity=1-5），Validate 统一钳制分页上界。
 func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, error) {
-	query := &dto.BugQueryDTO{}
+	query := &dto.BugQueryDTO{Lite: true}
 	if v, ok := params["productId"]; ok {
 		if id, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
 			query.ProductID = id
@@ -85,8 +88,33 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 	if v, ok := params["status"]; ok {
 		query.Status = fmt.Sprintf("%v", v)
 	}
-	query.Page = 1
-	query.PageSize = 100
+	if v, ok := params["assignedTo"]; ok {
+		query.AssignedTo = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if v, ok := params["severity"]; ok {
+		if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil && n >= 1 && n <= 5 {
+			query.Severity = n
+		}
+	}
+	if v, ok := params["page"]; ok {
+		if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
+			query.Page = n
+		}
+	}
+	if v, ok := params["pageSize"]; ok {
+		if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
+			query.PageSize = n
+		}
+	}
+	if query.Page <= 0 {
+		query.Page = 1
+	}
+	if query.PageSize <= 0 {
+		query.PageSize = 100
+	}
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
 
 	result, err := s.bugService.GetBugs(query)
 	if err != nil {
