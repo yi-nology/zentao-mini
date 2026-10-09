@@ -124,6 +124,12 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 	if v, ok := params["resolvedEndDate"]; ok {
 		query.ResolvedEndDate = strings.TrimSpace(fmt.Sprintf("%v", v))
 	}
+	if v, ok := params["closedStartDate"]; ok {
+		query.ClosedStartDate = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if v, ok := params["closedEndDate"]; ok {
+		query.ClosedEndDate = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
 	if query.Page <= 0 {
 		query.Page = 1
 	}

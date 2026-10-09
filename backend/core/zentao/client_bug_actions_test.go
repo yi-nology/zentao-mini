@@ -50,4 +50,23 @@ func TestParseBugActionsResponse(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "非 JSON") {
 		t.Fatalf("HTML 形态应报非 JSON（未登录）: %v", err)
 	}
+
+	// ⑥ data 是 JSON 字符串且内嵌 user-deny-api-getmodel（v1.6.0 实弹 pm.kylin.com 形态，
+	// ZenTao 安全开关拒 api-getModel）：必须显式报错带修复路径，绝不静默当空表。
+	_, err = parseBugActionsResponse(`{"status":"success","data":"{\"locate\":\"https://pm.example.com/user-deny-api-getmodel.json\"}","md5":"x"}`)
+	if err == nil || !strings.Contains(err.Error(), "api-getModel") || !strings.Contains(err.Error(), "禁用") {
+		t.Fatalf("deny 形态应显式报错带修复路径: %v", err)
+	}
+
+	// ⑦ data 是其他重定向字符串：显式报错不吞。
+	_, err = parseBugActionsResponse(`{"status":"success","data":"{\"locate\":\"https://pm.example.com/elsewhere\"}"}`)
+	if err == nil || !strings.Contains(err.Error(), "重定向") {
+		t.Fatalf("重定向形态应显式报错: %v", err)
+	}
+
+	// ⑧ data 是不可识别对象（无动作键值）：显式报错不吞（v1.6.0 静默空表根因收口）。
+	_, err = parseBugActionsResponse(`{"status":"success","data":{"title":"bug","steps":"x"}}`)
+	if err == nil || !strings.Contains(err.Error(), "形态未识别") {
+		t.Fatalf("未识别对象形态应显式报错: %v", err)
+	}
 }

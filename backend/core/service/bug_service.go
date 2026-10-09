@@ -206,6 +206,22 @@ func filterBugChain(bugs []zentao.Bug, query *dto.BugQueryDTO) *utils.ChainFilte
 		})
 	}
 
+	// 按关闭日期窗筛选（closedDate；v1.6.1，215 实弹 sess-1009-zsyb6euc 专家拍板点：
+	// 736 条已关闭 Bug 无 closedDate 过滤参数，「今日关闭数」只能全量翻页——本窗补齐
+	// 第三日期域。注意与 GetBugs 的取数前提：closed 状态 Bug 须 status 过滤/全量含关闭
+	// 接口才返回，纯缺省列表不含 closed）。
+	if query.ClosedStartDate != "" || query.ClosedEndDate != "" {
+		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+			filtered := utils.FilterByDateRange(
+				[]zentao.Bug{item},
+				query.ClosedStartDate,
+				query.ClosedEndDate,
+				func(b zentao.Bug) string { s, _ := b.ClosedDate.(string); return s },
+			)
+			return len(filtered) > 0
+		})
+	}
+
 	return chainFilter
 }
 

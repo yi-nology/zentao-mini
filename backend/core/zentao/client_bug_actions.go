@@ -87,10 +87,15 @@ func (c *Client) doGetBugActions(bugID int) ([]BugAction, error) {
 	return nil, fmt.Errorf("获取动作历史失败（两形态均不可用）: 状态码 %d, 响应: %.200s", lastStatus, lastBody)
 }
 
-// parseBugActionsResponse 容忍三种返回形态：
-//   - api-getModel 成功：{"status":"success","data":{"3":{...},"7":{...}}} 或 data 为数组；
-//   - 空历史：data 为 [] 或 null；
-//   - 失败：{"status":"failed"/"error","message":...}，或返回登录页 HTML（会话失效）。
+// parseBugActionsResponse 容忍多种返回形态，并把「不可用」与「确实为空」显式区分
+// （v1.6.1 实弹教训：pm.kylin.com 站点开启 ZenTao 安全开关后 api-getModel 返回
+// {"status":"success","data":"{\"locate\":\".../user-deny-api-getmodel.json\"}"}——
+// data 是字符串非对象，旧解析器静默吞成空表，专家据此误报「0 次流转」）：
+//   - 成功：{"status":"success","data":{id→action 关联数组}} 或 data 为数组；
+//   - 空历史：data 为 [] / null；
+//   - api-getModel 被站点禁用：data 内嵌 locate→user-deny-api-getmodel（显式报错带修复路径）；
+//   - 其他失败：{"status":"failed"/"error","message":...} 原样透出；
+//   - 登录页 HTML（会话失效）：报非 JSON 供上层重登。
 func parseBugActionsResponse(body string) ([]BugAction, error) {
 	trimmed := strings.TrimSpace(body)
 	if trimmed == "" || trimmed[0] != '{' {
@@ -119,6 +124,19 @@ func parseBugActionsResponse(body string) ([]BugAction, error) {
 		return []BugAction{}, nil
 	}
 
+	// data 是 JSON 字符串（转义的内嵌 JSON）：api-getModel 被拒/重定向形态——
+	// {"status":"success","data":"{\"locate\":\".../user-deny-api-getmodel.json\"}"}。
+	// 显式报错带修复路径，绝不静默当空表（专家据此转告口径不可得的原因）。
+	if raw[0] == '"' {
+		var inner string
+		if err := json.Unmarshal(raw, &inner); err == nil {
+			if strings.Contains(inner, "user-deny-api-getmodel") {
+				return nil, fmt.Errorf("禅道站点已禁用 api-getModel 接口（ZenTao 安全开关，18.3+ 缺省关）：需站点管理员在禅道 config/my.php 设 $config->api->getModel='enable' 或后台安全设置放行后重试；此前流转查询不可用，勿按 0 报数")
+			}
+			return nil, fmt.Errorf("禅道返回重定向而非动作数据: %.200s", inner)
+		}
+	}
+
 	// data 形态一：对象（id→action 的关联数组，禅道惯例）
 	byID := map[string]BugAction{}
 	if err := json.Unmarshal(raw, &byID); err == nil && len(byID) > 0 {
@@ -139,5 +157,7 @@ func parseBugActionsResponse(body string) ([]BugAction, error) {
 	if err := json.Unmarshal(raw, &list); err == nil {
 		return list, nil
 	}
-	return []BugAction{}, nil
+	// data 是对象但既非动作关联数组也无 actions 键：显式报错不吞（实弹纪律——
+	// 「解析不了」必须让上层看见，静默空表=统计口径失真）。
+	return nil, fmt.Errorf("禅道返回形态未识别（data 既非动作数组也非字符串）: %.200s", string(raw))
 }

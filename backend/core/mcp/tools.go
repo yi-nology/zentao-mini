@@ -150,6 +150,14 @@ var Tools = []Tool{
 					Type:        "string",
 					Description: "解决日期止（可选，YYYY-MM-DD，按 resolvedDate 过滤）",
 				},
+				"closedStartDate": {
+					Type:        "string",
+					Description: "关闭日期起（可选，YYYY-MM-DD，按 closedDate 过滤；closed Bug 须搭配 status=closed 或全量含关闭数据）",
+				},
+				"closedEndDate": {
+					Type:        "string",
+					Description: "关闭日期止（可选，YYYY-MM-DD，按 closedDate 过滤）",
+				},
 				"page": {
 					Type:        "string",
 					Description: "页码（可选，缺省 1）",
