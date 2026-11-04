@@ -25,18 +25,7 @@ func InitializeHTTPApp(config *AppConfig) (Application, error) {
 	return nil, nil
 }
 
-// InitializeWailsApp 初始化Wails应用
-// 使用wire自动生成依赖注入代码
-func InitializeWailsApp(config *AppConfig) (Application, error) {
-	wire.Build(
-		provideInitService,
-		provideZentaoClient,
-		provideConfigStore,
-		NewDependencies,
-		provideWailsApp,
-	)
-	return nil, nil
-}
+// InitializeWailsApp 已随桌面模式移除（v1.4.0），唯一入口 InitializeHTTPApp。
 
 func provideInitService(config *AppConfig) *initialization.InitService {
 	return initialization.NewInitService(
@@ -91,9 +80,4 @@ func provideZentaoClient(config *AppConfig, initService *initialization.InitServ
 // provideHTTPApp 提供HTTPApp并绑定到Application接口
 func provideHTTPApp(config *AppConfig, deps *Dependencies) Application {
 	return NewHTTPApp(config, deps)
-}
-
-// provideWailsApp 提供WailsApp并绑定到Application接口
-func provideWailsApp(config *AppConfig, deps *Dependencies) Application {
-	return NewWailsApp(config, deps)
 }

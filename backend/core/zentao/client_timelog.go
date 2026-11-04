@@ -93,13 +93,19 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 		filterExecutionID, _ = strconv.Atoi(executionID)
 	}
 
+	// sdkClient 快照：UpdateConfig 会持写锁整体替换 sdkClient，
+	// 本函数执行期间多次无锁直读会与其构成数据竞争（其余方法均 RLock 快照）
+	c.mu.RLock()
+	sdk := c.sdkClient
+	c.mu.RUnlock()
+
 	productName := fmt.Sprintf("产品%d", prodID)
-	product, err := c.sdkClient.GetProduct(prodID)
+	product, err := sdk.GetProduct(prodID)
 	if err == nil && product != nil {
 		productName = product.Name
 	}
 
-	projectsResponse, err := c.sdkClient.GetProjectsByProduct(prodID, 1, 100)
+	projectsResponse, err := sdk.GetProjectsByProduct(prodID, 1, 100)
 	if err != nil {
 		return nil, fmt.Errorf("获取项目列表失败: %w", err)
 	}
@@ -142,7 +148,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 		for i, proj := range projects {
 			proj := proj
 			execTasks[i] = func() (interface{}, error) {
-				execsResponse, err := c.sdkClient.GetExecutions(proj.ID, 1, 100)
+				execsResponse, err := sdk.GetExecutions(proj.ID, 1, 100)
 				if err != nil {
 					return nil, err
 				}
@@ -176,7 +182,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	for i, ec := range allExecs {
 		ec := ec
 		taskTasks[i] = func() (interface{}, error) {
-			tasksResponse, err := c.sdkClient.GetTasks(ec.Exec.ID, 1, 500)
+			tasksResponse, err := sdk.GetTasks(ec.Exec.ID, 1, 500)
 			if err != nil {
 				return nil, err
 			}
@@ -222,7 +228,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	for i, tc := range allTaskCtx {
 		tc := tc
 		effortTasks[i] = func() (interface{}, error) {
-			efforts, err := c.sdkClient.GetTaskEfforts(tc.Task.ID)
+			efforts, err := sdk.GetTaskEfforts(tc.Task.ID)
 			if err != nil {
 				return nil, err
 			}

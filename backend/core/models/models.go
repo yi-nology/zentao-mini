@@ -124,18 +124,6 @@ type UserRef struct {
 	Realname string `json:"realname"`
 }
 
-// BugSearchParams Bug搜索参数
-type BugSearchParams struct {
-	ProductID  int
-	Status     string
-	AssignedTo string
-	Keyword    string
-	Severity   int
-	Pri        int
-	Limit      int
-	Page       int
-}
-
 // Execution 执行/迭代模型
 type Execution struct {
 	ID      int    `json:"id"`

@@ -32,26 +32,6 @@ func (s *DashboardService) SetCacheService(cs *CacheService) {
 	s.cache = cs
 }
 
-// GetDashboard 获取仪表盘数据
-func (s *DashboardService) GetDashboard(productID int) (*vo.DashboardVO, error) {
-	return s.GetDashboardContext(context.Background(), productID, "", "")
-}
-
-// GetProjectOverview 获取项目概览
-func (s *DashboardService) GetProjectOverview(projectID int) (*vo.ProjectOverviewVO, error) {
-	return s.GetProjectOverviewContext(context.Background(), projectID)
-}
-
-// GetPersonalTimelog 获取个人工时报表
-func (s *DashboardService) GetPersonalTimelog(account string, productID int, dateFrom string, dateTo string, groupBy string) (*vo.PersonalTimelogVO, error) {
-	return s.GetPersonalTimelogContext(context.Background(), account, productID, dateFrom, dateTo, groupBy)
-}
-
-// Search 全局搜索
-func (s *DashboardService) Search(keyword string, productID int, page int, pageSize int) (*vo.SearchVO, error) {
-	return s.SearchContext(context.Background(), keyword, productID, page, pageSize)
-}
-
 // ========== 统计辅助 ==========
 
 func calcBugStats(bugs []zentao.Bug) vo.BugStatsVO {
@@ -195,8 +175,7 @@ func toWeekKey(dateStr string) string {
 // startDate/endDate 为空表示不过滤；格式 YYYY-MM-DD
 // 若注入了 CacheService，优先走缓存：缓存未命中回源后写入；回源失败有过期缓存时 fallback
 func (s *DashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
-	// 缓存键包含日期范围（不同时间范围不共享缓存）
-	cacheKey := fmt.Sprintf("dashboard:%s:%s", startDate, endDate)
+	// 缓存键当前用 productID 区分（日期范围维度待将来精细化）
 	if s.cache != nil && productID > 0 {
 		result, err := s.cache.GetOrLoad(ctx, storage.EntityDashboard, productID, DefaultCacheTTL,
 			func(ctx context.Context) ([]byte, error) {
@@ -209,7 +188,6 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 		if err != nil {
 			return nil, err
 		}
-		_ = cacheKey // cacheKey 用于将来精细化（当前用 productID 区分）
 		var dashboard vo.DashboardVO
 		if err := json.Unmarshal(result.Data, &dashboard); err != nil {
 			return nil, err

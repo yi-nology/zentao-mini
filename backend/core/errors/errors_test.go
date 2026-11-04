@@ -71,9 +71,7 @@ func TestAppError_HTTPStatus(t *testing.T) {
 		{"未授权", CodeUnauthorized, http.StatusUnauthorized},
 		{"禁止访问", CodeForbidden, http.StatusForbidden},
 		{"资源不存在", CodeNotFound, http.StatusNotFound},
-		{"方法不允许", CodeMethodNotAllowed, http.StatusMethodNotAllowed},
 		{"内部错误", CodeInternalError, http.StatusInternalServerError},
-		{"数据库错误", CodeDatabaseError, http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
@@ -118,25 +116,15 @@ func TestWrap(t *testing.T) {
 	}
 }
 
-// TestWrapWithDetails 测试包装错误并添加详细信息
-func TestWrapWithDetails(t *testing.T) {
-	originalErr := fmt.Errorf("原始错误")
-	appErr := WrapWithDetails(CodeInternalError, "服务器错误", originalErr, "详细错误信息")
+// TestWrapNil 测试 Wrap 对 nil 错误的 nil 保护
+func TestWrapNil(t *testing.T) {
+	appErr := Wrap(CodeInternalError, "服务器错误", nil)
 
-	if appErr.Details != "详细错误信息" {
-		t.Errorf("期望 Details=详细错误信息, 实际 Details=%s", appErr.Details)
+	if appErr.Err != nil {
+		t.Errorf("期望 Err=nil, 实际 Err=%v", appErr.Err)
 	}
-}
-
-// TestNewBadRequest 测试创建请求错误
-func TestNewBadRequest(t *testing.T) {
-	appErr := NewBadRequest("请求格式错误")
-
-	if appErr.Code != CodeBadRequest {
-		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeBadRequest, appErr.Code)
-	}
-	if appErr.Message != "请求格式错误" {
-		t.Errorf("期望 Message=请求格式错误, 实际 Message=%s", appErr.Message)
+	if appErr.Message != "服务器错误" {
+		t.Errorf("期望 Message=服务器错误, 实际 Message=%s", appErr.Message)
 	}
 }
 
@@ -161,30 +149,6 @@ func TestNewMissingParam(t *testing.T) {
 	}
 	if appErr.Message != "缺少必要参数: productId" {
 		t.Errorf("期望 Message='缺少必要参数: productId', 实际 Message=%s", appErr.Message)
-	}
-}
-
-// TestNewInvalidID 测试创建ID无效错误
-func TestNewInvalidID(t *testing.T) {
-	appErr := NewInvalidID("产品ID")
-
-	if appErr.Code != CodeInvalidID {
-		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeInvalidID, appErr.Code)
-	}
-	if appErr.Message != "无效的产品ID" {
-		t.Errorf("期望 Message='无效的产品ID', 实际 Message=%s", appErr.Message)
-	}
-}
-
-// TestNewNotFound 测试创建资源不存在错误
-func TestNewNotFound(t *testing.T) {
-	appErr := NewNotFound("产品")
-
-	if appErr.Code != CodeNotFound {
-		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeNotFound, appErr.Code)
-	}
-	if appErr.Message != "产品不存在" {
-		t.Errorf("期望 Message='产品不存在', 实际 Message=%s", appErr.Message)
 	}
 }
 
@@ -214,36 +178,10 @@ func TestExternalError(t *testing.T) {
 	}
 }
 
-// TestDatabaseError 测试创建数据库错误
-func TestDatabaseError(t *testing.T) {
-	originalErr := fmt.Errorf("查询失败")
-	appErr := DatabaseError("查询用户", originalErr)
-
-	if appErr.Code != CodeDatabaseError {
-		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeDatabaseError, appErr.Code)
-	}
-	if appErr.Message != "数据库操作失败: 查询用户" {
-		t.Errorf("期望 Message='数据库操作失败: 查询用户', 实际 Message=%s", appErr.Message)
-	}
-}
-
-// TestIsAppError 测试判断是否为应用错误
-func TestIsAppError(t *testing.T) {
-	appErr := NewBadRequest("请求错误")
-	normalErr := fmt.Errorf("普通错误")
-
-	if !IsAppError(appErr) {
-		t.Errorf("期望 IsAppError(appErr) = true")
-	}
-	if IsAppError(normalErr) {
-		t.Errorf("期望 IsAppError(normalErr) = false")
-	}
-}
-
 // TestGetAppError 测试获取应用错误
 func TestGetAppError(t *testing.T) {
 	t.Run("已经是AppError", func(t *testing.T) {
-		appErr := NewBadRequest("请求错误")
+		appErr := New(CodeBadRequest, "请求错误")
 		result := GetAppError(appErr)
 
 		if result != appErr {

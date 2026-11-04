@@ -61,9 +61,10 @@ type ZentaoConfig struct {
 	Account string `mapstructure:"account"`
 	// 禅道密码
 	Password string `mapstructure:"password"`
-	// Token刷新间隔（小时）
+	// Token刷新间隔（小时）。注意：当前仅校验默认值，client.go 的刷新
+	// ticker 仍硬编码 2h/23h TTL——改此配置无效，接线待 issue 落地。
 	TokenRefreshInterval int `mapstructure:"token_refresh_interval"`
-	// 请求超时时间（秒）
+	// 请求超时时间（秒）。注意：同上，client.go 硬编码 120s，改此配置无效。
 	RequestTimeout int `mapstructure:"request_timeout"`
 }
 
@@ -291,40 +292,6 @@ func Get() *Config {
 	return globalConfig
 }
 
-// GetServerTimeout 获取服务器超时配置（转换为time.Duration）.
-func (c *ServerConfig) GetReadTimeout() time.Duration {
-	return time.Duration(c.ReadTimeout) * time.Second
-}
-
-func (c *ServerConfig) GetWriteTimeout() time.Duration {
-	return time.Duration(c.WriteTimeout) * time.Second
-}
-
 func (c *ServerConfig) GetShutdownTimeout() time.Duration {
 	return time.Duration(c.ShutdownTimeout) * time.Second
-}
-
-// GetZentaoTimeout 获取禅道请求超时配置.
-func (c *ZentaoConfig) GetRequestTimeout() time.Duration {
-	return time.Duration(c.RequestTimeout) * time.Second
-}
-
-// GetTokenRefreshInterval 获取Token刷新间隔.
-func (c *ZentaoConfig) GetTokenRefreshInterval() time.Duration {
-	return time.Duration(c.TokenRefreshInterval) * time.Hour
-}
-
-// GetBlockDuration 获取限流封禁时长.
-func (c *RateLimitConfig) GetBlockDuration() time.Duration {
-	return time.Duration(c.BlockDurationMinutes) * time.Minute
-}
-
-// IsProduction 是否为生产环境.
-func (c *Config) IsProduction() bool {
-	return c.Log.Format == "json"
-}
-
-// IsDevelopment 是否为开发环境.
-func (c *Config) IsDevelopment() bool {
-	return c.Log.Format == "console"
 }

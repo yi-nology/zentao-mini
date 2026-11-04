@@ -1,7 +1,6 @@
 package zentao
 
 import (
-	"strconv"
 	"sync"
 	"time"
 )
@@ -92,39 +91,12 @@ func (c *MemoryCache) Get(key string) (interface{}, bool) {
 	return item.Value, true
 }
 
-// Delete 删除缓存
-func (c *MemoryCache) Delete(key string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	delete(c.items, key)
-}
-
 // Clear 清空所有缓存
 func (c *MemoryCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.items = make(map[string]*CacheItem)
-}
-
-// GetOrLoad 获取缓存，如果不存在则加载
-func (c *MemoryCache) GetOrLoad(key string, loadFunc func() (interface{}, error), duration time.Duration) (interface{}, error) {
-	// 先尝试从缓存获取
-	if value, exists := c.Get(key); exists {
-		return value, nil
-	}
-
-	// 缓存不存在，执行加载函数
-	value, err := loadFunc()
-	if err != nil {
-		return nil, err
-	}
-
-	// 存入缓存
-	c.Set(key, value, duration)
-
-	return value, nil
 }
 
 // keyLock 返回 key 专属的加载锁（防止缓存击穿时同 key 重复加载）
@@ -184,31 +156,6 @@ func (c *MemoryCache) Size() int {
 	return len(c.items)
 }
 
-// Stats 缓存统计信息
-type CacheStats struct {
-	TotalItems   int
-	ExpiredItems int
-}
-
-// GetStats 获取缓存统计信息
-func (c *MemoryCache) GetStats() CacheStats {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	stats := CacheStats{
-		TotalItems: len(c.items),
-	}
-
-	now := time.Now()
-	for _, item := range c.items {
-		if now.After(item.Expiry) {
-			stats.ExpiredItems++
-		}
-	}
-
-	return stats
-}
-
 // GlobalCache 全局缓存实例
 var GlobalCache = NewMemoryCache()
 
@@ -222,42 +169,6 @@ func (b *CacheKeyBuilder) Build(prefix string, parts ...string) string {
 		key += ":" + part
 	}
 	return key
-}
-
-// ProductCacheKey 产品缓存键
-func (b *CacheKeyBuilder) ProductCacheKey(productID int) string {
-	return b.Build("product", strconv.Itoa(productID))
-}
-
-// ProjectCacheKey 项目缓存键
-func (b *CacheKeyBuilder) ProjectCacheKey(projectID int) string {
-	return b.Build("project", strconv.Itoa(projectID))
-}
-
-// BugsCacheKey Bug缓存键
-func (b *CacheKeyBuilder) BugsCacheKey(productID int, filters ...string) string {
-	parts := []string{"bugs", strconv.Itoa(productID)}
-	parts = append(parts, filters...)
-	return b.Build(parts[0], parts[1:]...)
-}
-
-// StoriesCacheKey 需求缓存键
-func (b *CacheKeyBuilder) StoriesCacheKey(productID int, filters ...string) string {
-	parts := []string{"stories", strconv.Itoa(productID)}
-	parts = append(parts, filters...)
-	return b.Build(parts[0], parts[1:]...)
-}
-
-// TasksCacheKey 任务缓存键
-func (b *CacheKeyBuilder) TasksCacheKey(executionID int, filters ...string) string {
-	parts := []string{"tasks", strconv.Itoa(executionID)}
-	parts = append(parts, filters...)
-	return b.Build(parts[0], parts[1:]...)
-}
-
-// UsersCacheKey 用户缓存键
-func (b *CacheKeyBuilder) UsersCacheKey() string {
-	return "users:all"
 }
 
 // DefaultKeyBuilder 默认键构建器

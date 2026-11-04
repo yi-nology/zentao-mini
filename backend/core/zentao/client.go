@@ -89,11 +89,6 @@ func (c *Client) isTokenExpired() bool {
 	return time.Now().After(expiry)
 }
 
-// IsTokenExpired 检查 Token 是否已过期
-func (c *Client) IsTokenExpired() bool {
-	return c.isTokenExpired()
-}
-
 func (c *Client) getToken() (string, error) {
 	tokenStr := c.token.Get()
 	if tokenStr != "" && !c.isTokenExpired() {

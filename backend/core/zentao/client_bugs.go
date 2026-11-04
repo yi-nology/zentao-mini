@@ -159,35 +159,6 @@ func (c *Client) GetBugsByProject(productID, projectID int, page, pageSize int) 
 	return filtered, nil
 }
 
-// GetBugsByStatus 根据状态过滤 Bug 列表
-func (c *Client) GetBugsByStatus(productID int, status string, page, pageSize int) ([]zentao.Bug, error) {
-	bugs, err := c.GetBugs(productID, page, pageSize)
-	if err != nil {
-		return nil, err
-	}
-	filtered := make([]zentao.Bug, 0)
-	for _, bug := range bugs {
-		if bug.Status == status {
-			filtered = append(filtered, bug)
-		}
-	}
-	return filtered, nil
-}
-
-// SearchBugs 搜索 Bug（支持多条件过滤）
-func (c *Client) SearchBugs(params zentao.BugSearchParams) ([]zentao.Bug, error) {
-	var response *zentao.BugListResponse
-	err := c.withTokenRetry("SearchBugs", func(client *zentao.Client) error {
-		var err error
-		response, err = client.SearchBugs(params)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return response.Bugs, nil
-}
-
 // GetBug 获取 Bug 详情
 func (c *Client) GetBug(bugID int) (*zentao.Bug, error) {
 	var result *zentao.Bug
@@ -197,24 +168,6 @@ func (c *Client) GetBug(bugID int) (*zentao.Bug, error) {
 		return err
 	})
 	return result, err
-}
-
-// GetAllBugs 获取产品全部 Bug（自动翻页）
-func (c *Client) GetAllBugs(productID int) ([]zentao.Bug, error) {
-	var all []zentao.Bug
-	page := 1
-	for {
-		bugs, err := c.GetBugs(productID, page, 100)
-		if err != nil {
-			return all, err
-		}
-		all = append(all, bugs...)
-		if len(bugs) < 100 {
-			break
-		}
-		page++
-	}
-	return all, nil
 }
 
 // GetAllBugsIncludeClosed 获取产品全部 Bug（含 closed 状态）
@@ -271,11 +224,6 @@ func (c *Client) GetAllBugsIncludeClosed(productID int) ([]zentao.Bug, error) {
 		page++
 	}
 	return all, nil
-}
-
-// GetAllBugsByProject 获取项目全部 Bug
-func (c *Client) GetAllBugsByProject(projectID int) ([]zentao.Bug, error) {
-	return c.GetAllBugsByProjectWithProduct(0, projectID)
 }
 
 // GetAllBugsByProjectWithProduct 获取项目全部 Bug（指定产品ID）

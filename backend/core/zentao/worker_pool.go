@@ -96,25 +96,6 @@ func (p *WorkerPool) Submit(task Task) bool {
 	}
 }
 
-// SubmitWithResult 提交任务并等待结果
-func (p *WorkerPool) SubmitWithResult(task Task) (interface{}, error) {
-	if !p.Submit(task) {
-		return nil, p.ctx.Err()
-	}
-
-	select {
-	case <-p.ctx.Done():
-		return nil, p.ctx.Err()
-	case result := <-p.resultChan:
-		return result.Value, result.Error
-	}
-}
-
-// Results 获取结果通道
-func (p *WorkerPool) Results() <-chan TaskResult {
-	return p.resultChan
-}
-
 // Shutdown 优雅关闭工作池
 func (p *WorkerPool) Shutdown() {
 	p.cancel()
@@ -149,63 +130,4 @@ func (p *WorkerPool) ProcessBatch(tasks []Task) []TaskResult {
 	}
 
 	return results
-}
-
-// ProcessBatchWithCallback 批量处理任务并使用回调处理结果
-// tasks: 任务列表
-// callback: 结果回调函数
-func (p *WorkerPool) ProcessBatchWithCallback(tasks []Task, callback func(result TaskResult)) {
-	// 提交所有任务
-	for _, task := range tasks {
-		if !p.Submit(task) {
-			log.Printf("[WorkerPool] Failed to submit task: context cancelled")
-			break
-		}
-	}
-
-	// 收集并处理结果
-	for i := 0; i < len(tasks); i++ {
-		select {
-		case <-p.ctx.Done():
-			callback(TaskResult{Error: p.ctx.Err()})
-			return
-		case result := <-p.resultChan:
-			callback(result)
-		}
-	}
-}
-
-// ParallelExecute 并行执行多个任务并收集结果
-// 这是一个便捷方法，适用于简单的并行场景
-func ParallelExecute(tasks []Task, workers int) []TaskResult {
-	if len(tasks) == 0 {
-		return []TaskResult{}
-	}
-
-	// 如果任务数少于工作协程数，调整工作协程数
-	if len(tasks) < workers {
-		workers = len(tasks)
-	}
-
-	pool := NewWorkerPool(workers, len(tasks))
-	defer pool.Shutdown()
-
-	return pool.ProcessBatch(tasks)
-}
-
-// ParallelExecuteWithCallback 并行执行任务并通过回调处理结果
-func ParallelExecuteWithCallback(tasks []Task, workers int, callback func(result TaskResult)) {
-	if len(tasks) == 0 {
-		return
-	}
-
-	// 如果任务数少于工作协程数，调整工作协程数
-	if len(tasks) < workers {
-		workers = len(tasks)
-	}
-
-	pool := NewWorkerPool(workers, len(tasks))
-	defer pool.Shutdown()
-
-	pool.ProcessBatchWithCallback(tasks, callback)
 }
