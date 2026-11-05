@@ -131,6 +131,41 @@ func (c *Client) AddBugComment(bugID int, comment string) error {
 	return nil
 }
 
+// postWebBugForm 是 doAddBugComment 与 doWebBugFormAction 的公共骨架：
+// PATH_INFO 风格为主、GET 风格兜底的双目标 POST（表单编码 + Referer +
+// XHR 头），200 且应答非 fail 即成功；404/405 是路由形态不对——试下一个
+// 目标，其余状态码直接停。verb 只进错误文案。
+func (c *Client) postWebBugForm(server string, bugID int, verb string, targets []string, form url.Values, s *webSession) error {
+	var lastBody string
+	var lastStatus int
+	for _, target := range targets {
+		req, err := http.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Referer", fmt.Sprintf("%s/bug-view-%d.html", server, bugID))
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
+
+		resp, err := c.webHTTPClient(s).Do(req)
+		if err != nil {
+			return fmt.Errorf("提交 %s 请求失败: %w", verb, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		lastBody, lastStatus = string(body), resp.StatusCode
+
+		if resp.StatusCode == http.StatusOK && !commentResponseIndicatesFailure(body) {
+			return nil
+		}
+		// 404/405：路由形态不对，试下一个目标；其他状态码直接报错
+		if resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusMethodNotAllowed {
+			break
+		}
+	}
+	return fmt.Errorf("禅道 %s 操作失败, 状态码: %d, 响应: %.200s", verb, lastStatus, lastBody)
+}
+
 func (c *Client) doAddBugComment(bugID int, comment string) error {
 	c.mu.RLock()
 	server := c.server
@@ -149,41 +184,19 @@ func (c *Client) doAddBugComment(bugID int, comment string) error {
 		fmt.Sprintf("%s/action-comment-bug-%d.html", server, bugID),
 		fmt.Sprintf("%s/index.php?m=action&f=comment&objectType=bug&objectID=%d", server, bugID),
 	}
-
-	var lastBody string
-	var lastStatus int
-	for _, target := range targets {
-		form := url.Values{}
-		form.Set("comment", comment)
-		req, err := http.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Header.Set("Referer", fmt.Sprintf("%s/bug-view-%d.html", server, bugID))
-		req.Header.Set("X-Requested-With", "XMLHttpRequest")
-
-		resp, err := c.webHTTPClient(s).Do(req)
-		if err != nil {
-			return fmt.Errorf("提交评论请求失败: %w", err)
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		lastBody, lastStatus = string(body), resp.StatusCode
-
-		if resp.StatusCode == http.StatusOK && !commentResponseIndicatesFailure(body) {
-			return nil
-		}
-		// 404/405：路由形态不对，试下一个目标；其他状态码直接报错
-		if resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusMethodNotAllowed {
-			break
-		}
+	form := url.Values{}
+	form.Set("comment", comment)
+	err = c.postWebBugForm(server, bugID, "评论", targets, form, s)
+	if err == nil {
+		return nil
 	}
-
-	if lastStatus == http.StatusForbidden || strings.Contains(lastBody, "accessDenied") || strings.Contains(lastBody, "已禁止") {
+	// 评论路径在通用失败之外多一层权限判定：403 / accessDenied / 已禁止
+	// 读成「无权限」，不是泛泛的「提交失败」。
+	errText := err.Error()
+	if strings.Contains(errText, "403") || strings.Contains(errText, "accessDenied") || strings.Contains(errText, "已禁止") {
 		return fmt.Errorf("禅道拒绝了评论操作（无权限）")
 	}
-	return fmt.Errorf("提交评论失败, 状态码: %d, 响应: %.200s", lastStatus, lastBody)
+	return err
 }
 
 func commentResponseIndicatesFailure(body []byte) bool {
@@ -242,31 +255,5 @@ func (c *Client) doWebBugFormAction(bugID int, action string, form url.Values) e
 		fmt.Sprintf("%s/bug-%s-%d.html", server, action, bugID),
 		fmt.Sprintf("%s/index.php?m=bug&f=%s&bugID=%d", server, action, bugID),
 	}
-	var lastBody string
-	var lastStatus int
-	for _, target := range targets {
-		req, err := http.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Header.Set("Referer", fmt.Sprintf("%s/bug-view-%d.html", server, bugID))
-		req.Header.Set("X-Requested-With", "XMLHttpRequest")
-
-		resp, err := c.webHTTPClient(s).Do(req)
-		if err != nil {
-			return fmt.Errorf("提交 %s 请求失败: %w", action, err)
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		lastBody, lastStatus = string(body), resp.StatusCode
-
-		if resp.StatusCode == http.StatusOK && !commentResponseIndicatesFailure(body) {
-			return nil
-		}
-		if resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusMethodNotAllowed {
-			break
-		}
-	}
-	return fmt.Errorf("禅道 %s 操作失败, 状态码: %d, 响应: %.200s", action, lastStatus, lastBody)
+	return c.postWebBugForm(server, bugID, action, targets, form, s)
 }
