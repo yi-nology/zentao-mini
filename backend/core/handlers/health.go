@@ -172,9 +172,10 @@ func (h *HealthHandler) checkZentao() CheckItem {
 	}
 }
 
-func (h *HealthHandler) checkProducts() CheckItem {
-	start := time.Now()
-	products, err := h.productService.GetProducts()
+// runCheck 统一的检查项执行骨架：计时、失败带错误文本、成功带计数。
+// 八个 checkX 的形状完全同构（start → 调用 → fail/ok 两分支），此处收口。
+func runCheck(start time.Time, fn func() (int, string, error)) CheckItem {
+	count, message, err := fn()
 	if err != nil {
 		return CheckItem{
 			Status:    "fail",
@@ -184,46 +185,53 @@ func (h *HealthHandler) checkProducts() CheckItem {
 	}
 	return CheckItem{
 		Status:    "ok",
-		Count:     len(products),
-		Message:   "正常",
+		Count:     count,
+		Message:   message,
 		LatencyMs: time.Since(start).Milliseconds(),
 	}
+}
+
+func (h *HealthHandler) checkProducts() CheckItem {
+	return runCheck(time.Now(), func() (int, string, error) {
+		products, err := h.productService.GetProducts()
+		return len(products), "正常", err
+	})
 }
 
 func (h *HealthHandler) checkProjects() CheckItem {
-	start := time.Now()
-	projects, err := h.projectService.GetProjects(&dto.ProjectQueryDTO{})
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     len(projects),
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+	return runCheck(time.Now(), func() (int, string, error) {
+		projects, err := h.projectService.GetProjects(&dto.ProjectQueryDTO{})
+		return len(projects), "正常", err
+	})
 }
 
 func (h *HealthHandler) checkBugs() CheckItem {
-	start := time.Now()
-	result, err := h.bugService.GetBugs(&dto.BugQueryDTO{PageSize: 1})
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
+	return runCheck(time.Now(), func() (int, string, error) {
+		result, err := h.bugService.GetBugs(&dto.BugQueryDTO{PageSize: 1})
+		if err != nil {
+			return 0, "", err
 		}
+		return result.Total, "正常", nil
+	})
+}
+
+// firstProductOrSkip 取第一个产品的 ID 作为「无全局上下文」检查的兜底：
+// 需求/任务接口必须挂在产品或执行下，健康检查没有筛选上下文。
+// skipItem 非空 = 无产品，检查项按「跳过」陈述（不是失败）。
+func (h *HealthHandler) firstProductOrSkip(start time.Time, skipText string) (int, *CheckItem, error) {
+	products, err := h.productService.GetProducts()
+	if err != nil {
+		return 0, nil, fmt.Errorf("获取产品列表失败: %w", err)
 	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     result.Total,
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
+	if len(products) == 0 {
+		return 0, &CheckItem{
+			Status:    "ok",
+			Count:     0,
+			Message:   skipText,
+			LatencyMs: time.Since(start).Milliseconds(),
+		}, nil
 	}
+	return products[0].ID, nil, nil
 }
 
 func (h *HealthHandler) checkStories() CheckItem {
@@ -232,38 +240,22 @@ func (h *HealthHandler) checkStories() CheckItem {
 	// 不传 ID 会被 StoryService 直接拒绝，这里自动取第一个产品兜底
 	query := &dto.StoryQueryDTO{PageSize: 1}
 	if query.ProductID == 0 && query.ProjectID == 0 && query.ExecutionID == 0 {
-		products, err := h.productService.GetProducts()
+		id, skip, err := h.firstProductOrSkip(start, "无产品，跳过需求检查")
 		if err != nil {
-			return CheckItem{
-				Status:    "fail",
-				Message:   "获取产品列表失败: " + err.Error(),
-				LatencyMs: time.Since(start).Milliseconds(),
-			}
+			return CheckItem{Status: "fail", Message: err.Error(), LatencyMs: time.Since(start).Milliseconds()}
 		}
-		if len(products) == 0 {
-			return CheckItem{
-				Status:    "ok",
-				Count:     0,
-				Message:   "无产品，跳过需求检查",
-				LatencyMs: time.Since(start).Milliseconds(),
-			}
+		if skip != nil {
+			return *skip
 		}
-		query.ProductID = products[0].ID
+		query.ProductID = id
 	}
-	result, err := h.storyService.GetStories(query)
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
+	return runCheck(start, func() (int, string, error) {
+		result, err := h.storyService.GetStories(query)
+		if err != nil {
+			return 0, "", err
 		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     result.Total,
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+		return result.Total, "正常", nil
+	})
 }
 
 func (h *HealthHandler) checkTasks() CheckItem {
@@ -272,79 +264,38 @@ func (h *HealthHandler) checkTasks() CheckItem {
 	// 健康检查没有全局筛选上下文，自动取第一个产品兜底
 	query := &dto.TaskQueryDTO{PageSize: 1}
 	if query.ProductID == 0 && query.ExecutionID == 0 {
-		products, err := h.productService.GetProducts()
+		id, skip, err := h.firstProductOrSkip(start, "无产品，跳过任务检查")
 		if err != nil {
-			return CheckItem{
-				Status:    "fail",
-				Message:   "获取产品列表失败: " + err.Error(),
-				LatencyMs: time.Since(start).Milliseconds(),
-			}
+			return CheckItem{Status: "fail", Message: err.Error(), LatencyMs: time.Since(start).Milliseconds()}
 		}
-		if len(products) == 0 {
-			return CheckItem{
-				Status:    "ok",
-				Count:     0,
-				Message:   "无产品，跳过任务检查",
-				LatencyMs: time.Since(start).Milliseconds(),
-			}
+		if skip != nil {
+			return *skip
 		}
-		query.ProductID = products[0].ID
+		query.ProductID = id
 	}
-	result, err := h.taskService.GetTasks(query)
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
+	return runCheck(start, func() (int, string, error) {
+		result, err := h.taskService.GetTasks(query)
+		if err != nil {
+			return 0, "", err
 		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     result.Total,
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+		return result.Total, "正常", nil
+	})
 }
 
 func (h *HealthHandler) checkUsers() CheckItem {
-	start := time.Now()
-	users, err := h.userService.GetUsersAll()
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     len(users),
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+	return runCheck(time.Now(), func() (int, string, error) {
+		users, err := h.userService.GetUsersAll()
+		return len(users), "正常", err
+	})
 }
 
 func (h *HealthHandler) checkScheduler() CheckItem {
-	start := time.Now()
-	if h.schedulerService == nil {
-		return CheckItem{
-			Status:    "ok",
-			Message:   "调度器未初始化",
-			LatencyMs: time.Since(start).Milliseconds(),
+	return runCheck(time.Now(), func() (int, string, error) {
+		if h.schedulerService == nil {
+			// 未装配调度器不是失败：这个部署形态没有它，检查项如实说。
+			return 0, "调度器未初始化", nil
 		}
-	}
-	tasks, err := h.schedulerService.ListTasks()
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     len(tasks),
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+		tasks, err := h.schedulerService.ListTasks()
+		return len(tasks), "正常", err
+	})
 }
