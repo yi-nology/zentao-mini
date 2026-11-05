@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -160,20 +159,9 @@ func buildDailyCheckReport(
 		details = append(details, stat)
 	}
 
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		if len(details[i].MissingDays) != len(details[j].MissingDays) {
-			return len(details[i].MissingDays) > len(details[j].MissingDays)
-		}
-		return details[i].Assignee < details[j].Assignee
+	// 排序语义与五份报告同一条（report_dedupe.go）；第二键这里是缺勤天数。
+	sortAssigneeDetails(details, priorityAssignees, func(d *models.AssigneeDailyCheckStats) (string, string, int) {
+		return d.Assignee, d.Account, len(d.MissingDays)
 	})
 
 	detailURL := buildViewURL(viewURL, "/timelog", map[string]string{
