@@ -30,13 +30,38 @@ func (s *MCPServer) handleGetProducts(_ map[string]interface{}) (interface{}, er
 	}, nil
 }
 
+// intFromParams 取整型参数：JSON 数字反序列化为 float64，fmt %v 会输出
+// 科学计数法（1000000 → "1e+06"，Atoi 直接失败）——数字先走整型转换，
+// 字符串再走 Atoi。 handlers_write.go 的 bugIDFromParams 是同一形状的
+// 必填版；这里是可选版（缺参/非法返回 0 与 false，调用方保持零值）。
+func optionalIntFromParams(params map[string]interface{}, key string) (int, bool) {
+	v, ok := params[key]
+	if !ok {
+		return 0, false
+	}
+	if f, ok := v.(float64); ok {
+		return int(f), true
+	}
+	if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
+		return n, true
+	}
+	return 0, false
+}
+
+// optionalIntRangeFromParams 同上，附带值域钳制（超出范围视同未提供）。
+func optionalIntRangeFromParams(params map[string]interface{}, key string, lo, hi int) (int, bool) {
+	n, ok := optionalIntFromParams(params, key)
+	if !ok || n < lo || n > hi {
+		return 0, false
+	}
+	return n, true
+}
+
 // handleGetProjects 获取项目列表.
 func (s *MCPServer) handleGetProjects(params map[string]interface{}) (interface{}, error) {
 	query := &dto.ProjectQueryDTO{}
-	if v, ok := params["productId"]; ok {
-		if id, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.ProductID = id
-		}
+	if n, ok := optionalIntFromParams(params, "productId"); ok {
+		query.ProductID = n
 	}
 
 	result, err := s.projectService.GetProjects(query)
@@ -53,15 +78,11 @@ func (s *MCPServer) handleGetProjects(params map[string]interface{}) (interface{
 // handleGetExecutions 获取执行/迭代列表.
 func (s *MCPServer) handleGetExecutions(params map[string]interface{}) (interface{}, error) {
 	query := &dto.ExecutionQueryDTO{}
-	if v, ok := params["projectId"]; ok {
-		if id, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.ProjectID = id
-		}
+	if n, ok := optionalIntFromParams(params, "projectId"); ok {
+		query.ProjectID = n
 	}
-	if v, ok := params["productId"]; ok {
-		if id, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.ProductID = id
-		}
+	if n, ok := optionalIntFromParams(params, "productId"); ok {
+		query.ProductID = n
 	}
 
 	result, err := s.executionService.GetExecutions(query)
@@ -80,10 +101,8 @@ func (s *MCPServer) handleGetExecutions(params map[string]interface{}) (interfac
 // 分页/过滤齐备（assignedTo=账号、severity=1-5），Validate 统一钳制分页上界。
 func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, error) {
 	query := &dto.BugQueryDTO{Lite: true}
-	if v, ok := params["productId"]; ok {
-		if id, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.ProductID = id
-		}
+	if n, ok := optionalIntFromParams(params, "productId"); ok {
+		query.ProductID = n
 	}
 	if v, ok := params["status"]; ok {
 		query.Status = fmt.Sprintf("%v", v)
@@ -91,20 +110,14 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 	if v, ok := params["assignedTo"]; ok {
 		query.AssignedTo = strings.TrimSpace(fmt.Sprintf("%v", v))
 	}
-	if v, ok := params["severity"]; ok {
-		if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil && n >= 1 && n <= 5 {
-			query.Severity = n
-		}
+	if n, ok := optionalIntRangeFromParams(params, "severity", 1, 5); ok {
+		query.Severity = n
 	}
-	if v, ok := params["page"]; ok {
-		if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.Page = n
-		}
+	if n, ok := optionalIntFromParams(params, "page"); ok {
+		query.Page = n
 	}
-	if v, ok := params["pageSize"]; ok {
-		if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.PageSize = n
-		}
+	if n, ok := optionalIntFromParams(params, "pageSize"); ok {
+		query.PageSize = n
 	}
 	// 日期窗（扁鹊批次二百三十四）：startDate/endDate 作用于 openedDate（创建），
 	// resolvedStartDate/resolvedEndDate 作用于 resolvedDate（解决）——「今天新增多少/
@@ -154,10 +167,8 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 // handleGetStories 获取需求列表.
 func (s *MCPServer) handleGetStories(params map[string]interface{}) (interface{}, error) {
 	query := &dto.StoryQueryDTO{}
-	if v, ok := params["productId"]; ok {
-		if id, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.ProductID = id
-		}
+	if n, ok := optionalIntFromParams(params, "productId"); ok {
+		query.ProductID = n
 	}
 	query.Page = 1
 	query.PageSize = 100
@@ -176,15 +187,11 @@ func (s *MCPServer) handleGetStories(params map[string]interface{}) (interface{}
 // handleGetTasks 获取任务列表.
 func (s *MCPServer) handleGetTasks(params map[string]interface{}) (interface{}, error) {
 	query := &dto.TaskQueryDTO{}
-	if v, ok := params["productId"]; ok {
-		if id, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.ProductID = id
-		}
+	if n, ok := optionalIntFromParams(params, "productId"); ok {
+		query.ProductID = n
 	}
-	if v, ok := params["executionId"]; ok {
-		if id, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			query.ExecutionID = id
-		}
+	if n, ok := optionalIntFromParams(params, "executionId"); ok {
+		query.ExecutionID = n
 	}
 	query.Page = 1
 	query.PageSize = 100
