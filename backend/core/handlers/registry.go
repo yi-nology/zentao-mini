@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"log"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"go.uber.org/zap"
 
 	"github.com/yi-nology/zentao-mini/backend/core/initialization"
 	"github.com/yi-nology/zentao-mini/backend/core/service"
@@ -83,7 +84,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	// 初始化 SQLite 缓存层（离线模式用）
 	cacheStore, err := storage.NewSQLiteStore("")
 	if err != nil {
-		log.Printf("Warning: failed to init SQLite cache store: %v (offline mode disabled)", err)
+		logger.Warn("failed to init SQLite cache store (offline mode disabled)", zap.Error(err))
 	} else {
 		registry.cacheStore = cacheStore
 		registry.cacheService = service.NewCacheService(cacheStore)
@@ -115,7 +116,7 @@ func (r *HandlerRegistry) InitScheduler(store *initialization.ConfigStore) {
 	r.schedulerHandler = NewSchedulerHandler(r.schedulerService, r.webhookService, r.reportService)
 	r.healthHandler.SetSchedulerService(r.schedulerService)
 	if err := r.schedulerService.Start(); err != nil {
-		log.Printf("Failed to start scheduler: %v", err)
+		logger.Error("failed to start scheduler", zap.Error(err))
 	}
 }
 
@@ -129,7 +130,7 @@ func (r *HandlerRegistry) StopScheduler() {
 func (r *HandlerRegistry) CloseCache() {
 	if r.cacheStore != nil {
 		if err := r.cacheStore.Close(); err != nil {
-			log.Printf("Failed to close cache store: %v", err)
+			logger.Error("failed to close cache store", zap.Error(err))
 		}
 	}
 }

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	"context"
 	"net/http"
 
@@ -22,6 +24,11 @@ type AppConfig struct {
 	ZentaoServer   string
 	ZentaoAccount  string
 	ZentaoPassword string
+	// ZentaoTokenRefreshInterval token 刷新间隔（秒；0 = client 缺省 12h）。
+	// 从 Config.Zentao.TokenRefreshInterval（小时）×3600 传入。
+	ZentaoTokenRefreshInterval time.Duration
+	// ZentaoRequestTimeout 请求超时（秒；0 = client 缺省 120s）。
+	ZentaoRequestTimeout time.Duration
 
 	AuthDBPath    string
 	EncryptionKey string

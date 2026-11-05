@@ -4,6 +4,8 @@
 package app
 
 import (
+	"time"
+
 	"os"
 
 	"github.com/yi-nology/zentao-mini/backend/core/initialization"
@@ -74,7 +76,12 @@ func provideZentaoClient(config *AppConfig, initService *initialization.InitServ
 		}
 	}
 
-	return zentao.NewClient(zentaoServer, zentaoAccount, zentaoPassword)
+	// 配置面接上（issue：config 读入但未消费 = 配置撒谎）：
+	// yaml 的 zentao.token_refresh_interval（小时）/ request_timeout（秒）
+	// 从此生效；0 = 未配置，取 client 缺省。
+	return zentao.NewClientWithConfig(zentaoServer, zentaoAccount, zentaoPassword,
+		time.Duration(config.ZentaoTokenRefreshInterval)*time.Second,
+		time.Duration(config.ZentaoRequestTimeout)*time.Second)
 }
 
 // provideHTTPApp 提供HTTPApp并绑定到Application接口

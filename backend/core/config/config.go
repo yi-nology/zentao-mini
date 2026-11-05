@@ -61,10 +61,11 @@ type ZentaoConfig struct {
 	Account string `mapstructure:"account"`
 	// 禅道密码
 	Password string `mapstructure:"password"`
-	// Token刷新间隔（小时）。注意：当前仅校验默认值，client.go 的刷新
-	// ticker 仍硬编码 2h/23h TTL——改此配置无效，接线待 issue 落地。
+	// Token刷新间隔（小时）。已接线：provideZentaoClient 经
+	// NewClientWithConfig 透传给 client 的刷新 ticker。
 	TokenRefreshInterval int `mapstructure:"token_refresh_interval"`
-	// 请求超时时间（秒）。注意：同上，client.go 硬编码 120s，改此配置无效。
+	// 请求超时时间（秒）。已接线：NewClientWithConfig 与 UpdateConfig
+	// 重建 sdkClient 时都取这个值。
 	RequestTimeout int `mapstructure:"request_timeout"`
 }
 

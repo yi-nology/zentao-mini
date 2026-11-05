@@ -2,7 +2,8 @@ package errors
 
 import (
 	"context"
-	"log"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"strconv"
@@ -115,7 +116,7 @@ func (rl *RateLimiter) Allow(ip string) (bool, int, time.Time) {
 	if info.Count >= rl.config.RequestsPerMinute {
 		info.Blocked = true
 		info.ResetTime = now.Add(rl.config.BlockDuration)
-		log.Printf("[RATE_LIMIT] IP %s blocked for %v due to exceeding rate limit", ip, rl.config.BlockDuration)
+		logger.Warn("[RATE_LIMIT] IP blocked for exceeding rate limit", zap.String("ip", ip), zap.Duration("block", rl.config.BlockDuration))
 		return false, 0, info.ResetTime
 	}
 
@@ -159,8 +160,7 @@ func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
 		"/api/version":     true,
 	}
 
-	log.Printf("[RATE_LIMIT] Rate limiter initialized: %d requests/minute, block duration: %v",
-		config.RequestsPerMinute, config.BlockDuration)
+	logger.Info("[RATE_LIMIT] rate limiter initialized", zap.Int("rpm", config.RequestsPerMinute), zap.Duration("block", config.BlockDuration))
 
 	return func(ctx context.Context, c *app.RequestContext) {
 		path := string(c.Request.URI().Path())
@@ -178,7 +178,7 @@ func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
 		c.Header("X-RateLimit-Reset", strconv.FormatInt(resetTime.Unix(), 10))
 
 		if !allowed {
-			log.Printf("[RATE_LIMIT] Request blocked from IP: %s, Path: %s", ip, string(c.Request.URI().Path()))
+			logger.Warn("[RATE_LIMIT] request blocked", zap.String("ip", ip), zap.String("path", string(c.Request.URI().Path())))
 			c.JSON(http.StatusTooManyRequests, Response{
 				Code:    http.StatusTooManyRequests,
 				Message: "请求过于频繁，请稍后再试",
