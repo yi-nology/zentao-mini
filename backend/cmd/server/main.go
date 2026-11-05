@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"context"
 	"flag"
 	"fmt"
@@ -61,14 +63,16 @@ func main() {
 
 	// 创建应用配置
 	appConfig := &app.AppConfig{
-		Type:           cfg.Server.Type,
-		Port:           cfg.Server.Port,
-		AuthDBPath:     cfg.Auth.DBPath,
-		EncryptionKey:  cfg.Security.EncryptionKey,
-		ZentaoServer:   cfg.Zentao.Server,
-		ZentaoAccount:  cfg.Zentao.Account,
-		ZentaoPassword: cfg.Zentao.Password,
-		StaticPath:     cfg.Server.StaticPath,
+		Type:                       cfg.Server.Type,
+		Port:                       cfg.Server.Port,
+		AuthDBPath:                 cfg.Auth.DBPath,
+		EncryptionKey:              cfg.Security.EncryptionKey,
+		ZentaoServer:               cfg.Zentao.Server,
+		ZentaoAccount:              cfg.Zentao.Account,
+		ZentaoPassword:             cfg.Zentao.Password,
+		ZentaoTokenRefreshInterval: time.Duration(cfg.Zentao.TokenRefreshInterval) * time.Hour,
+		ZentaoRequestTimeout:       time.Duration(cfg.Zentao.RequestTimeout) * time.Second,
+		StaticPath:                 cfg.Server.StaticPath,
 	}
 
 	// 使用依赖注入初始化应用

@@ -26,16 +26,36 @@ type Client struct {
 	mu          sync.RWMutex
 	connected   atomic.Bool
 	refreshing  atomic.Bool
-	webSession  struct {
+	// refreshInterval / requestTimeout 配置面接进来的两个值（>0 恒成立，
+	// NewClientWithConfig 已归一）。UpdateConfig 重建 sdkClient 时用后者。
+	refreshInterval time.Duration
+	requestTimeout  time.Duration
+	webSession      struct {
 		mu      sync.Mutex
 		session webSession
 	}
 }
 
-const tokenTTL = 23 * time.Hour
+const (
+	tokenTTL = 23 * time.Hour
+	// 缺省值：配置未给（或给的非法）时用——与 config.go 的 SetDefault 同一口径
+	//（token_refresh_interval=12h、request_timeout=120s）。
+	defaultRefreshInterval = 12 * time.Hour
+	defaultRequestTimeout  = 120 * time.Second
+)
 
-// NewClient 创建新的禅道客户端
+// NewClient 创建新的禅道客户端（缺省参数形态：刷新间隔 12h / 请求超时 120s）。
 func NewClient(server, account, password string) *Client {
+	return NewClientWithConfig(server, account, password, 0, 0)
+}
+
+// NewClientWithConfig 创建禅道客户端并把**配置面接上**：token 刷新间隔与
+// 请求超时不再是硬编码——yaml 的 zentao.token_refresh_interval /
+// zentao.request_timeout 从此生效（此前两个字段 viper 读入、setDefaults
+// 校验，client 却写死 2h ticker 与 120s 超时：配置在撒谎）。
+//
+// 零/负值取缺省（refreshInterval=12h，requestTimeout=120s）。
+func NewClientWithConfig(server, account, password string, refreshInterval, requestTimeout time.Duration) *Client {
 	// server 为空时跳过 URL 规范化，避免生成 "http:/" 这样的无效地址；
 	// 后续可通过 UpdateConfig 在用户上传配置后补全。
 	if server != "" {
@@ -45,14 +65,22 @@ func NewClient(server, account, password string) *Client {
 		server = strings.TrimSuffix(server, "/")
 	}
 
+	if refreshInterval <= 0 {
+		refreshInterval = defaultRefreshInterval
+	}
+	if requestTimeout <= 0 {
+		requestTimeout = defaultRequestTimeout
+	}
 	sdkClient := zentao.NewClient(server)
-	sdkClient.SetTimeout(120 * time.Second)
+	sdkClient.SetTimeout(requestTimeout)
 	client := &Client{
-		sdkClient: sdkClient,
-		account:   account,
-		password:  NewSecureString(password),
-		server:    server,
-		token:     NewSecureString(""),
+		sdkClient:       sdkClient,
+		account:         account,
+		password:        NewSecureString(password),
+		server:          server,
+		token:           NewSecureString(""),
+		refreshInterval: refreshInterval,
+		requestTimeout:  requestTimeout,
 	}
 	// 已配置完整凭据时启动即建立连接，
 	// 避免首次打开心跳/仪表盘前 IsConnected() 一直为 false 造成"未连接"误报
@@ -76,7 +104,11 @@ func NewClient(server, account, password string) *Client {
 }
 
 func (c *Client) startTokenRefreshTask() {
-	ticker := time.NewTicker(2 * time.Hour)
+	interval := c.refreshInterval
+	if interval <= 0 {
+		interval = defaultRefreshInterval
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -225,7 +257,7 @@ func (c *Client) UpdateConfig(server, account, password string) error {
 	c.account = account
 	c.password.Set(password)
 	c.sdkClient = zentao.NewClient(server)
-	c.sdkClient.SetTimeout(120 * time.Second)
+	c.sdkClient.SetTimeout(c.requestTimeout)
 	c.token.Set("")
 	c.tokenExpiry.Store(0)
 	c.mu.Unlock()
