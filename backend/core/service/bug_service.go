@@ -135,6 +135,13 @@ func (s *BugService) GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]int,
 }
 
 // filterBugChain 对全量 bug 列表应用查询条件（不含分页），返回链式过滤器.
+// inDayRange 日期落在 [start, end]（闭区间）：日期截前 10 位（去掉时间部分），
+// 空日期一律 false。与 dashboard_service.go 的 isDateInRange 同一形状——
+// 语义只有一份（本谓词委托它），谓词式免掉逐条单元素切片分配。
+func inDayRange(rawDate, startDate, endDate string) bool {
+	return isDateInRange(rawDate, startDate, endDate)
+}
+
 func filterBugChain(bugs []zentao.Bug, query *dto.BugQueryDTO) *utils.ChainFilter[zentao.Bug] {
 	chainFilter := utils.NewChainFilter(bugs)
 
@@ -181,14 +188,14 @@ func filterBugChain(bugs []zentao.Bug, query *dto.BugQueryDTO) *utils.ChainFilte
 	// 按时间范围或具体日期筛选（创建日期 openedDate）
 	if query.StartDate != "" || query.EndDate != "" || query.SpecificDate != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
-			filtered := utils.FilterByDateRangeOrSpecific(
-				[]zentao.Bug{item},
-				query.StartDate,
-				query.EndDate,
-				query.SpecificDate,
-				func(b zentao.Bug) string { s, _ := b.OpenedDate.(string); return s },
-			)
-			return len(filtered) > 0
+			// 谓词式（与 utils.FilterByDateRangeOrSpecific 同语义，免掉
+			// 每条一次的单元素切片分配）：specificDate 优先前缀匹配，
+			// 否则按范围（日期截前 10 位）。
+			date, _ := item.OpenedDate.(string)
+			if query.SpecificDate != "" {
+				return strings.HasPrefix(date, query.SpecificDate)
+			}
+			return inDayRange(date, query.StartDate, query.EndDate)
 		})
 	}
 
@@ -196,13 +203,8 @@ func filterBugChain(bugs []zentao.Bug, query *dto.BugQueryDTO) *utils.ChainFilte
 	// 与 StartDate/EndDate 作用的 openedDate 相互独立可叠加——「今天新增且今天解决」）。
 	if query.ResolvedStartDate != "" || query.ResolvedEndDate != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
-			filtered := utils.FilterByDateRange(
-				[]zentao.Bug{item},
-				query.ResolvedStartDate,
-				query.ResolvedEndDate,
-				func(b zentao.Bug) string { s, _ := b.ResolvedDate.(string); return s },
-			)
-			return len(filtered) > 0
+			date, _ := item.ResolvedDate.(string)
+			return inDayRange(date, query.ResolvedStartDate, query.ResolvedEndDate)
 		})
 	}
 
@@ -212,13 +214,8 @@ func filterBugChain(bugs []zentao.Bug, query *dto.BugQueryDTO) *utils.ChainFilte
 	// 接口才返回，纯缺省列表不含 closed）。
 	if query.ClosedStartDate != "" || query.ClosedEndDate != "" {
 		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
-			filtered := utils.FilterByDateRange(
-				[]zentao.Bug{item},
-				query.ClosedStartDate,
-				query.ClosedEndDate,
-				func(b zentao.Bug) string { s, _ := b.ClosedDate.(string); return s },
-			)
-			return len(filtered) > 0
+			date, _ := item.ClosedDate.(string)
+			return inDayRange(date, query.ClosedStartDate, query.ClosedEndDate)
 		})
 	}
 
