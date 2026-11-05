@@ -59,8 +59,13 @@ func NewClient(server, account, password string) *Client {
 	if server != "" && account != "" {
 		go func() {
 			// NewClient 可能在 logger/metrics 初始化前被调用（如 mcp 入口、单元测试），
-			// 预连接失败或 panic 都不允许带崩进程
-			defer func() { _ = recover() }()
+			// 预连接失败或 panic 都不允许带崩进程。recover 对齐 health.go 的范式：
+			// 吞可以，但要留痕——无日志的 recover 让「初始化路径在崩」变成永远无人知道的事。
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("启动预连接 panic（已吞，进程不受影响）", zap.Any("panic", r))
+				}
+			}()
 			if _, err := client.RefreshToken(); err != nil {
 				logger.Warn("启动时连接禅道失败", zap.Error(err))
 			}

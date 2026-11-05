@@ -399,7 +399,13 @@ func (s *DashboardService) GetProjectOverviewContext(ctx context.Context, projec
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		bugs, _ = s.client.GetAllBugsByProjectContext(ctx, projectID)
+		var err error
+		bugs, err = s.client.GetAllBugsByProjectContext(ctx, projectID)
+		if err != nil {
+			// 禅道不可达时按「空结果」降级而不是让整张看板失败——
+			// 但失败必须留痕：静默变空会让用户把「后端挂了」当成「没有 bug」。
+			logger.Warn("dashboard: fetch bugs failed, degrading to empty", zap.Int("projectID", projectID), zap.Error(err))
+		}
 	}()
 	go func() {
 		defer wg.Done()
@@ -541,7 +547,10 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 		default:
 		}
 
-		bugs, _ := s.client.GetAllBugsContext(ctx, productID)
+		bugs, err := s.client.GetAllBugsContext(ctx, productID)
+		if err != nil {
+			logger.Warn("search: fetch bugs failed, degrading to empty", zap.Int("productID", productID), zap.Error(err))
+		}
 		for _, b := range bugs {
 			if strings.Contains(strings.ToLower(b.Title), kw) {
 				items = append(items, vo.SearchItem{
@@ -560,7 +569,10 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 		default:
 		}
 
-		stories, _ := s.client.GetAllStoriesContext(ctx, productID)
+		stories, err := s.client.GetAllStoriesContext(ctx, productID)
+		if err != nil {
+			logger.Warn("search: fetch stories failed, degrading to empty", zap.Int("productID", productID), zap.Error(err))
+		}
 		for _, st := range stories {
 			if strings.Contains(strings.ToLower(st.Title), kw) {
 				items = append(items, vo.SearchItem{
@@ -579,7 +591,10 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 		default:
 		}
 
-		execCtxs, _ := s.client.GetExecutionsByProductContext(ctx, productID)
+		execCtxs, err := s.client.GetExecutionsByProductContext(ctx, productID)
+		if err != nil {
+			logger.Warn("search: fetch executions failed, degrading to empty", zap.Int("productID", productID), zap.Error(err))
+		}
 		for _, ec := range execCtxs {
 			select {
 			case <-ctx.Done():

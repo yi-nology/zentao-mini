@@ -26,7 +26,7 @@
 
 #### `backend/core/dto/build_dto.go`
 - `BuildQueryDTO` 结构体，包含 ProjectID 和 ExecutionID 字段
-- `Validate()` 方法（当前为空实现）
+- `Validate()` 方法（已实现：标题/描述/状态/优先级等字段的校验）
 
 #### `backend/core/handlers/builds.go`
 - `BuildHandler` 结构体和 `NewBuildHandler` 构造函数

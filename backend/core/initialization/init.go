@@ -10,8 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/yi-nology/zentao-mini/backend/core/logger"
+	"go.uber.org/zap"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 )
@@ -54,7 +55,7 @@ func NewInitService(dbPath, encryptionKey string) *InitService {
 			encryptionKey = os.Getenv("ZENTAO_MINI_SECURITY_ENCRYPTION_KEY")
 		}
 		if encryptionKey == "" {
-			log.Println("WARNING: ZENTAO_ENCRYPTION_KEY not set, deriving key from machine info (not for production)")
+			logger.Warn("ZENTAO_ENCRYPTION_KEY not set, deriving key from machine info (not for production)")
 			hostname, _ := os.Hostname()
 			homeDir, _ := os.UserHomeDir()
 			h := sha256.Sum256([]byte(hostname + ":" + homeDir + ":zentao-mini"))
@@ -296,22 +297,22 @@ func (s *InitService) Encrypt(config *AuthConfig, salt string) (string, string, 
 
 // LoadZentaoConfig 加载禅道配置
 func LoadZentaoConfig(initService *InitService) (string, string, string) {
-	log.Println("Loading zentao config...")
+	logger.Info("loading zentao config")
 
 	authConfig, _, err := initService.LoadAuthConfig()
 	if err == nil && authConfig != nil {
-		log.Println("Config loaded from database successfully")
-		log.Printf("Using database config: Domain=%s, Username=%s", authConfig.Domain, authConfig.Username)
+		logger.Info("config loaded from database")
+		logger.Info("using database config", zap.String("domain", authConfig.Domain), zap.String("username", authConfig.Username))
 		return authConfig.Domain, authConfig.Username, authConfig.Password
 	}
 
-	log.Printf("Failed to load config from database: %v", err)
-	log.Println("Falling back to environment variables")
+	logger.Warn("failed to load config from database", zap.Error(err))
+	logger.Info("falling back to environment variables")
 
 	zentaoServer := os.Getenv("ZENTAO_SERVER")
 	zentaoAccount := os.Getenv("ZENTAO_ACCOUNT")
 	zentaoPassword := os.Getenv("ZENTAO_PASSWORD")
 
-	log.Printf("Using environment variables: Domain=%s, Username=%s", zentaoServer, zentaoAccount)
+	logger.Info("using environment variables", zap.String("domain", zentaoServer), zap.String("username", zentaoAccount))
 	return zentaoServer, zentaoAccount, zentaoPassword
 }

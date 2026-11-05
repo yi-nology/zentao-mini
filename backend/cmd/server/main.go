@@ -52,7 +52,7 @@ func main() {
 		logger.Fatal("Failed to initialize metrics", zap.Error(err))
 	}
 
-	logger.Info("Starting chandao-mini application",
+	logger.Info("Starting zentao-mini application",
 		zap.String("type", cfg.Server.Type),
 		zap.String("port", cfg.Server.Port),
 		zap.String("log_level", cfg.Log.Level),

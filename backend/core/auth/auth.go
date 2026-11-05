@@ -48,12 +48,34 @@ type failureInfo struct {
 // NewManager 创建认证管理器。secret 用于会话令牌签名，
 // 建议传入部署时稳定的随机串（如加密密钥派生值），重启后会话不失效。
 func NewManager(username, password, secret string) *Manager {
-	return &Manager{
+	m := &Manager{
 		username: username,
 		password: password,
 		secret:   []byte(secret),
 		ttl:      defaultSessionTTL,
 		failures: make(map[string]*failureInfo),
+	}
+	// loginFailures 的键是 IP，攻击者扫一轮就是几百个键且 resetTime 一过
+	// 条目就永久失效——不清就是慢性泄漏。与 rate_limit 的 cleanupTask 同一
+	// 形状：周期清掉 resetTime 已过的条目。
+	go m.cleanupLoginFailures()
+	return m
+}
+
+// cleanupLoginFailures 周期清理过期的失败记录（resetTime 已过即失效，
+// 判定处本来就当它不存在）。
+func (m *Manager) cleanupLoginFailures() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		m.mu.Lock()
+		now := time.Now()
+		for ip, info := range m.failures {
+			if now.After(info.resetTime) {
+				delete(m.failures, ip)
+			}
+		}
+		m.mu.Unlock()
 	}
 }
 
