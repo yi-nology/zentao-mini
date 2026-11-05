@@ -160,25 +160,7 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 		details = append(details, *stat)
 	}
 
-	// 构建优先人员集合
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-
-	// 排序：优先人员排前面，然后按 Bug 数量降序
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		if details[i].Total != details[j].Total {
-			return details[i].Total > details[j].Total
-		}
-		// 数量并列时按名字排序，保证每次推送顺序稳定，方便大家日间对比
-		return details[i].Assignee < details[j].Assignee
-	})
+	sortAssigneeDetails(details, priorityAssignees, bugSortKey)
 
 	totalHigh := 0
 	for _, d := range details {
@@ -222,35 +204,17 @@ func bugStatusLabel(statusFilter string) string {
 
 // formatSeverityBreakdown 人员严重度明细：固定顺序、只显示非零档
 func formatSeverityBreakdown(d models.AssigneeBugStats) string {
-	parts := make([]string, 0, 5)
-	for _, p := range []struct {
+	return formatNonzeroCounts([]struct {
 		n int
 		s string
 	}{
 		{d.Fatal, "致命"}, {d.Serious, "严重"}, {d.Moderate, "一般"}, {d.Minor, "轻微"}, {d.Suggest, "建议"},
-	} {
-		if p.n > 0 {
-			parts = append(parts, fmt.Sprintf("%s:%d", p.s, p.n))
-		}
-	}
-	if len(parts) == 0 {
-		return "未分级"
-	}
-	return strings.Join(parts, " ")
+	}, "未分级")
 }
 
 func buildMessage(title string, t time.Time, total int, statusFilter string, details []models.AssigneeBugStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string, detailURL string) string {
 	var sb strings.Builder
-	kw := ""
-	if keyword != "" {
-		kw = fmt.Sprintf("【%s】", keyword)
-	}
-	sb.WriteString(fmt.Sprintf("%s🔴 %s\n", kw, title))
-	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
-	if messageHeader != "" {
-		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
-	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	writeMessageHeader(&sb, "🔴", title, keyword, messageHeader, t)
 
 	totalFatal, totalSerious, totalSuggest := 0, 0, 0
 	for _, d := range details {
@@ -310,22 +274,7 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 
 	assigneeMap := make(map[string]*models.AssigneeStoryStats)
 	for _, st := range stories {
-		name := ""
-		account := ""
-		if ref, ok := st.AssignedTo.(zentao.UserRef); ok {
-			name = ref.Realname
-			account = ref.Account
-		} else if ref, ok := st.AssignedTo.(map[string]interface{}); ok {
-			if v, ok := ref["realname"].(string); ok {
-				name = v
-			}
-			if v, ok := ref["account"].(string); ok {
-				account = v
-			}
-		}
-		if name == "" {
-			name = "未指派"
-		}
+		name, account := assignedToNameAccount(st.AssignedTo)
 		stat, ok := assigneeMap[name]
 		if !ok {
 			stat = &models.AssigneeStoryStats{
@@ -356,25 +305,7 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 		details = append(details, *stat)
 	}
 
-	// 构建优先人员集合
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-
-	// 排序：优先人员排前面，然后按需求数量降序
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		if details[i].Total != details[j].Total {
-			return details[i].Total > details[j].Total
-		}
-		// 数量并列时按名字排序，保证每次推送顺序稳定，方便大家日间对比
-		return details[i].Assignee < details[j].Assignee
-	})
+	sortAssigneeDetails(details, priorityAssignees, storySortKey)
 
 	now := time.Now()
 	title := fmt.Sprintf("需求进度报告 - %s", projectName)
@@ -394,10 +325,7 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 }
 
 // storyStatusLabels 需求状态固定展示顺序与中文标签，避免 map 遍历顺序随机导致每次推送排版不一致。
-var storyStatusLabels = []struct {
-	key   string
-	label string
-}{
+var storyStatusLabels = []breakdownLabel{
 	{"active", "激活"},
 	{"reviewing", "评审中"},
 	{"changed", "已变更"},
@@ -409,63 +337,22 @@ var storyStatusLabels = []struct {
 
 // formatStoryBreakdown 按固定顺序输出需求状态分布，未收录但计数>0 的状态追加在末尾。
 func formatStoryBreakdown(statusBreakdown map[string]int) string {
-	parts := make([]string, 0, len(statusBreakdown))
-	seen := map[string]bool{}
-	for _, s := range storyStatusLabels {
-		if c := statusBreakdown[s.key]; c > 0 {
-			parts = append(parts, fmt.Sprintf("%s %d", s.label, c))
-			seen[s.key] = true
-		}
-	}
-	keys := make([]string, 0, len(statusBreakdown))
-	for k := range statusBreakdown {
-		if !seen[k] {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if c := statusBreakdown[k]; c > 0 {
-			parts = append(parts, fmt.Sprintf("%s %d", k, c))
-		}
-	}
-	if len(parts) == 0 {
-		return "暂无需求"
-	}
-	return strings.Join(parts, " | ")
+	return formatLabeledBreakdown(statusBreakdown, storyStatusLabels, "暂无需求")
 }
 
 // formatStoryDetail 人员需求状态明细：只显示非零档
 func formatStoryDetail(d models.AssigneeStoryStats) string {
-	parts := make([]string, 0, 6)
-	for _, p := range []struct {
+	return formatNonzeroCounts([]struct {
 		n int
 		s string
 	}{
 		{d.Active, "激活"}, {d.Reviewing, "评审中"}, {d.Changed, "变更"}, {d.Resolved, "已解决"}, {d.Accepted, "已验收"}, {d.Closed, "已关闭"},
-	} {
-		if p.n > 0 {
-			parts = append(parts, fmt.Sprintf("%s:%d", p.s, p.n))
-		}
-	}
-	if len(parts) == 0 {
-		return "无状态明细"
-	}
-	return strings.Join(parts, " ")
+	}, "无状态明细")
 }
 
 func buildRequirementMessage(title string, t time.Time, total int, details []models.AssigneeStoryStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string, detailURL string) string {
 	var sb strings.Builder
-	kw := ""
-	if keyword != "" {
-		kw = fmt.Sprintf("【%s】", keyword)
-	}
-	sb.WriteString(fmt.Sprintf("%s📋 %s\n", kw, title))
-	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
-	if messageHeader != "" {
-		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
-	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	writeMessageHeader(&sb, "📋", title, keyword, messageHeader, t)
 	sb.WriteString(fmt.Sprintf("📊 需求总数：%d个\n", total))
 	sb.WriteString(viewLinkLine(detailURL))
 	sb.WriteString("\n")
@@ -517,22 +404,7 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 
 	assigneeMap := make(map[string]*models.TaskProgressStats)
 	for _, t := range tasks {
-		name := ""
-		account := ""
-		if ref, ok := t.AssignedTo.(zentao.UserRef); ok {
-			name = ref.Realname
-			account = ref.Account
-		} else if ref, ok := t.AssignedTo.(map[string]interface{}); ok {
-			if v, ok := ref["realname"].(string); ok {
-				name = v
-			}
-			if v, ok := ref["account"].(string); ok {
-				account = v
-			}
-		}
-		if name == "" {
-			name = "未指派"
-		}
+		name, account := assignedToNameAccount(t.AssignedTo)
 		stat, ok := assigneeMap[name]
 		if !ok {
 			stat = &models.TaskProgressStats{
@@ -572,25 +444,7 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 		details = append(details, *stat)
 	}
 
-	// 构建优先人员集合
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-
-	// 排序：优先人员排前面，然后按任务数量降序
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		if details[i].Total != details[j].Total {
-			return details[i].Total > details[j].Total
-		}
-		// 数量并列时按名字排序，保证每次推送顺序稳定，方便大家日间对比
-		return details[i].Assignee < details[j].Assignee
-	})
+	sortAssigneeDetails(details, priorityAssignees, taskSortKey)
 
 	now := time.Now()
 	title := fmt.Sprintf("任务进度报告 - %s", projectName)
@@ -613,10 +467,7 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 }
 
 // taskStatusLabels 任务状态固定展示顺序与中文标签（含旧数据可能出现的 closed）。
-var taskStatusLabels = []struct {
-	key   string
-	label string
-}{
+var taskStatusLabels = []breakdownLabel{
 	{"wait", "待开始"},
 	{"doing", "进行中"},
 	{"done", "已完成"},
@@ -627,63 +478,22 @@ var taskStatusLabels = []struct {
 
 // formatTaskBreakdown 按固定顺序输出任务状态分布。
 func formatTaskBreakdown(statusBreakdown map[string]int) string {
-	parts := make([]string, 0, len(statusBreakdown))
-	seen := map[string]bool{}
-	for _, s := range taskStatusLabels {
-		if c := statusBreakdown[s.key]; c > 0 {
-			parts = append(parts, fmt.Sprintf("%s %d", s.label, c))
-			seen[s.key] = true
-		}
-	}
-	keys := make([]string, 0, len(statusBreakdown))
-	for k := range statusBreakdown {
-		if !seen[k] {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if c := statusBreakdown[k]; c > 0 {
-			parts = append(parts, fmt.Sprintf("%s %d", k, c))
-		}
-	}
-	if len(parts) == 0 {
-		return "暂无任务"
-	}
-	return strings.Join(parts, " | ")
+	return formatLabeledBreakdown(statusBreakdown, taskStatusLabels, "暂无任务")
 }
 
 // formatTaskDetail 人员任务状态明细：只显示非零档
 func formatTaskDetail(d models.TaskProgressStats) string {
-	parts := make([]string, 0, 5)
-	for _, p := range []struct {
+	return formatNonzeroCounts([]struct {
 		n int
 		s string
 	}{
 		{d.Wait, "待开始"}, {d.Doing, "进行中"}, {d.Done, "已完成"}, {d.Paused, "已暂停"}, {d.Cancelled, "已取消"},
-	} {
-		if p.n > 0 {
-			parts = append(parts, fmt.Sprintf("%s:%d", p.s, p.n))
-		}
-	}
-	if len(parts) == 0 {
-		return "无状态明细"
-	}
-	return strings.Join(parts, " ")
+	}, "无状态明细")
 }
 
 func buildTaskMessage(title string, t time.Time, total int, totalEstimate, totalConsumed, overallProgress float64, details []models.TaskProgressStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string, detailURL string) string {
 	var sb strings.Builder
-	kw := ""
-	if keyword != "" {
-		kw = fmt.Sprintf("【%s】", keyword)
-	}
-	sb.WriteString(fmt.Sprintf("%s✅ %s\n", kw, title))
-	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
-	if messageHeader != "" {
-		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
-	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	writeMessageHeader(&sb, "✅", title, keyword, messageHeader, t)
 	sb.WriteString(fmt.Sprintf("📊 任务总数：%d个 | 整体进度：%.0f%%\n", total, overallProgress))
 	sb.WriteString(fmt.Sprintf("⏱ 预估工时：%.1fh | 已消耗：%.1fh\n", totalEstimate, totalConsumed))
 	sb.WriteString(viewLinkLine(detailURL))
@@ -792,25 +602,7 @@ func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, pro
 		details = append(details, *stat)
 	}
 
-	// 构建优先人员集合
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-
-	// 排序：优先人员排前面，然后按 Bug 数量降序
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		if details[i].Total != details[j].Total {
-			return details[i].Total > details[j].Total
-		}
-		// 数量并列时按名字排序，保证每次推送顺序稳定，方便大家日间对比
-		return details[i].Assignee < details[j].Assignee
-	})
+	sortAssigneeDetails(details, priorityAssignees, agingSortKey)
 
 	total := 0
 	for _, d := range details {
@@ -865,16 +657,7 @@ const agingMaxListPerPerson = 5
 
 func buildBugAgingMessage(title string, t time.Time, total, agingDays int, details []models.AssigneeBugAgingStats, keyword string, externalInfo string, messageHeader string, detailURL string, zentaoBase string) string {
 	var sb strings.Builder
-	kw := ""
-	if keyword != "" {
-		kw = fmt.Sprintf("【%s】", keyword)
-	}
-	sb.WriteString(fmt.Sprintf("%s⏰ %s\n", kw, title))
-	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
-	if messageHeader != "" {
-		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
-	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	writeMessageHeader(&sb, "⏰", title, keyword, messageHeader, t)
 
 	maxDays := 0
 	for _, d := range details {
