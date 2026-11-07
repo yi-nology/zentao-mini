@@ -12,7 +12,7 @@ import (
 func (c *Client) GetTasks(executionID int, page, pageSize int) ([]zentao.Task, error) {
 	cacheKey := DefaultKeyBuilder.Build("zentao:tasks", strconv.Itoa(executionID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
-	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+	return withCachedList(cacheKey, 2*time.Minute, func() ([]zentao.Task, error) {
 		var response *zentao.TaskListResponse
 		err := c.withTokenRetry("GetTasks", func(client *zentao.Client) error {
 			var err error
@@ -23,12 +23,7 @@ func (c *Client) GetTasks(executionID int, page, pageSize int) ([]zentao.Task, e
 			return nil, err
 		}
 		return response.Tasks, nil
-	}, 2*time.Minute)
-
-	if err != nil {
-		return nil, err
-	}
-	return result.([]zentao.Task), nil
+	})
 }
 
 // GetTask 获取任务详情

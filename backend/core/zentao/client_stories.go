@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/oekit/pkg/pagination"
 	"github.com/yi-nology/common/biz/zentao"
 )
 
@@ -12,7 +13,7 @@ import (
 func (c *Client) GetStoriesByProduct(productID int, page, pageSize int) ([]zentao.Story, error) {
 	cacheKey := DefaultKeyBuilder.Build("zentao:stories", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
-	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+	return withCachedList(cacheKey, 2*time.Minute, func() ([]zentao.Story, error) {
 		var response *zentao.StoryListResponse
 		err := c.withTokenRetry("GetStoriesByProduct", func(client *zentao.Client) error {
 			var err error
@@ -23,12 +24,7 @@ func (c *Client) GetStoriesByProduct(productID int, page, pageSize int) ([]zenta
 			return nil, err
 		}
 		return response.Stories, nil
-	}, 2*time.Minute)
-
-	if err != nil {
-		return nil, err
-	}
-	return result.([]zentao.Story), nil
+	})
 }
 
 // GetStoriesByProject 获取项目的需求列表
@@ -70,22 +66,11 @@ func (c *Client) GetStory(storyID int) (*zentao.Story, error) {
 	return result, err
 }
 
-// GetAllStories 获取产品全部需求（自动翻页）
+// GetAllStories 获取产品全部需求（自动翻页，pagination.Walk 短页即末页）
 func (c *Client) GetAllStories(productID int) ([]zentao.Story, error) {
-	var all []zentao.Story
-	page := 1
-	for {
-		stories, err := c.GetStoriesByProduct(productID, page, 100)
-		if err != nil {
-			return all, err
-		}
-		all = append(all, stories...)
-		if len(stories) < 100 {
-			break
-		}
-		page++
-	}
-	return all, nil
+	return pagination.Walk(context.Background(), 100, func(_ context.Context, page int) ([]zentao.Story, error) {
+		return c.GetStoriesByProduct(productID, page, 100)
+	})
 }
 
 // GetAllStoriesByProject 获取项目全部需求（自动翻页）
@@ -124,25 +109,9 @@ func (c *Client) GetStoriesByProductContext(ctx context.Context, productID int, 
 	return response.Stories, nil
 }
 
-// GetAllStoriesContext 获取产品全部需求（支持 context 取消，自动翻页）
+// GetAllStoriesContext 获取产品全部需求（支持 context 取消，pagination.Walk 短页即末页）
 func (c *Client) GetAllStoriesContext(ctx context.Context, productID int) ([]zentao.Story, error) {
-	var all []zentao.Story
-	page := 1
-	for {
-		select {
-		case <-ctx.Done():
-			return all, ctx.Err()
-		default:
-		}
-		stories, err := c.GetStoriesByProductContext(ctx, productID, page, 100)
-		if err != nil {
-			return all, err
-		}
-		all = append(all, stories...)
-		if len(stories) < 100 {
-			break
-		}
-		page++
-	}
-	return all, nil
+	return pagination.Walk(ctx, 100, func(ctx context.Context, page int) ([]zentao.Story, error) {
+		return c.GetStoriesByProductContext(ctx, productID, page, 100)
+	})
 }

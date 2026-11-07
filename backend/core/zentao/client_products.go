@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/oekit/pkg/pagination"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/metrics"
 
@@ -15,7 +16,8 @@ import (
 func (c *Client) GetProducts() ([]zentao.Product, error) {
 	cacheKey := "zentao:products:all"
 
-	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+	metrics.RecordCacheHit("products")
+	return withCachedList(cacheKey, 5*time.Minute, func() ([]zentao.Product, error) {
 		metrics.RecordCacheMiss("products")
 		start := time.Now()
 
@@ -23,36 +25,23 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 			return nil, err
 		}
 
-		var firstPageResponse *zentao.ProductListResponse
-		if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
-			var err error
-			firstPageResponse, err = client.GetProducts(1, 100)
-			return err
-		}); err != nil {
-			metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
-			return nil, err
-		}
-
-		var allProducts []zentao.Product
-		allProducts = append(allProducts, firstPageResponse.Products...)
-
-		total := firstPageResponse.Total
-		pageSize := 100
-		totalPages := (total + pageSize - 1) / pageSize
-
-		if totalPages > 1 {
-			for page := 2; page <= totalPages; page++ {
-				var pageResponse *zentao.ProductListResponse
-				if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
-					var err error
-					pageResponse, err = client.GetProducts(page, pageSize)
-					return err
-				}); err != nil {
-					metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
-					return nil, err
-				}
-				allProducts = append(allProducts, pageResponse.Products...)
+		// 原实现按首页 Total 算 totalPages 逐页走；Walk 的短页即末页在
+		// 同一接口上等价（末页必短），整除边界多一次空页请求
+		const pageSize = 100
+		allProducts, err := pagination.Walk(context.Background(), pageSize, func(_ context.Context, page int) ([]zentao.Product, error) {
+			var pageResponse *zentao.ProductListResponse
+			if err := c.withTokenRetry("GetProducts", func(client *zentao.Client) error {
+				var err error
+				pageResponse, err = client.GetProducts(page, pageSize)
+				return err
+			}); err != nil {
+				metrics.RecordZentaoAPIRequest("products", "GET", time.Since(start), err)
+				return nil, err
 			}
+			return pageResponse.Products, nil
+		})
+		if err != nil {
+			return nil, err
 		}
 
 		duration := time.Since(start)
@@ -65,13 +54,7 @@ func (c *Client) GetProducts() ([]zentao.Product, error) {
 		)
 
 		return allProducts, nil
-	}, 5*time.Minute)
-
-	if err != nil {
-		return nil, err
-	}
-	metrics.RecordCacheHit("products")
-	return result.([]zentao.Product), nil
+	})
 }
 
 // GetProduct 获取产品详情

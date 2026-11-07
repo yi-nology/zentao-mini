@@ -1,8 +1,10 @@
 package zentao
 
 import (
+	"context"
 	"time"
 
+	"github.com/oekit/pkg/pagination"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/metrics"
 
@@ -46,7 +48,7 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 func (c *Client) GetUsersAll() ([]zentao.User, error) {
 	cacheKey := "zentao:users:all"
 
-	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+	return withCachedList(cacheKey, 10*time.Minute, func() ([]zentao.User, error) {
 		metrics.RecordCacheMiss("users")
 		startTime := time.Now()
 
@@ -54,28 +56,20 @@ func (c *Client) GetUsersAll() ([]zentao.User, error) {
 			return nil, err
 		}
 
-		var allUsers []zentao.User
-		currentPage := 1
-		pageSize := 100
-
-		for {
+		allUsers, err := pagination.Walk(context.Background(), 100, func(_ context.Context, page int) ([]zentao.User, error) {
 			var response *zentao.UserListResponse
 			if err := c.withTokenRetry("GetUsers", func(client *zentao.Client) error {
 				var err error
-				response, err = client.GetUsers(currentPage, pageSize)
+				response, err = client.GetUsers(page, 100)
 				return err
 			}); err != nil {
 				metrics.RecordZentaoAPIRequest("users", "GET", time.Since(startTime), err)
 				return nil, err
 			}
-
-			allUsers = append(allUsers, response.Users...)
-
-			if len(response.Users) < pageSize {
-				break
-			}
-
-			currentPage++
+			return response.Users, nil
+		})
+		if err != nil {
+			return nil, err
 		}
 
 		duration := time.Since(startTime)
@@ -88,10 +82,5 @@ func (c *Client) GetUsersAll() ([]zentao.User, error) {
 		)
 
 		return allUsers, nil
-	}, 10*time.Minute)
-
-	if err != nil {
-		return nil, err
-	}
-	return result.([]zentao.User), nil
+	})
 }
