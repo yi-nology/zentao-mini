@@ -173,3 +173,18 @@ func (b *CacheKeyBuilder) Build(prefix string, parts ...string) string {
 
 // DefaultKeyBuilder 默认键构建器
 var DefaultKeyBuilder = &CacheKeyBuilder{}
+
+// withCachedList 缓存装载样板单源（issue #20 第 2 项）：GetOrLoadWithLock 的
+// 「闭包返回 interface{} + 外层类型断言」骨架在 client_products/users/bugs/
+// stories/tasks/projects/executions 七处相同，泛型收编后各站点只声明
+// cacheKey/ttl/load 差异。metrics/log 打点保持各站点原状（products/users
+// 在 load 内自带打点，bugs/stories 等不打），不做静默增删。
+func withCachedList[T any](cacheKey string, ttl time.Duration, load func() ([]T, error)) ([]T, error) {
+	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+		return load()
+	}, ttl)
+	if err != nil {
+		return nil, err
+	}
+	return result.([]T), nil
+}

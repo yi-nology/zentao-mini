@@ -11,6 +11,8 @@ import (
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/metrics"
 
+	"github.com/oekit/pkg/httpjson"
+	"github.com/oekit/pkg/secretx"
 	"github.com/yi-nology/common/biz/zentao"
 	"go.uber.org/zap"
 )
@@ -19,9 +21,9 @@ import (
 type Client struct {
 	sdkClient   *zentao.Client
 	account     string
-	password    *SecureString
+	password    *secretx.SecureString
 	server      string
-	token       *SecureString
+	token       *secretx.SecureString
 	tokenExpiry atomic.Int64
 	mu          sync.RWMutex
 	connected   atomic.Bool
@@ -56,14 +58,10 @@ func NewClient(server, account, password string) *Client {
 //
 // 零/负值取缺省（refreshInterval=12h，requestTimeout=120s）。
 func NewClientWithConfig(server, account, password string, refreshInterval, requestTimeout time.Duration) *Client {
-	// server 为空时跳过 URL 规范化，避免生成 "http:/" 这样的无效地址；
-	// 后续可通过 UpdateConfig 在用户上传配置后补全。
-	if server != "" {
-		if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
-			server = "http://" + server
-		}
-		server = strings.TrimSuffix(server, "/")
-	}
+	// server 为空时 NormalizeBaseURL 原样返回空串（「未配置」语义不被改写），
+	// 非空时补 scheme/去尾斜杠——单源在 pkg/httpjson，此前与 UpdateConfig
+	// 各自内联一份。后续可通过 UpdateConfig 在用户上传配置后补全。
+	server = httpjson.NormalizeBaseURL(server)
 
 	if refreshInterval <= 0 {
 		refreshInterval = defaultRefreshInterval
@@ -76,9 +74,9 @@ func NewClientWithConfig(server, account, password string, refreshInterval, requ
 	client := &Client{
 		sdkClient:       sdkClient,
 		account:         account,
-		password:        NewSecureString(password),
+		password:        secretx.NewSecureString(password),
 		server:          server,
-		token:           NewSecureString(""),
+		token:           secretx.NewSecureString(""),
 		refreshInterval: refreshInterval,
 		requestTimeout:  requestTimeout,
 	}
@@ -247,10 +245,9 @@ func (c *Client) doRefreshToken() (string, error) {
 
 // UpdateConfig 更新客户端配置并异步刷新Token
 func (c *Client) UpdateConfig(server, account, password string) error {
-	if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
-		server = "http://" + server
-	}
-	server = strings.TrimSuffix(server, "/")
+	// 与 NewClientWithConfig 同源：单源 pkg/httpjson.NormalizeBaseURL
+	// （空串原样返回，不再像旧内联版那样把空 server 规范成 "http:/"）
+	server = httpjson.NormalizeBaseURL(server)
 
 	c.mu.Lock()
 	c.server = server

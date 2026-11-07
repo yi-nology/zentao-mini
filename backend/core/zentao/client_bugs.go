@@ -2,7 +2,6 @@ package zentao
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oekit/pkg/pagination"
 	"github.com/yi-nology/common/biz/zentao"
 )
 
@@ -21,7 +21,7 @@ import (
 func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error) {
 	cacheKey := DefaultKeyBuilder.Build("zentao:bugs", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
-	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+	return withCachedList(cacheKey, 2*time.Minute, func() ([]zentao.Bug, error) {
 		var response *zentao.BugListResponse
 		err := c.withTokenRetry("GetBugs", func(client *zentao.Client) error {
 			var err error
@@ -39,12 +39,7 @@ func (c *Client) GetBugs(productID int, page, pageSize int) ([]zentao.Bug, error
 			return nil, err
 		}
 		return response.Bugs, nil
-	}, 2*time.Minute)
-
-	if err != nil {
-		return nil, err
-	}
-	return result.([]zentao.Bug), nil
+	})
 }
 
 func isUnmarshalTypeError(err error) bool {
@@ -69,12 +64,6 @@ func (c *Client) getBugsTolerant(productID, page, pageSize int) (*zentao.BugList
 		return nil, fmt.Errorf("禅道服务器地址为空")
 	}
 
-	httpClient := &http.Client{
-		Timeout: 120 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
 	url := fmt.Sprintf("%s/api.php/v1/products/%d/bugs?page=%d&limit=%d", server, productID, page, pageSize)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -82,7 +71,7 @@ func (c *Client) getBugsTolerant(productID, page, pageSize int) (*zentao.BugList
 	}
 	req.Header.Set("Token", token)
 
-	resp, err := httpClient.Do(req)
+	resp, err := newZentaoHTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求禅道 bug 列表失败: %w", err)
 	}
@@ -172,7 +161,7 @@ func (c *Client) GetBug(bugID int) (*zentao.Bug, error) {
 
 // GetAllBugsIncludeClosed 获取产品全部 Bug（含 closed 状态）
 // 禅道默认 /products/{id}/bugs 接口不返回 closed bug，
-// 需显式传 status=all 才能获取全部状态。自动翻页。
+// 需显式传 status=all 才能获取全部状态。自动翻页（pagination.Walk 短页即末页）。
 func (c *Client) GetAllBugsIncludeClosed(productID int) ([]zentao.Bug, error) {
 	token, err := c.getToken()
 	if err != nil {
@@ -183,75 +172,60 @@ func (c *Client) GetAllBugsIncludeClosed(productID int) ([]zentao.Bug, error) {
 		return nil, fmt.Errorf("禅道服务器地址为空")
 	}
 
-	// 禅道可能使用自签名证书，跳过校验（与上游 SDK doGet 行为一致）
-	httpClient := &http.Client{
-		Timeout: 120 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-	var all []zentao.Bug
-	page := 1
 	const pageSize = 200
-	for {
+	return pagination.Walk(context.Background(), pageSize, func(_ context.Context, page int) ([]zentao.Bug, error) {
 		url := fmt.Sprintf("%s/api.php/v1/products/%d/bugs?page=%d&limit=%d&status=all",
 			server, productID, page, pageSize)
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		if err != nil {
-			return all, err
+			return nil, err
 		}
 		req.Header.Set("Token", token)
 
-		resp, err := httpClient.Do(req)
+		resp, err := newZentaoHTTPClient().Do(req)
 		if err != nil {
-			return all, fmt.Errorf("请求禅道 bug 列表失败: %w", err)
+			return nil, fmt.Errorf("请求禅道 bug 列表失败: %w", err)
 		}
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return all, fmt.Errorf("获取 bug 列表失败, 状态码: %d, 响应: %s", resp.StatusCode, string(body))
+			return nil, fmt.Errorf("获取 bug 列表失败, 状态码: %d, 响应: %s", resp.StatusCode, string(body))
 		}
 
 		var result zentao.BugListResponse
 		if err := json.Unmarshal(body, &result); err != nil {
-			return all, fmt.Errorf("解析 bug 列表失败: %w", err)
+			return nil, fmt.Errorf("解析 bug 列表失败: %w", err)
 		}
-		all = append(all, result.Bugs...)
-		if len(result.Bugs) < pageSize {
-			break
-		}
-		page++
-	}
-	return all, nil
+		return result.Bugs, nil
+	})
 }
 
 // GetAllBugsByProjectWithProduct 获取项目全部 Bug（指定产品ID）
 func (c *Client) GetAllBugsByProjectWithProduct(productID int, projectID int) ([]zentao.Bug, error) {
-	var allBugs []zentao.Bug
-	page := 1
-	for {
-		bugs, err := c.GetBugs(productID, page, 500)
-		if err != nil {
-			return allBugs, err
-		}
-		allBugs = append(allBugs, bugs...)
-		if len(bugs) < 500 {
-			break
-		}
-		page++
+	allBugs, err := pagination.Walk(context.Background(), 500, func(_ context.Context, page int) ([]zentao.Bug, error) {
+		return c.GetBugs(productID, page, 500)
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	if projectID <= 0 {
 		return allBugs, nil
 	}
-	filtered := make([]zentao.Bug, 0, len(allBugs))
-	for _, bug := range allBugs {
+	return filterBugsByProject(allBugs, projectID), nil
+}
+
+// filterBugsByProject 内存过滤 bug.Project == projectID（GetAllBugsByProjectWithProduct
+// 专用；GetBugsByProject 的 projectID 无 <=0 直通语义，保持原样不走这里）。
+func filterBugsByProject(bugs []zentao.Bug, projectID int) []zentao.Bug {
+	filtered := make([]zentao.Bug, 0, len(bugs))
+	for _, bug := range bugs {
 		if bug.Project == projectID {
 			filtered = append(filtered, bug)
 		}
 	}
-	return filtered, nil
+	return filtered
 }
 
 // GetBugsContext 获取 Bug 列表（支持 context 取消）
@@ -275,37 +249,14 @@ func (c *Client) GetBugsContext(ctx context.Context, productID int, page, pageSi
 
 // GetAllBugsContext 获取产品全部 Bug（支持 context 取消，自动翻页）
 func (c *Client) GetAllBugsContext(ctx context.Context, productID int) ([]zentao.Bug, error) {
-	var all []zentao.Bug
-	page := 1
-	for {
-		select {
-		case <-ctx.Done():
-			return all, ctx.Err()
-		default:
-		}
-		bugs, err := c.GetBugsContext(ctx, productID, page, 100)
-		if err != nil {
-			return all, err
-		}
-		all = append(all, bugs...)
-		if len(bugs) < 100 {
-			break
-		}
-		page++
-	}
-	return all, nil
+	return pagination.Walk(ctx, 100, func(ctx context.Context, page int) ([]zentao.Bug, error) {
+		return c.GetBugsContext(ctx, productID, page, 100)
+	})
 }
 
 // GetAllBugsByProjectContext 获取项目全部 Bug（支持 context 取消）
 func (c *Client) GetAllBugsByProjectContext(ctx context.Context, projectID int) ([]zentao.Bug, error) {
-	var all []zentao.Bug
-	page := 1
-	for {
-		select {
-		case <-ctx.Done():
-			return all, ctx.Err()
-		default:
-		}
+	return pagination.Walk(ctx, 100, func(ctx context.Context, page int) ([]zentao.Bug, error) {
 		var response *zentao.BugListResponse
 		err := c.withTokenRetryContext(ctx, "GetBugsByProject", func(client *zentao.Client) error {
 			var err error
@@ -313,13 +264,8 @@ func (c *Client) GetAllBugsByProjectContext(ctx context.Context, projectID int) 
 			return err
 		})
 		if err != nil {
-			return all, err
+			return nil, err
 		}
-		all = append(all, response.Bugs...)
-		if len(response.Bugs) < 100 {
-			break
-		}
-		page++
-	}
-	return all, nil
+		return response.Bugs, nil
+	})
 }

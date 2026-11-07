@@ -26,7 +26,7 @@ func (c *Client) GetAllProjects(limit int) ([]zentao.Project, error) {
 func (c *Client) GetProjectsByProduct(productID int, page, pageSize int) ([]zentao.Project, error) {
 	cacheKey := DefaultKeyBuilder.Build("zentao:projects", strconv.Itoa(productID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
-	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+	return withCachedList(cacheKey, 3*time.Minute, func() ([]zentao.Project, error) {
 		var response *zentao.ProjectListResponse
 		err := c.withTokenRetry("GetProjectsByProduct", func(client *zentao.Client) error {
 			var err error
@@ -37,12 +37,7 @@ func (c *Client) GetProjectsByProduct(productID int, page, pageSize int) ([]zent
 			return nil, err
 		}
 		return response.Projects, nil
-	}, 3*time.Minute)
-
-	if err != nil {
-		return nil, err
-	}
-	return result.([]zentao.Project), nil
+	})
 }
 
 // GetProject 获取项目详情

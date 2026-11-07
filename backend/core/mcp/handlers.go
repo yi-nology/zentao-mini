@@ -34,6 +34,10 @@ func (s *MCPServer) handleGetProducts(_ map[string]interface{}) (interface{}, er
 // 科学计数法（1000000 → "1e+06"，Atoi 直接失败）——数字先走整型转换，
 // 字符串再走 Atoi。 handlers_write.go 的 bugIDFromParams 是同一形状的
 // 必填版；这里是可选版（缺参/非法返回 0 与 false，调用方保持零值）。
+//
+// string 参数一律走 handlers_write.go 的 stringFromParams（issue #20 第 4 项）：
+// DTO 零值即 ""，缺参直接赋零值等价于旧的「存在才赋值」；TrimSpace 语义在
+// 调用点显式保留（status/productId 等不 trim，日期窗/assignedTo trim）。
 func optionalIntFromParams(params map[string]interface{}, key string) (int, bool) {
 	v, ok := params[key]
 	if !ok {
@@ -104,12 +108,8 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 	if n, ok := optionalIntFromParams(params, "productId"); ok {
 		query.ProductID = n
 	}
-	if v, ok := params["status"]; ok {
-		query.Status = fmt.Sprintf("%v", v)
-	}
-	if v, ok := params["assignedTo"]; ok {
-		query.AssignedTo = strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
+	query.Status = stringFromParams(params, "status")
+	query.AssignedTo = strings.TrimSpace(stringFromParams(params, "assignedTo"))
 	if n, ok := optionalIntRangeFromParams(params, "severity", 1, 5); ok {
 		query.Severity = n
 	}
@@ -122,27 +122,13 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 	// 日期窗（扁鹊批次二百三十四）：startDate/endDate 作用于 openedDate（创建），
 	// resolvedStartDate/resolvedEndDate 作用于 resolvedDate（解决）——「今天新增多少/
 	// 解决多少」的承接面；specificDate 与 startDate 同域（单日快写）。YYYY-MM-DD。
-	if v, ok := params["startDate"]; ok {
-		query.StartDate = strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
-	if v, ok := params["endDate"]; ok {
-		query.EndDate = strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
-	if v, ok := params["specificDate"]; ok {
-		query.SpecificDate = strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
-	if v, ok := params["resolvedStartDate"]; ok {
-		query.ResolvedStartDate = strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
-	if v, ok := params["resolvedEndDate"]; ok {
-		query.ResolvedEndDate = strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
-	if v, ok := params["closedStartDate"]; ok {
-		query.ClosedStartDate = strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
-	if v, ok := params["closedEndDate"]; ok {
-		query.ClosedEndDate = strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
+	query.StartDate = strings.TrimSpace(stringFromParams(params, "startDate"))
+	query.EndDate = strings.TrimSpace(stringFromParams(params, "endDate"))
+	query.SpecificDate = strings.TrimSpace(stringFromParams(params, "specificDate"))
+	query.ResolvedStartDate = strings.TrimSpace(stringFromParams(params, "resolvedStartDate"))
+	query.ResolvedEndDate = strings.TrimSpace(stringFromParams(params, "resolvedEndDate"))
+	query.ClosedStartDate = strings.TrimSpace(stringFromParams(params, "closedStartDate"))
+	query.ClosedEndDate = strings.TrimSpace(stringFromParams(params, "closedEndDate"))
 	if query.Page <= 0 {
 		query.Page = 1
 	}
@@ -223,15 +209,9 @@ func (s *MCPServer) handleGetUsers(_ map[string]interface{}) (interface{}, error
 // handleGetTimelog 获取工时数据.
 func (s *MCPServer) handleGetTimelog(params map[string]interface{}) (interface{}, error) {
 	query := &dto.TimelogQueryDTO{}
-	if v, ok := params["productId"]; ok {
-		query.ProductID = fmt.Sprintf("%v", v)
-	}
-	if v, ok := params["dateFrom"]; ok {
-		query.DateFrom = fmt.Sprintf("%v", v)
-	}
-	if v, ok := params["dateTo"]; ok {
-		query.DateTo = fmt.Sprintf("%v", v)
-	}
+	query.ProductID = stringFromParams(params, "productId")
+	query.DateFrom = stringFromParams(params, "dateFrom")
+	query.DateTo = stringFromParams(params, "dateTo")
 
 	result, err := s.timelogService.GetTimelogDashboard(query)
 	if err != nil {

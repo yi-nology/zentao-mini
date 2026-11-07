@@ -12,7 +12,7 @@ import (
 func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Execution, error) {
 	cacheKey := DefaultKeyBuilder.Build("zentao:executions", strconv.Itoa(projectID), strconv.Itoa(page), strconv.Itoa(pageSize))
 
-	result, err := GlobalCache.GetOrLoadWithLock(cacheKey, func() (interface{}, error) {
+	return withCachedList(cacheKey, 3*time.Minute, func() ([]zentao.Execution, error) {
 		var response *zentao.ExecutionListResponse
 		err := c.withTokenRetry("GetExecutions", func(client *zentao.Client) error {
 			var err error
@@ -23,12 +23,7 @@ func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Exec
 			return nil, err
 		}
 		return response.Executions, nil
-	}, 3*time.Minute)
-
-	if err != nil {
-		return nil, err
-	}
-	return result.([]zentao.Execution), nil
+	})
 }
 
 // GetExecutionsContext 获取执行列表（支持 context 取消）
