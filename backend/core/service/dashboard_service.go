@@ -11,6 +11,7 @@ import (
 	"github.com/yi-nology/common/biz/zentao"
 	"github.com/yi-nology/zentao-mini/backend/core/logger"
 	"github.com/yi-nology/zentao-mini/backend/core/storage"
+	"github.com/yi-nology/zentao-mini/backend/core/utils"
 	"github.com/yi-nology/zentao-mini/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-mini/backend/core/zentao"
 	"go.uber.org/zap"
@@ -620,15 +621,9 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 	}
 
 	result.Total = len(items)
-	start := (page - 1) * pageSize
-	if start > len(items) {
-		start = len(items)
-	}
-	end := start + pageSize
-	if end > len(items) {
-		end = len(items)
-	}
-	result.Items = items[start:end]
+	// issue #31：手写 (page-1)*pageSize 在 page 极大时溢出为负、负下标切片 panic；
+	// 收敛到 utils.PaginateSlice（带溢出守卫，越界页返回空列表）
+	result.Items = utils.PaginateSlice(items, page, pageSize)
 	return result, nil
 }
 

@@ -23,8 +23,9 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 
 	total := len(allUsers)
 	start := (page - 1) * pageSize
-	end := start + pageSize
-	if start >= total {
+	// issue #31：page 极大时 (page-1)*pageSize 整数溢出为负，该页必然越界——
+	// 与 start >= total 同路返回空列表，杜绝负下标切片 panic（对外 500）
+	if start < 0 || start >= total {
 		return &zentao.UserListResponse{
 			Users: []zentao.User{},
 			Page:  page,
@@ -32,9 +33,7 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 			Limit: pageSize,
 		}, nil
 	}
-	if end > total {
-		end = total
-	}
+	end := min(start+pageSize, total)
 
 	return &zentao.UserListResponse{
 		Users: allUsers[start:end],
