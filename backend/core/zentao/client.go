@@ -286,6 +286,17 @@ func (c *Client) GetAccount() string {
 	return c.account
 }
 
+// RefreshInterval token 刷新间隔（issue #30：供装配层断言配置真实接线，
+// 此前 yaml 字段被静默丢弃无从观测）
+func (c *Client) RefreshInterval() time.Duration {
+	return c.refreshInterval
+}
+
+// RequestTimeout 请求超时（同上，配置面观测口）
+func (c *Client) RequestTimeout() time.Duration {
+	return c.requestTimeout
+}
+
 // refreshOrWait 刷新 Token；若另一协程正在刷新则等待其完成（最长 15 秒）而不是立即失败。
 // 定时任务常在同一分钟同时触发（如工作日 9 点多个报告），Token 恰好过期时会并发 401
 // → 同时抢刷新，输家若直接放弃整条推送就会失败（2026-10-08 每日bug 线上故障根因）。

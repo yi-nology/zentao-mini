@@ -40,6 +40,17 @@ install:
 	@make frontend-install
 	@go mod tidy
 
+# 依赖注入代码生成（issue #30：此前 wire_gen.go 手工维护、与 wire.go 无限漂移）
+generate:
+	@echo "Regenerating wire injection code..."
+	@go tool wire ./backend/core/app/
+
+# 门禁：生成物与声明漂移时失败（CI 同款检查）
+generate-check: generate
+	@echo "Checking wire_gen.go drift..."
+	@git diff --exit-code -- backend/core/app/wire_gen.go || \
+		(echo "wire_gen.go 与 wire.go/providers.go 漂移，请运行 make generate 并提交" && exit 1)
+
 build:
 	@echo "Building web app (frontend + embedded binary)..."
 	@make frontend-build

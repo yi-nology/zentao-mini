@@ -4,18 +4,12 @@
 package app
 
 import (
-	"time"
-
-	"os"
-
-	"github.com/yi-nology/zentao-mini/backend/core/initialization"
-	"github.com/yi-nology/zentao-mini/backend/core/zentao"
-
 	"github.com/google/wire"
 )
 
 // InitializeHTTPApp 初始化HTTP应用
-// 使用wire自动生成依赖注入代码
+// 使用wire自动生成依赖注入代码（make generate 或 go generate ./backend/core/app/）
+// provider 实现在 providers.go（单源）；本文件只做 injector 声明，不参与编译。
 func InitializeHTTPApp(config *AppConfig) (Application, error) {
 	wire.Build(
 		provideInitService,
@@ -28,63 +22,3 @@ func InitializeHTTPApp(config *AppConfig) (Application, error) {
 }
 
 // InitializeWailsApp 已随桌面模式移除（v1.4.0），唯一入口 InitializeHTTPApp。
-
-func provideInitService(config *AppConfig) *initialization.InitService {
-	return initialization.NewInitService(
-		config.AuthDBPath,
-		config.EncryptionKey,
-	)
-}
-
-func provideConfigStore(config *AppConfig) *initialization.ConfigStore {
-	return initialization.NewConfigStore(config.AuthDBPath)
-}
-
-// provideZentaoClient 提供ZentaoClient实例
-func provideZentaoClient(config *AppConfig, initService *initialization.InitService) *zentao.Client {
-	// 加载禅道配置
-	zentaoServer, zentaoAccount, zentaoPassword := initialization.LoadZentaoConfig(initService)
-
-	// 如果配置中有值，优先使用配置中的值
-	if config.ZentaoServer != "" {
-		zentaoServer = config.ZentaoServer
-	}
-	if config.ZentaoAccount != "" {
-		zentaoAccount = config.ZentaoAccount
-	}
-	if config.ZentaoPassword != "" {
-		zentaoPassword = config.ZentaoPassword
-	}
-
-	// 如果仍然没有配置，从环境变量获取（优先 ZENTAO_MINI_ 前缀）
-	if zentaoServer == "" {
-		zentaoServer = os.Getenv("ZENTAO_MINI_ZENTAO_SERVER")
-		if zentaoServer == "" {
-			zentaoServer = os.Getenv("ZENTAO_SERVER")
-		}
-	}
-	if zentaoAccount == "" {
-		zentaoAccount = os.Getenv("ZENTAO_MINI_ZENTAO_ACCOUNT")
-		if zentaoAccount == "" {
-			zentaoAccount = os.Getenv("ZENTAO_ACCOUNT")
-		}
-	}
-	if zentaoPassword == "" {
-		zentaoPassword = os.Getenv("ZENTAO_MINI_ZENTAO_PASSWORD")
-		if zentaoPassword == "" {
-			zentaoPassword = os.Getenv("ZENTAO_PASSWORD")
-		}
-	}
-
-	// 配置面接上（issue：config 读入但未消费 = 配置撒谎）：
-	// yaml 的 zentao.token_refresh_interval（小时）/ request_timeout（秒）
-	// 从此生效；0 = 未配置，取 client 缺省。
-	return zentao.NewClientWithConfig(zentaoServer, zentaoAccount, zentaoPassword,
-		time.Duration(config.ZentaoTokenRefreshInterval)*time.Second,
-		time.Duration(config.ZentaoRequestTimeout)*time.Second)
-}
-
-// provideHTTPApp 提供HTTPApp并绑定到Application接口
-func provideHTTPApp(config *AppConfig, deps *Dependencies) Application {
-	return NewHTTPApp(config, deps)
-}

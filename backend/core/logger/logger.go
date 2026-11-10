@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync/atomic"
 
 	"github.com/yi-nology/zentao-mini/backend/core/config"
 
@@ -11,8 +12,11 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var globalLogger *zap.Logger
-var sugarLogger *zap.SugaredLogger
+// atomic.Pointer 化：NewClient 预连接等后台 goroutine 会与测试环境的
+// 重复 Init 并发读写全局 logger，裸指针是数据竞争（race detector 实测命中）；
+// 生产路径单次 Init 不受影响，读路径零锁开销
+var globalLogger atomic.Pointer[zap.Logger]
+var sugarLogger atomic.Pointer[zap.SugaredLogger]
 
 type ContextKey string
 
@@ -74,8 +78,9 @@ func Init(cfg *config.LogConfig) error {
 		return nil
 	}))
 
-	globalLogger = zap.New(core, options...)
-	sugarLogger = globalLogger.Sugar()
+	l := zap.New(core, options...)
+	globalLogger.Store(l)
+	sugarLogger.Store(l.Sugar())
 
 	return nil
 }
@@ -113,22 +118,22 @@ func getOutputWriter(outputPath string) zapcore.WriteSyncer {
 }
 
 func GetLogger() *zap.Logger {
-	if globalLogger == nil {
-		panic("logger not initialized, please call Init() first")
+	if l := globalLogger.Load(); l != nil {
+		return l
 	}
-	return globalLogger
+	panic("logger not initialized, please call Init() first")
 }
 
 func GetSugarLogger() *zap.SugaredLogger {
-	if sugarLogger == nil {
-		panic("logger not initialized, please call Init() first")
+	if l := sugarLogger.Load(); l != nil {
+		return l
 	}
-	return sugarLogger
+	panic("logger not initialized, please call Init() first")
 }
 
 func Sync() error {
-	if globalLogger != nil {
-		return globalLogger.Sync()
+	if l := globalLogger.Load(); l != nil {
+		return l.Sync()
 	}
 	return nil
 }

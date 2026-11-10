@@ -6,14 +6,11 @@
 
 package app
 
-import (
-	"github.com/yi-nology/zentao-mini/backend/core/initialization"
-	"github.com/yi-nology/zentao-mini/backend/core/zentao"
-	"os"
-)
-
 // Injectors from wire.go:
 
+// InitializeHTTPApp 初始化HTTP应用
+// 使用wire自动生成依赖注入代码（make generate 或 go generate ./backend/core/app/）
+// provider 实现在 providers.go（单源）；本文件只做 injector 声明，不参与编译。
 func InitializeHTTPApp(config *AppConfig) (Application, error) {
 	initService := provideInitService(config)
 	client := provideZentaoClient(config, initService)
@@ -21,50 +18,4 @@ func InitializeHTTPApp(config *AppConfig) (Application, error) {
 	dependencies := NewDependencies(initService, client, configStore)
 	application := provideHTTPApp(config, dependencies)
 	return application, nil
-}
-
-// wire.go:
-
-func provideInitService(config *AppConfig) *initialization.InitService {
-	return initialization.NewInitService(
-		config.AuthDBPath,
-		config.EncryptionKey,
-	)
-}
-
-func provideConfigStore(config *AppConfig) *initialization.ConfigStore {
-	return initialization.NewConfigStore(config.AuthDBPath)
-}
-
-// provideZentaoClient 提供ZentaoClient实例
-func provideZentaoClient(config *AppConfig, initService *initialization.InitService) *zentao.Client {
-
-	zentaoServer, zentaoAccount, zentaoPassword := initialization.LoadZentaoConfig(initService)
-
-	if config.ZentaoServer != "" {
-		zentaoServer = config.ZentaoServer
-	}
-	if config.ZentaoAccount != "" {
-		zentaoAccount = config.ZentaoAccount
-	}
-	if config.ZentaoPassword != "" {
-		zentaoPassword = config.ZentaoPassword
-	}
-
-	if zentaoServer == "" {
-		zentaoServer = os.Getenv("ZENTAO_SERVER")
-	}
-	if zentaoAccount == "" {
-		zentaoAccount = os.Getenv("ZENTAO_ACCOUNT")
-	}
-	if zentaoPassword == "" {
-		zentaoPassword = os.Getenv("ZENTAO_PASSWORD")
-	}
-
-	return zentao.NewClient(zentaoServer, zentaoAccount, zentaoPassword)
-}
-
-// provideHTTPApp 提供HTTPApp并绑定到Application接口
-func provideHTTPApp(config *AppConfig, deps *Dependencies) Application {
-	return NewHTTPApp(config, deps)
 }
