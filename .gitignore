@@ -41,8 +41,10 @@ build-app.sh
 zentao-mini-app
 zentao-mini-local
 zentao-mini-server
-app
-server
+# Makefile backend-build/backend-app-build 的产物（backend/ 下裸二进制），
+# 此前裸写 app/server 会误伤源码目录 backend/core/app 下的新文件
+backend/app
+backend/server
 backend/mcp
 data/
 zentao-mini-local-new
