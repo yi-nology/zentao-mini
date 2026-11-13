@@ -79,8 +79,9 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	mcp.GetMCPModeManager().SetTransport(mcp.TransportHTTP)
 
 	// both 模式：HTTP 入口额外启动后台 stdio 监听，与 HTTP 共享同一 MCPServer
+	// （传输模式仍标记 http；stdio 入口由 cmd/mcp 自行标记）
 	if mcpCfg.Transport == mcp.TransportBoth {
-		mcp.NewStdioTransport(mcpServer).Start()
+		go mcp.NewStdioTransport(mcpServer).Run(context.Background())
 		logger.Info("MCP stdio transport started in 'both' mode")
 	}
 
