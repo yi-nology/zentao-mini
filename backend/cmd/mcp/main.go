@@ -109,6 +109,8 @@ func main() {
 		cancel()
 	}()
 
+	// 标记当前进程为 stdio 传输模式（both 模式的 HTTP 入口标记 http，不经过这里）
+	mcp.GetMCPModeManager().SetTransport(mcp.TransportStdio)
 	logger.Info("MCP stdio server listening on stdin/stdout")
 	transport.Run(ctx)
 
